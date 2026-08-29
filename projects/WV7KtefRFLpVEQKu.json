@@ -1,0 +1,962 @@
+{
+  "root": {
+    "type": "root",
+    "children": [
+      {
+        "type": "text",
+        "id": "cba373b8-d54d-4c11-8d0c-d76b0ba2046b",
+        "text": {
+          "ops": [
+            {
+              "insert": "NOWPayments Payments"
+            },
+            {
+              "insert": "\n",
+              "attributes": {
+                "paragraph": true
+              }
+            }
+          ]
+        },
+        "format": null,
+        "collapsed": false,
+        "completed": false,
+        "children": [
+          {
+            "type": "text",
+            "id": "84dbed2b-c303-4b4e-bda0-4b1b2377fbcb",
+            "text": {
+              "ops": [
+                {
+                  "insert": "DEMO-001",
+                  "attributes": {}
+                },
+                {
+                  "insert": "\n",
+                  "attributes": {
+                    "paragraph": true
+                  }
+                }
+              ]
+            },
+            "format": {
+              "node": "text",
+              "children": null
+            },
+            "collapsed": false,
+            "completed": false,
+            "attributes": {
+              "@payId": "ironix_demo_001",
+              "@userId": "demo_user",
+              "@planId": "silver",
+              "@amount": 9.99,
+              "@status": {
+                "type": "Select",
+                "optionId": "completed"
+              },
+              "@clientRef": "ref_demo_001_silver"
+            },
+            "children": []
+          },
+          {
+            "type": "text",
+            "id": "c7ca5aeb-7d2b-4d41-8ee9-646ff1ff8476",
+            "text": {
+              "ops": [
+                {
+                  "insert": "DEMO-002",
+                  "attributes": {}
+                },
+                {
+                  "insert": "\n",
+                  "attributes": {
+                    "paragraph": true
+                  }
+                }
+              ]
+            },
+            "format": {
+              "node": "text",
+              "children": null
+            },
+            "collapsed": false,
+            "completed": false,
+            "attributes": {
+              "@payId": "ironix_demo_002",
+              "@userId": "user_abc",
+              "@planId": "gold",
+              "@amount": 24.99,
+              "@status": {
+                "type": "Select",
+                "optionId": "pending"
+              },
+              "@clientRef": "ref_demo_002_gold"
+            },
+            "children": []
+          }
+        ]
+      }
+    ],
+    "views": {
+      "list": {
+        "id": "list",
+        "type": "list",
+        "rank": "A",
+        "displayedFields": {
+          "/text": {
+            "id": "/text",
+            "fieldPath": "/text",
+            "rank": "7"
+          },
+          "/attributes/agent": {
+            "id": "/attributes/agent",
+            "fieldPath": "/attributes/agent",
+            "rank": "A"
+          },
+          "/attributes/date": {
+            "id": "/attributes/date",
+            "fieldPath": "/attributes/date",
+            "rank": "F"
+          },
+          "/attributes/assignee": {
+            "id": "/attributes/assignee",
+            "fieldPath": "/attributes/assignee",
+            "rank": "N"
+          },
+          "/attributes/comment": {
+            "id": "/attributes/comment",
+            "fieldPath": "/attributes/comment",
+            "rank": "V"
+          },
+          "/attributes/reaction": {
+            "id": "/attributes/reaction",
+            "fieldPath": "/attributes/reaction",
+            "rank": "c"
+          },
+          "/attributes/timer": {
+            "id": "/attributes/timer",
+            "fieldPath": "/attributes/timer",
+            "rank": "k"
+          },
+          "/attributes/media": {
+            "id": "/attributes/media",
+            "fieldPath": "/attributes/media",
+            "rank": "s"
+          },
+          "/attributes/created/at": {
+            "id": "/attributes/created/at",
+            "fieldPath": "/attributes/created/at",
+            "rank": "t"
+          },
+          "/attributes/created/by": {
+            "id": "/attributes/created/by",
+            "fieldPath": "/attributes/created/by",
+            "rank": "u"
+          },
+          "/attributes/updated/at": {
+            "id": "/attributes/updated/at",
+            "fieldPath": "/attributes/updated/at",
+            "rank": "vF"
+          },
+          "/attributes/updated/by": {
+            "id": "/attributes/updated/by",
+            "fieldPath": "/attributes/updated/by",
+            "rank": "wF"
+          },
+          "/attributes/completed/at": {
+            "id": "/attributes/completed/at",
+            "fieldPath": "/attributes/completed/at",
+            "rank": "x"
+          },
+          "/attributes/completed/by": {
+            "id": "/attributes/completed/by",
+            "fieldPath": "/attributes/completed/by",
+            "rank": "y"
+          },
+          "/attributes/@payId": {
+            "id": "/attributes/@payId",
+            "fieldPath": "/attributes/@payId",
+            "rank": "z"
+          },
+          "/attributes/@userId": {
+            "id": "/attributes/@userId",
+            "fieldPath": "/attributes/@userId",
+            "rank": "zV"
+          },
+          "/attributes/@planId": {
+            "id": "/attributes/@planId",
+            "fieldPath": "/attributes/@planId",
+            "rank": "zk"
+          },
+          "/attributes/@amount": {
+            "id": "/attributes/@amount",
+            "fieldPath": "/attributes/@amount",
+            "rank": "zs"
+          },
+          "/attributes/@status": {
+            "id": "/attributes/@status",
+            "fieldPath": "/attributes/@status",
+            "rank": "zw"
+          },
+          "/attributes/@clientRef": {
+            "id": "/attributes/@clientRef",
+            "fieldPath": "/attributes/@clientRef",
+            "rank": "zy"
+          },
+          "/attributes/@sessionId": {
+            "id": "/attributes/@sessionId",
+            "fieldPath": "/attributes/@sessionId",
+            "rank": "zz"
+          },
+          "/attributes/@checkoutUrl": {
+            "id": "/attributes/@checkoutUrl",
+            "fieldPath": "/attributes/@checkoutUrl",
+            "rank": "zzV"
+          },
+          "/attributes/@completedAt": {
+            "id": "/attributes/@completedAt",
+            "fieldPath": "/attributes/@completedAt",
+            "rank": "zzk"
+          }
+        }
+      },
+      "board": {
+        "id": "board",
+        "type": "board",
+        "rank": "B",
+        "displayedFields": {
+          "/text": {
+            "id": "/text",
+            "fieldPath": "/text",
+            "rank": "7"
+          },
+          "/attributes/agent": {
+            "id": "/attributes/agent",
+            "fieldPath": "/attributes/agent",
+            "rank": "A"
+          },
+          "/attributes/date": {
+            "id": "/attributes/date",
+            "fieldPath": "/attributes/date",
+            "rank": "F"
+          },
+          "/attributes/assignee": {
+            "id": "/attributes/assignee",
+            "fieldPath": "/attributes/assignee",
+            "rank": "N"
+          },
+          "/attributes/comment": {
+            "id": "/attributes/comment",
+            "fieldPath": "/attributes/comment",
+            "rank": "V"
+          },
+          "/attributes/reaction": {
+            "id": "/attributes/reaction",
+            "fieldPath": "/attributes/reaction",
+            "rank": "c"
+          },
+          "/attributes/timer": {
+            "id": "/attributes/timer",
+            "fieldPath": "/attributes/timer",
+            "rank": "k"
+          },
+          "/attributes/media": {
+            "id": "/attributes/media",
+            "fieldPath": "/attributes/media",
+            "rank": "s"
+          },
+          "/attributes/created/at": {
+            "id": "/attributes/created/at",
+            "fieldPath": "/attributes/created/at",
+            "rank": "t"
+          },
+          "/attributes/created/by": {
+            "id": "/attributes/created/by",
+            "fieldPath": "/attributes/created/by",
+            "rank": "u"
+          },
+          "/attributes/updated/at": {
+            "id": "/attributes/updated/at",
+            "fieldPath": "/attributes/updated/at",
+            "rank": "vF"
+          },
+          "/attributes/updated/by": {
+            "id": "/attributes/updated/by",
+            "fieldPath": "/attributes/updated/by",
+            "rank": "wF"
+          },
+          "/attributes/completed/at": {
+            "id": "/attributes/completed/at",
+            "fieldPath": "/attributes/completed/at",
+            "rank": "x"
+          },
+          "/attributes/completed/by": {
+            "id": "/attributes/completed/by",
+            "fieldPath": "/attributes/completed/by",
+            "rank": "y"
+          },
+          "/attributes/@payId": {
+            "id": "/attributes/@payId",
+            "fieldPath": "/attributes/@payId",
+            "rank": "z"
+          },
+          "/attributes/@userId": {
+            "id": "/attributes/@userId",
+            "fieldPath": "/attributes/@userId",
+            "rank": "zV"
+          },
+          "/attributes/@planId": {
+            "id": "/attributes/@planId",
+            "fieldPath": "/attributes/@planId",
+            "rank": "zk"
+          },
+          "/attributes/@amount": {
+            "id": "/attributes/@amount",
+            "fieldPath": "/attributes/@amount",
+            "rank": "zs"
+          },
+          "/attributes/@status": {
+            "id": "/attributes/@status",
+            "fieldPath": "/attributes/@status",
+            "rank": "zw"
+          },
+          "/attributes/@clientRef": {
+            "id": "/attributes/@clientRef",
+            "fieldPath": "/attributes/@clientRef",
+            "rank": "zy"
+          },
+          "/attributes/@sessionId": {
+            "id": "/attributes/@sessionId",
+            "fieldPath": "/attributes/@sessionId",
+            "rank": "zz"
+          },
+          "/attributes/@checkoutUrl": {
+            "id": "/attributes/@checkoutUrl",
+            "fieldPath": "/attributes/@checkoutUrl",
+            "rank": "zzV"
+          },
+          "/attributes/@completedAt": {
+            "id": "/attributes/@completedAt",
+            "fieldPath": "/attributes/@completedAt",
+            "rank": "zzk"
+          }
+        }
+      },
+      "mindmap": {
+        "id": "mindmap",
+        "type": "mindmap",
+        "rank": "D",
+        "displayedFields": {
+          "/text": {
+            "id": "/text",
+            "fieldPath": "/text",
+            "rank": "7"
+          },
+          "/attributes/agent": {
+            "id": "/attributes/agent",
+            "fieldPath": "/attributes/agent",
+            "rank": "A"
+          },
+          "/attributes/date": {
+            "id": "/attributes/date",
+            "fieldPath": "/attributes/date",
+            "rank": "F"
+          },
+          "/attributes/assignee": {
+            "id": "/attributes/assignee",
+            "fieldPath": "/attributes/assignee",
+            "rank": "N"
+          },
+          "/attributes/comment": {
+            "id": "/attributes/comment",
+            "fieldPath": "/attributes/comment",
+            "rank": "V"
+          },
+          "/attributes/reaction": {
+            "id": "/attributes/reaction",
+            "fieldPath": "/attributes/reaction",
+            "rank": "c"
+          },
+          "/attributes/timer": {
+            "id": "/attributes/timer",
+            "fieldPath": "/attributes/timer",
+            "rank": "k"
+          },
+          "/attributes/media": {
+            "id": "/attributes/media",
+            "fieldPath": "/attributes/media",
+            "rank": "s"
+          },
+          "/attributes/created/at": {
+            "id": "/attributes/created/at",
+            "fieldPath": "/attributes/created/at",
+            "rank": "t"
+          },
+          "/attributes/created/by": {
+            "id": "/attributes/created/by",
+            "fieldPath": "/attributes/created/by",
+            "rank": "u"
+          },
+          "/attributes/updated/at": {
+            "id": "/attributes/updated/at",
+            "fieldPath": "/attributes/updated/at",
+            "rank": "vF"
+          },
+          "/attributes/updated/by": {
+            "id": "/attributes/updated/by",
+            "fieldPath": "/attributes/updated/by",
+            "rank": "wF"
+          },
+          "/attributes/completed/at": {
+            "id": "/attributes/completed/at",
+            "fieldPath": "/attributes/completed/at",
+            "rank": "x"
+          },
+          "/attributes/completed/by": {
+            "id": "/attributes/completed/by",
+            "fieldPath": "/attributes/completed/by",
+            "rank": "y"
+          },
+          "/attributes/@payId": {
+            "id": "/attributes/@payId",
+            "fieldPath": "/attributes/@payId",
+            "rank": "z"
+          },
+          "/attributes/@userId": {
+            "id": "/attributes/@userId",
+            "fieldPath": "/attributes/@userId",
+            "rank": "zV"
+          },
+          "/attributes/@planId": {
+            "id": "/attributes/@planId",
+            "fieldPath": "/attributes/@planId",
+            "rank": "zk"
+          },
+          "/attributes/@amount": {
+            "id": "/attributes/@amount",
+            "fieldPath": "/attributes/@amount",
+            "rank": "zs"
+          },
+          "/attributes/@status": {
+            "id": "/attributes/@status",
+            "fieldPath": "/attributes/@status",
+            "rank": "zw"
+          },
+          "/attributes/@clientRef": {
+            "id": "/attributes/@clientRef",
+            "fieldPath": "/attributes/@clientRef",
+            "rank": "zy"
+          },
+          "/attributes/@sessionId": {
+            "id": "/attributes/@sessionId",
+            "fieldPath": "/attributes/@sessionId",
+            "rank": "zz"
+          },
+          "/attributes/@checkoutUrl": {
+            "id": "/attributes/@checkoutUrl",
+            "fieldPath": "/attributes/@checkoutUrl",
+            "rank": "zzV"
+          },
+          "/attributes/@completedAt": {
+            "id": "/attributes/@completedAt",
+            "fieldPath": "/attributes/@completedAt",
+            "rank": "zzk"
+          }
+        }
+      },
+      "orgchart": {
+        "id": "orgchart",
+        "type": "orgchart",
+        "rank": "E",
+        "displayedFields": {
+          "/text": {
+            "id": "/text",
+            "fieldPath": "/text",
+            "rank": "7"
+          },
+          "/attributes/agent": {
+            "id": "/attributes/agent",
+            "fieldPath": "/attributes/agent",
+            "rank": "A"
+          },
+          "/attributes/date": {
+            "id": "/attributes/date",
+            "fieldPath": "/attributes/date",
+            "rank": "F"
+          },
+          "/attributes/assignee": {
+            "id": "/attributes/assignee",
+            "fieldPath": "/attributes/assignee",
+            "rank": "N"
+          },
+          "/attributes/comment": {
+            "id": "/attributes/comment",
+            "fieldPath": "/attributes/comment",
+            "rank": "V"
+          },
+          "/attributes/reaction": {
+            "id": "/attributes/reaction",
+            "fieldPath": "/attributes/reaction",
+            "rank": "c"
+          },
+          "/attributes/timer": {
+            "id": "/attributes/timer",
+            "fieldPath": "/attributes/timer",
+            "rank": "k"
+          },
+          "/attributes/media": {
+            "id": "/attributes/media",
+            "fieldPath": "/attributes/media",
+            "rank": "s"
+          },
+          "/attributes/created/at": {
+            "id": "/attributes/created/at",
+            "fieldPath": "/attributes/created/at",
+            "rank": "t"
+          },
+          "/attributes/created/by": {
+            "id": "/attributes/created/by",
+            "fieldPath": "/attributes/created/by",
+            "rank": "u"
+          },
+          "/attributes/updated/at": {
+            "id": "/attributes/updated/at",
+            "fieldPath": "/attributes/updated/at",
+            "rank": "vF"
+          },
+          "/attributes/updated/by": {
+            "id": "/attributes/updated/by",
+            "fieldPath": "/attributes/updated/by",
+            "rank": "wF"
+          },
+          "/attributes/completed/at": {
+            "id": "/attributes/completed/at",
+            "fieldPath": "/attributes/completed/at",
+            "rank": "x"
+          },
+          "/attributes/completed/by": {
+            "id": "/attributes/completed/by",
+            "fieldPath": "/attributes/completed/by",
+            "rank": "y"
+          },
+          "/attributes/@payId": {
+            "id": "/attributes/@payId",
+            "fieldPath": "/attributes/@payId",
+            "rank": "z"
+          },
+          "/attributes/@userId": {
+            "id": "/attributes/@userId",
+            "fieldPath": "/attributes/@userId",
+            "rank": "zV"
+          },
+          "/attributes/@planId": {
+            "id": "/attributes/@planId",
+            "fieldPath": "/attributes/@planId",
+            "rank": "zk"
+          },
+          "/attributes/@amount": {
+            "id": "/attributes/@amount",
+            "fieldPath": "/attributes/@amount",
+            "rank": "zs"
+          },
+          "/attributes/@status": {
+            "id": "/attributes/@status",
+            "fieldPath": "/attributes/@status",
+            "rank": "zw"
+          },
+          "/attributes/@clientRef": {
+            "id": "/attributes/@clientRef",
+            "fieldPath": "/attributes/@clientRef",
+            "rank": "zy"
+          },
+          "/attributes/@sessionId": {
+            "id": "/attributes/@sessionId",
+            "fieldPath": "/attributes/@sessionId",
+            "rank": "zz"
+          },
+          "/attributes/@checkoutUrl": {
+            "id": "/attributes/@checkoutUrl",
+            "fieldPath": "/attributes/@checkoutUrl",
+            "rank": "zzV"
+          },
+          "/attributes/@completedAt": {
+            "id": "/attributes/@completedAt",
+            "fieldPath": "/attributes/@completedAt",
+            "rank": "zzk"
+          }
+        }
+      },
+      "gantt": {
+        "id": "gantt",
+        "type": "gantt",
+        "rank": "F",
+        "columns": {
+          "/text": {
+            "id": "/text",
+            "fieldPath": "/text",
+            "rank": "7",
+            "width": 480
+          },
+          "/attributes/agent": {
+            "id": "/attributes/agent",
+            "fieldPath": "/attributes/agent",
+            "rank": "A",
+            "hidden": true
+          },
+          "/attributes/date": {
+            "id": "/attributes/date",
+            "fieldPath": "/attributes/date",
+            "rank": "F",
+            "hidden": true
+          },
+          "/attributes/assignee": {
+            "id": "/attributes/assignee",
+            "fieldPath": "/attributes/assignee",
+            "rank": "N",
+            "hidden": true
+          },
+          "/attributes/comment": {
+            "id": "/attributes/comment",
+            "fieldPath": "/attributes/comment",
+            "rank": "V",
+            "hidden": true
+          },
+          "/attributes/reaction": {
+            "id": "/attributes/reaction",
+            "fieldPath": "/attributes/reaction",
+            "rank": "c",
+            "hidden": true
+          },
+          "/attributes/timer": {
+            "id": "/attributes/timer",
+            "fieldPath": "/attributes/timer",
+            "rank": "k",
+            "hidden": true
+          },
+          "/attributes/media": {
+            "id": "/attributes/media",
+            "fieldPath": "/attributes/media",
+            "rank": "s",
+            "hidden": true
+          },
+          "/attributes/created/at": {
+            "id": "/attributes/created/at",
+            "fieldPath": "/attributes/created/at",
+            "rank": "t",
+            "hidden": true
+          },
+          "/attributes/created/by": {
+            "id": "/attributes/created/by",
+            "fieldPath": "/attributes/created/by",
+            "rank": "u",
+            "hidden": true
+          },
+          "/attributes/updated/at": {
+            "id": "/attributes/updated/at",
+            "fieldPath": "/attributes/updated/at",
+            "rank": "vF",
+            "hidden": true
+          },
+          "/attributes/updated/by": {
+            "id": "/attributes/updated/by",
+            "fieldPath": "/attributes/updated/by",
+            "rank": "wF",
+            "hidden": true
+          },
+          "/attributes/completed/at": {
+            "id": "/attributes/completed/at",
+            "fieldPath": "/attributes/completed/at",
+            "rank": "x",
+            "hidden": true
+          },
+          "/attributes/completed/by": {
+            "id": "/attributes/completed/by",
+            "fieldPath": "/attributes/completed/by",
+            "rank": "y",
+            "hidden": true
+          },
+          "/attributes/@payId": {
+            "id": "/attributes/@payId",
+            "fieldPath": "/attributes/@payId",
+            "rank": "z",
+            "hidden": false
+          },
+          "/attributes/@userId": {
+            "id": "/attributes/@userId",
+            "fieldPath": "/attributes/@userId",
+            "rank": "zV",
+            "hidden": false
+          },
+          "/attributes/@planId": {
+            "id": "/attributes/@planId",
+            "fieldPath": "/attributes/@planId",
+            "rank": "zk",
+            "hidden": false
+          },
+          "/attributes/@amount": {
+            "id": "/attributes/@amount",
+            "fieldPath": "/attributes/@amount",
+            "rank": "zs",
+            "hidden": false
+          },
+          "/attributes/@status": {
+            "id": "/attributes/@status",
+            "fieldPath": "/attributes/@status",
+            "rank": "zw",
+            "hidden": false
+          },
+          "/attributes/@clientRef": {
+            "id": "/attributes/@clientRef",
+            "fieldPath": "/attributes/@clientRef",
+            "rank": "zy",
+            "hidden": false
+          },
+          "/attributes/@sessionId": {
+            "id": "/attributes/@sessionId",
+            "fieldPath": "/attributes/@sessionId",
+            "rank": "zz",
+            "hidden": false
+          },
+          "/attributes/@checkoutUrl": {
+            "id": "/attributes/@checkoutUrl",
+            "fieldPath": "/attributes/@checkoutUrl",
+            "rank": "zzV",
+            "hidden": false
+          },
+          "/attributes/@completedAt": {
+            "id": "/attributes/@completedAt",
+            "fieldPath": "/attributes/@completedAt",
+            "rank": "zzk",
+            "hidden": false
+          }
+        }
+      },
+      "table": {
+        "id": "table",
+        "type": "table",
+        "rank": "V",
+        "columns": {
+          "/text": {
+            "id": "/text",
+            "fieldPath": "/text",
+            "rank": "7",
+            "width": 480
+          },
+          "/attributes/agent": {
+            "id": "/attributes/agent",
+            "fieldPath": "/attributes/agent",
+            "rank": "A",
+            "hidden": true
+          },
+          "/attributes/date": {
+            "id": "/attributes/date",
+            "fieldPath": "/attributes/date",
+            "rank": "F",
+            "hidden": true
+          },
+          "/attributes/assignee": {
+            "id": "/attributes/assignee",
+            "fieldPath": "/attributes/assignee",
+            "rank": "N",
+            "hidden": true
+          },
+          "/attributes/comment": {
+            "id": "/attributes/comment",
+            "fieldPath": "/attributes/comment",
+            "rank": "V",
+            "hidden": true
+          },
+          "/attributes/reaction": {
+            "id": "/attributes/reaction",
+            "fieldPath": "/attributes/reaction",
+            "rank": "c",
+            "hidden": true
+          },
+          "/attributes/timer": {
+            "id": "/attributes/timer",
+            "fieldPath": "/attributes/timer",
+            "rank": "k",
+            "hidden": true
+          },
+          "/attributes/media": {
+            "id": "/attributes/media",
+            "fieldPath": "/attributes/media",
+            "rank": "s",
+            "hidden": true
+          },
+          "/attributes/created/at": {
+            "id": "/attributes/created/at",
+            "fieldPath": "/attributes/created/at",
+            "rank": "t",
+            "hidden": true
+          },
+          "/attributes/created/by": {
+            "id": "/attributes/created/by",
+            "fieldPath": "/attributes/created/by",
+            "rank": "u",
+            "hidden": true
+          },
+          "/attributes/updated/at": {
+            "id": "/attributes/updated/at",
+            "fieldPath": "/attributes/updated/at",
+            "rank": "vF",
+            "hidden": true
+          },
+          "/attributes/updated/by": {
+            "id": "/attributes/updated/by",
+            "fieldPath": "/attributes/updated/by",
+            "rank": "wF",
+            "hidden": true
+          },
+          "/attributes/completed/at": {
+            "id": "/attributes/completed/at",
+            "fieldPath": "/attributes/completed/at",
+            "rank": "x",
+            "hidden": true
+          },
+          "/attributes/completed/by": {
+            "id": "/attributes/completed/by",
+            "fieldPath": "/attributes/completed/by",
+            "rank": "y",
+            "hidden": true
+          },
+          "/attributes/@payId": {
+            "id": "/attributes/@payId",
+            "fieldPath": "/attributes/@payId",
+            "rank": "z",
+            "hidden": false
+          },
+          "/attributes/@userId": {
+            "id": "/attributes/@userId",
+            "fieldPath": "/attributes/@userId",
+            "rank": "zV",
+            "hidden": false
+          },
+          "/attributes/@planId": {
+            "id": "/attributes/@planId",
+            "fieldPath": "/attributes/@planId",
+            "rank": "zk",
+            "hidden": false
+          },
+          "/attributes/@amount": {
+            "id": "/attributes/@amount",
+            "fieldPath": "/attributes/@amount",
+            "rank": "zs",
+            "hidden": false
+          },
+          "/attributes/@status": {
+            "id": "/attributes/@status",
+            "fieldPath": "/attributes/@status",
+            "rank": "zw",
+            "hidden": false
+          },
+          "/attributes/@clientRef": {
+            "id": "/attributes/@clientRef",
+            "fieldPath": "/attributes/@clientRef",
+            "rank": "zy",
+            "hidden": false
+          },
+          "/attributes/@sessionId": {
+            "id": "/attributes/@sessionId",
+            "fieldPath": "/attributes/@sessionId",
+            "rank": "zz",
+            "hidden": false
+          },
+          "/attributes/@checkoutUrl": {
+            "id": "/attributes/@checkoutUrl",
+            "fieldPath": "/attributes/@checkoutUrl",
+            "rank": "zzV",
+            "hidden": false
+          },
+          "/attributes/@completedAt": {
+            "id": "/attributes/@completedAt",
+            "fieldPath": "/attributes/@completedAt",
+            "rank": "zzk",
+            "hidden": false
+          }
+        }
+      }
+    },
+    "fields": {
+      "@payId": {
+        "type": "string",
+        "displayName": "Payment ID"
+      },
+      "@planId": {
+        "type": "string",
+        "displayName": "Plan"
+      },
+      "@userId": {
+        "type": "string",
+        "displayName": "User ID"
+      },
+      "@clientRef": {
+        "type": "string",
+        "displayName": "Client Reference ID"
+      },
+      "@checkoutUrl": {
+        "type": "string",
+        "displayName": "Checkout URL"
+      },
+      "@sessionId": {
+        "type": "string",
+        "displayName": "IronixPay Session ID"
+      },
+      "@status": {
+        "type": "Select",
+        "displayName": "Status",
+        "options": {
+          "pending": {
+            "id": "pending",
+            "name": "Pending",
+            "color": "#f59e0b",
+            "rank": "0"
+          },
+          "completed": {
+            "id": "completed",
+            "name": "Completed",
+            "color": "#10b981",
+            "rank": "1"
+          },
+          "failed": {
+            "id": "failed",
+            "name": "Failed",
+            "color": "#ef4444",
+            "rank": "2"
+          },
+          "expired": {
+            "id": "expired",
+            "name": "Expired",
+            "color": "#6b7280",
+            "rank": "3"
+          }
+        }
+      },
+      "@amount": {
+        "type": "number",
+        "displayName": "Amount (USDT)",
+        "render": {
+          "type": "text"
+        },
+        "format": {
+          "type": "currency",
+          "config": {
+            "type": "standard",
+            "code": "USD"
+          }
+        }
+      },
+      "@completedAt": {
+        "type": "DateTime",
+        "title": "Completed At"
+      }
+    }
+  },
+  "preferences": {
+    "defaultView": "table",
+    "avatar": {
+      "type": "emoji",
+      "value": "✒️"
+    }
+  }
+}

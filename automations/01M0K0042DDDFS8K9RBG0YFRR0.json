@@ -1,0 +1,36 @@
+{
+  "version": "2",
+  "flowTitle": "CryptoVerse — Send OTP Email v2",
+  "trigger": {
+    "valid": true,
+    "type": "WEBHOOK",
+    "settings": {
+      "input": {
+        "type": "object",
+        "created": 1787344559736,
+        "properties": {
+          "New Field 1": {
+            "type": "string",
+            "title": "New Field 1",
+            "format": "email",
+            "created": 1787344598704
+          }
+        }
+      }
+    }
+  },
+  "actions": [],
+  "outputs": [
+    {
+      "type": "http_response",
+      "body": {
+        "type": "json",
+        "data": {
+          "type": "basic",
+          "payload": []
+        }
+      },
+      "key": "trigger"
+    }
+  ]
+}

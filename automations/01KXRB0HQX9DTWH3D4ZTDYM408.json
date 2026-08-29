@@ -1,0 +1,65 @@
+{
+  "version": "2",
+  "flowTitle": "Weekly Nations Digest",
+  "trigger": {
+    "valid": true,
+    "displayName": "Every Sunday Morning",
+    "type": "PIECE_TRIGGER",
+    "settings": {
+      "pieceName": "@taskade/automade-internalpiece-schedule",
+      "pieceVersion": "1.0.0",
+      "triggerName": "schedule.weekly",
+      "input": {
+        "timezone": "Asia/Tehran",
+        "dayOfWeek": [
+          "Sunday"
+        ],
+        "timeOfDay": "9:00 AM"
+      }
+    }
+  },
+  "actions": [
+    {
+      "name": "b2c3d4e5-f6a7-890b-cdef-1234567890ab",
+      "valid": true,
+      "displayName": "AI Generates Nations Digest",
+      "type": "PIECE",
+      "settings": {
+        "pieceName": "@taskade/automade-internalpiece-openai",
+        "pieceVersion": "1.0.0",
+        "actionName": "ai.ask",
+        "input": {
+          "model": "openai/gpt-5.4-mini",
+          "prompt": "Analyze the four CryptoVerse nations and generate this week's competitive performance digest.\n\nInclude:\n1. Weekly Highlights — Top performing nation and why\n2. Alpha Republic (rank #1, win rate 78.4%, weekly PnL +18.4%, 2841 members, quant trading style)\n3. Bull Empire (rank #2, win rate 74.1%, weekly PnL +14.2%, 3102 members, long-only style)\n4. Sigma Order (rank #3, win rate 70.8%, weekly PnL +9.7%, 1977 members, arbitrage style)\n5. Bear Collective (rank #4, win rate 65.3%, weekly PnL -3.2%, 1430 members, short-selling style)\n6. Faction War Update — Alpha Republic leads Bull Empire 54.2% to 45.8% in Season 4\n7. Nation Oracle Prediction — Who wins the war and why\n8. Trading Tip of the Week\n\nFormat as markdown with emoji headers. Exciting, competitive tone like esports analysis. Under 300 words. End with: For the glory of your nation! ⚔️"
+        }
+      }
+    },
+    {
+      "name": "d4e5f6a7-b8c9-0def-1234-567890abcdef",
+      "valid": false,
+      "displayName": "Post Digest to Project",
+      "type": "PIECE",
+      "settings": {
+        "pieceName": "@taskade/automade-internalpiece-taskade",
+        "pieceVersion": "1.0.0",
+        "actionName": "task.create",
+        "input": {
+          "content": "{{ b2c3d4e5-f6a7-890b-cdef-1234567890ab[\"result\"] }}",
+          "position": "beforeend",
+          "projectId": {
+            "type": "flow-template-variable-input-type",
+            "id": "SNBvoyLt9Le9Xr9s"
+          }
+        }
+      }
+    }
+  ],
+  "variables": {
+    "SNBvoyLt9Le9Xr9s": {
+      "id": "SNBvoyLt9Le9Xr9s",
+      "rank": "V",
+      "type": "string",
+      "format": "taskade-project-id"
+    }
+  }
+}

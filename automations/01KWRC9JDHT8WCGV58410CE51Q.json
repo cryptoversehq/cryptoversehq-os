@@ -1,0 +1,74 @@
+{
+  "version": "2",
+  "flowTitle": "Payment Confirmation Email",
+  "trigger": {
+    "valid": true,
+    "type": "WEBHOOK",
+    "settings": {
+      "input": {
+        "type": "object",
+        "properties": {
+          "amount": {
+            "type": "string",
+            "description": "Input for amount"
+          },
+          "network": {
+            "type": "string",
+            "description": "Input for network"
+          },
+          "planType": {
+            "type": "string",
+            "description": "Input for planType"
+          },
+          "userName": {
+            "type": "string",
+            "description": "Input for userName"
+          },
+          "startDate": {
+            "type": "string",
+            "description": "Input for startDate"
+          },
+          "userEmail": {
+            "type": "string",
+            "description": "Input for userEmail"
+          },
+          "expireDate": {
+            "type": "string",
+            "description": "Input for expireDate"
+          },
+          "paymentDate": {
+            "type": "string",
+            "description": "Input for paymentDate"
+          },
+          "dashboardUrl": {
+            "type": "string",
+            "description": "Input for dashboardUrl"
+          },
+          "invoiceNumber": {
+            "type": "string",
+            "description": "Input for invoiceNumber"
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "actions": [
+    {
+      "name": "a3b4c5d6-e7f8-9012-cdef-123456789012",
+      "valid": true,
+      "displayName": "Send payment confirmation invoice",
+      "type": "PIECE",
+      "settings": {
+        "pieceName": "@taskade/automade-internalpiece-taskade",
+        "pieceVersion": "1.0.0",
+        "actionName": "notify.email",
+        "input": {
+          "body": "Hello {{ trigger[\"body\"][\"userName\"] }},\n\nYour payment has been successfully confirmed and your subscription has been activated.\n\n🧾 Payment Invoice:\n\nInvoice Number: {{ trigger[\"body\"][\"invoiceNumber\"] }}\nDate: {{ trigger[\"body\"][\"paymentDate\"] }}\nPlan: {{ trigger[\"body\"][\"planType\"] }}\nAmount: {{ trigger[\"body\"][\"amount\"] }} USDT\nPayment Method: {{ trigger[\"body\"][\"network\"] }}\nStatus: ✅ Paid\n\n📊 Subscription Details:\n\nType: {{ trigger[\"body\"][\"planType\"] }}\nStart Date: {{ trigger[\"body\"][\"startDate\"] }}\nExpire Date: {{ trigger[\"body\"][\"expireDate\"] }}\n\n🔗 For more details, visit your dashboard:\n{{ trigger[\"body\"][\"dashboardUrl\"] }}\n\nThanks for your trust,\nThe CryptoVerse AI Team",
+          "subject": "✅ Payment Confirmation - CryptoVerse AI",
+          "recipientEmail": "{{ trigger[\"body\"][\"userEmail\"] }}"
+        }
+      }
+    }
+  ]
+}

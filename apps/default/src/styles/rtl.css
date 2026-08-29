@@ -1,0 +1,42 @@
+/* RTL Support — CryptoVerse HQ */
+
+[dir="rtl"] { text-align: right; }
+
+/* Lynx AI floating button (AgentChat.tsx) */
+[dir="rtl"] [class*="fixed"][class*="bottom-6"][class*="right-6"] {
+  right: auto !important;
+  left: 1.5rem !important;
+}
+
+/* Chat panel positioning */
+[dir="rtl"] [class*="bottom-6"][class*="right-6"] {
+  right: auto !important;
+  left: 1.5rem !important;
+}
+
+/* ChatButton sub-menu */
+[dir="rtl"] .chat-button-container { right: auto !important; left: 20px !important; }
+[dir="rtl"] .chat-button { flex-direction: row-reverse !important; }
+[dir="rtl"] .chat-button span:first-child { margin-left: 8px; margin-right: 0; }
+[dir="rtl"] .chat-sub-menu { right: auto !important; left: 0 !important; }
+[dir="rtl"] .chat-sub-menu-item { text-align: right !important; padding: 8px 16px 8px 12px !important; }
+
+/* General RTL utility overrides */
+[dir="rtl"] .flex-row { flex-direction: row-reverse !important; }
+[dir="rtl"] .space-x-2 > * + * { margin-left: 0 !important; margin-right: 0.5rem !important; }
+[dir="rtl"] .space-x-3 > * + * { margin-left: 0 !important; margin-right: 0.75rem !important; }
+[dir="rtl"] .ml-auto { margin-left: 0 !important; margin-right: auto !important; }
+[dir="rtl"] .mr-auto { margin-right: 0 !important; margin-left: auto !important; }
+[dir="rtl"] .ml-2 { margin-left: 0 !important; margin-right: 0.5rem !important; }
+[dir="rtl"] .mr-2 { margin-right: 0 !important; margin-left: 0.5rem !important; }
+[dir="rtl"] .pl-4 { padding-left: 0 !important; padding-right: 1rem !important; }
+[dir="rtl"] .pr-4 { padding-right: 0 !important; padding-left: 1rem !important; }
+[dir="rtl"] .border-l { border-left: none !important; border-right: 1px solid #e5e7eb !important; }
+[dir="rtl"] .border-r { border-right: none !important; border-left: 1px solid #e5e7eb !important; }
+[dir="rtl"] .left-0 { left: auto !important; right: 0 !important; }
+[dir="rtl"] .right-0 { right: auto !important; left: 0 !important; }
+[dir="rtl"] .right-4 { right: auto !important; left: 1rem !important; }
+[dir="rtl"] .right-6 { right: auto !important; left: 1.5rem !important; }
+[dir="rtl"] .bottom-6 { bottom: 1.5rem; }
+
+[dir="rtl"] .icon-rotate { transform: scaleX(-1); }

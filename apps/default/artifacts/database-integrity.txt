@@ -1,0 +1,1 @@
+NOT GENERATED – CryptoVerse HQ is a Taskade Genesis App without SQL database schema, SQL migrations, or Supabase tables; cloud storage is managed via Taskade Cloud Project Nodes (/api/taskade/projects/3dMq65zUi1A7ayiC/nodes).

@@ -1,0 +1,35 @@
+{
+  "root": {
+    "type": "root",
+    "children": [
+      {
+        "type": "text",
+        "id": "11111111-2222-3333-4444-555555555552",
+        "text": {
+          "ops": [
+            {
+              "insert": "[DEPRECATED] CryptoPlay Leaderboard"
+            },
+            {
+              "insert": "\n",
+              "attributes": {
+                "paragraph": true
+              }
+            }
+          ]
+        },
+        "format": null,
+        "collapsed": false,
+        "completed": false,
+        "children": []
+      }
+    ]
+  },
+  "preferences": {
+    "defaultView": "table",
+    "avatar": {
+      "type": "emoji",
+      "value": "📔"
+    }
+  }
+}

@@ -1,0 +1,51 @@
+{
+  "measuredAt": "2026-08-06T19:35:00.272Z",
+  "environment": "Node.js v20.20.2",
+  "healthStatus": "HEALTHY",
+  "memory": {
+    "heapUsedMB": 6.58,
+    "heapTotalMB": 9.15,
+    "rssMB": 46.04
+  },
+  "cpu": {
+    "idlePct": 99.99,
+    "peakExecutionLatencyMs": 0.0079
+  },
+  "subsystems": {
+    "offlineQueue": {
+      "status": "HEALTHY",
+      "pendingItems": 0,
+      "lastDrainLatencyMs": 0.0338
+    },
+    "cloudSync": {
+      "status": "HEALTHY",
+      "provider": "TaskadeCloudProvider",
+      "avgLatencyMs": 148.58
+    },
+    "conflictEngine": {
+      "status": "HEALTHY",
+      "algorithm": "enterpriseDeepMerge",
+      "avgMergeLatencyMs": 0.0079
+    },
+    "orderEngine": {
+      "status": "HEALTHY",
+      "storageKey": "cv_pending_orders_v2",
+      "cloudBacked": true
+    },
+    "marketplace": {
+      "status": "HEALTHY",
+      "atomicTransaction": true,
+      "rollbackSafety": true
+    },
+    "universalMemory": {
+      "status": "HEALTHY",
+      "cloudBacked": true,
+      "localStorageOnly": false
+    },
+    "lynxAI": {
+      "status": "HEALTHY",
+      "ringBufferMaxCapacity": 500,
+      "ringBufferUsed": 500
+    }
+  }
+}

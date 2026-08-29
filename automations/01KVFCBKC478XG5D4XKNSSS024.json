@@ -1,0 +1,139 @@
+{
+  "version": "2",
+  "flowTitle": "NOWPayments — Payment Confirmation",
+  "trigger": {
+    "valid": true,
+    "type": "WEBHOOK",
+    "settings": {
+      "input": {
+        "type": "object",
+        "properties": {
+          "order_id": {
+            "type": "string",
+            "description": "Input for order_id"
+          },
+          "pay_amount": {
+            "type": "number"
+          },
+          "payment_id": {
+            "type": "string",
+            "description": "Input for payment_id"
+          },
+          "pay_currency": {
+            "type": "string",
+            "description": "Input for pay_currency"
+          },
+          "price_amount": {
+            "type": "number"
+          },
+          "payment_status": {
+            "type": "string",
+            "description": "Input for payment_status"
+          },
+          "price_currency": {
+            "type": "string",
+            "description": "Input for price_currency"
+          },
+          "order_description": {
+            "type": "string",
+            "description": "Input for order_description"
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "actions": [
+    {
+      "name": "b2c3d4e5-f678-90ab-cdef-1234567890ab",
+      "valid": false,
+      "displayName": "Log Payment Confirmation",
+      "type": "PIECE",
+      "settings": {
+        "pieceName": "@taskade/automade-internalpiece-taskade",
+        "pieceVersion": "1.0.0",
+        "actionName": "task.create",
+        "input": {
+          "fields": {
+            "@payId": {
+              "data": {
+                "value": "{{ trigger[\"body\"][\"payment_id\"] }}"
+              },
+              "rank": "0",
+              "fieldId": "@payId"
+            },
+            "@amount": {
+              "data": {
+                "value": "{{ trigger[\"body\"][\"price_amount\"] }}"
+              },
+              "rank": "5",
+              "fieldId": "@amount"
+            },
+            "@planId": {
+              "data": {
+                "value": "{{ trigger[\"body\"][\"order_description\"] }}"
+              },
+              "rank": "1",
+              "fieldId": "@planId"
+            },
+            "@status": {
+              "data": {
+                "value": "completed"
+              },
+              "rank": "6",
+              "fieldId": "@status"
+            },
+            "@userId": {
+              "data": {
+                "value": "{{ trigger[\"body\"][\"order_id\"] }}"
+              },
+              "rank": "2",
+              "fieldId": "@userId"
+            },
+            "@clientRef": {
+              "data": {
+                "value": "{{ trigger[\"body\"][\"order_id\"] }}"
+              },
+              "rank": "3",
+              "fieldId": "@clientRef"
+            },
+            "@sessionId": {
+              "data": {
+                "value": "{{ trigger[\"body\"][\"payment_id\"] }}"
+              },
+              "rank": "4",
+              "fieldId": "@sessionId"
+            }
+          },
+          "content": "{{ trigger[\"body\"][\"order_id\"] }} - {{ trigger[\"body\"][\"payment_status\"] }}",
+          "position": "afterbegin",
+          "projectId": {
+            "type": "flow-template-variable-input-type",
+            "id": "WV7KtefRFLpVEQKu"
+          }
+        }
+      }
+    }
+  ],
+  "outputs": [
+    {
+      "type": "http_response",
+      "body": {
+        "type": "json",
+        "data": {
+          "type": "basic",
+          "payload": []
+        }
+      },
+      "key": "trigger"
+    }
+  ],
+  "variables": {
+    "WV7KtefRFLpVEQKu": {
+      "id": "WV7KtefRFLpVEQKu",
+      "rank": "V",
+      "type": "string",
+      "format": "taskade-project-id"
+    }
+  }
+}

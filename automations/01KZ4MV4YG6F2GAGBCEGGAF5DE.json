@@ -1,0 +1,68 @@
+{
+  "version": "2",
+  "flowTitle": "CryptoVerse Support Ticket Alert",
+  "trigger": {
+    "valid": false,
+    "displayName": "When a support ticket is added",
+    "type": "PIECE_TRIGGER",
+    "settings": {
+      "pieceName": "@taskade/automade-internalpiece-taskade",
+      "pieceVersion": "1.0.0",
+      "triggerName": "task.added",
+      "input": {}
+    }
+  },
+  "actions": [
+    {
+      "name": "7b9c5f64-55a4-4a8e-9a36-3f36c6a7c221",
+      "valid": true,
+      "displayName": "Email the workspace owner",
+      "type": "PIECE",
+      "settings": {
+        "pieceName": "@taskade/automade-internalpiece-taskade",
+        "pieceVersion": "1.0.0",
+        "actionName": "notify.email",
+        "input": {
+          "body": "A new support ticket was added to CryptoVerse.\n\nTicket: {{ trigger[\"nodeText\"] }}\nDescription: {{ trigger[\"nodeNote\"] }}\nOpen ticket: {{ trigger[\"projectLink\"] }}",
+          "subject": "New CryptoVerse support ticket: {{ trigger[\"nodeText\"] }}",
+          "recipientEmail": "nf138992@gmail.com"
+        }
+      }
+    },
+    {
+      "name": "e42b2244-8f57-4e08-be55-53105f1e096b",
+      "valid": false,
+      "displayName": "Route ticket to AI handling",
+      "type": "PIECE",
+      "settings": {
+        "pieceName": "@taskade/automade-internalpiece-taskade",
+        "pieceVersion": "1.0.0",
+        "actionName": "updateCustomFields",
+        "input": {
+          "fields": {
+            "@tk_status": {
+              "data": {
+                "value": "tk_ai"
+              },
+              "rank": "0",
+              "fieldId": "@tk_status"
+            }
+          },
+          "nodeId": "{{ trigger[\"nodeId\"] }}",
+          "projectId": {
+            "type": "flow-template-variable-input-type",
+            "id": "xEbVr5jGY28mkLb6"
+          }
+        }
+      }
+    }
+  ],
+  "variables": {
+    "xEbVr5jGY28mkLb6": {
+      "id": "xEbVr5jGY28mkLb6",
+      "rank": "V",
+      "type": "string",
+      "format": "taskade-project-id"
+    }
+  }
+}

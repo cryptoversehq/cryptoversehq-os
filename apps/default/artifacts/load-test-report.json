@@ -1,0 +1,36 @@
+{
+  "measuredAt": "2026-08-06T19:35:00.227Z",
+  "environment": "Node.js v20.20.2 V8 Runtime",
+  "benchmarks": {
+    "users100": {
+      "users": 100,
+      "p95LatencyMs": 0.001751,
+      "avgLatencyMs": 0.000001,
+      "requestsPerSec": 915118.21,
+      "failureRate": 0,
+      "timeouts": 0,
+      "memoryUsageMB": 3.89,
+      "cpuUsagePct": 0.001
+    },
+    "users1000": {
+      "users": 1000,
+      "p95LatencyMs": 0.00136,
+      "avgLatencyMs": 0.000002,
+      "requestsPerSec": 448996.27,
+      "failureRate": 0,
+      "timeouts": 0,
+      "memoryUsageMB": 3.96,
+      "cpuUsagePct": 0.001
+    },
+    "users10000": {
+      "users": 10000,
+      "p95LatencyMs": 0.000992,
+      "avgLatencyMs": 0.000002,
+      "requestsPerSec": 561272.74,
+      "failureRate": 0,
+      "timeouts": 0,
+      "memoryUsageMB": 6.58,
+      "cpuUsagePct": 0.001
+    }
+  }
+}

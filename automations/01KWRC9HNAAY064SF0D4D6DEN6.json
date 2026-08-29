@@ -1,0 +1,58 @@
+{
+  "version": "2",
+  "flowTitle": "Payment Reminder Email",
+  "trigger": {
+    "valid": true,
+    "type": "WEBHOOK",
+    "settings": {
+      "input": {
+        "type": "object",
+        "properties": {
+          "amount": {
+            "type": "string",
+            "description": "Input for amount"
+          },
+          "orderId": {
+            "type": "string",
+            "description": "Input for orderId"
+          },
+          "planType": {
+            "type": "string",
+            "description": "Input for planType"
+          },
+          "userName": {
+            "type": "string",
+            "description": "Input for userName"
+          },
+          "returnUrl": {
+            "type": "string",
+            "description": "Input for returnUrl"
+          },
+          "userEmail": {
+            "type": "string",
+            "description": "Input for userEmail"
+          },
+          "walletAddress": {
+            "type": "string",
+            "description": "Input for walletAddress"
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "actions": [
+    {
+      "name": "e1a2b3c4-d5e6-7890-abcd-ef1234567890",
+      "valid": true,
+      "displayName": "Wait 15 minutes",
+      "type": "SLEEP",
+      "settings": {
+        "timeSetting": {
+          "type": "duration",
+          "duration": "PT15M"
+        }
+      }
+    }
+  ]
+}

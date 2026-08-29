@@ -1,0 +1,842 @@
+/* CryptoVerse HQ — Tailwind CSS v3 */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Light mode is the default */
+html { color-scheme: light; }
+
+@layer base {
+  /* ── CryptoVerse HQ Design System ──────────────────────────────────────────
+   *
+   *  Primary (dark blue):   #0A1929  → hsl(210 62% 10%)
+   *  Gold accent:           #FFD700  → hsl(51 100% 50%)
+   *  Success green:         #00C853  → hsl(145 100% 39%)
+   *  Danger red:            #FF3B30  → hsl(3 100% 59%)
+   *  Warning orange:        #FF9500  → hsl(35 100% 50%)
+   *  Text white:            #FFFFFF
+   *  Text gray:             #9CA3AF  → hsl(220 9% 66%)
+   *
+   *  Light mode: lighter version of same palette.
+   * ────────────────────────────────────────────────────────────────────────── */
+
+  /* ── Mobile Safe Area Insets ─────────────────────────────────────────────── */
+  html {
+    /* CSS env() variables for notched/iOS devices */
+    --safe-area-inset-top: env(safe-area-inset-top, 0px);
+    --safe-area-inset-bottom: env(safe-area-inset-bottom, 0px);
+    --safe-area-inset-left: env(safe-area-inset-left, 0px);
+    --safe-area-inset-right: env(safe-area-inset-right, 0px);
+  }
+
+  /* ── 44px Minimum Touch Targets (WCAG 2.5.5) ─────────────────────────────── */
+  button, a, [role='button'], input[type='checkbox'], input[type='radio'],
+  select, .touch-target {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  /* Allow icon-only buttons to keep visual size small while touch area is 44px */
+  .touch-target-icon {
+    position: relative;
+    min-height: 44px;
+    min-width: 44px;
+  }
+  .touch-target-icon::after {
+    content: '';
+    position: absolute;
+    inset: -4px; /* expands 28px icon to 36px, still within 44px parent */
+  }
+
+  /* Exempt inline text buttons and table row links from 44px rule */
+  .touch-target-sm {
+    min-height: 32px;
+    min-width: 32px;
+  }
+
+  /* Bottom nav / tab bar: safe area padding for mobile notches */
+  .safe-bottom {
+    padding-bottom: var(--safe-area-inset-bottom);
+  }
+  .safe-top {
+    padding-top: var(--safe-area-inset-top);
+  }
+  :root {
+    /* backgrounds */
+    --background: 210 30% 96%;
+    --foreground: 210 62% 8%;
+
+    /* card surfaces */
+    --card: 0 0% 100%;
+    --card-foreground: 210 62% 8%;
+
+    /* popovers */
+    --popover: 0 0% 100%;
+    --popover-foreground: 210 62% 8%;
+
+    /* primary = gold (on light bg) */
+    --primary: 51 100% 40%;
+    --primary-foreground: 210 62% 5%;
+
+    /* secondary surface */
+    --secondary: 210 20% 90%;
+    --secondary-foreground: 210 30% 20%;
+
+    /* muted */
+    --muted: 210 20% 88%;
+    --muted-foreground: 220 9% 46%;
+
+    /* accent = gold tint */
+    --accent: 51 100% 90%;
+    --accent-foreground: 51 100% 20%;
+
+    /* semantic */
+    --destructive: 3 100% 59%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 210 20% 82%;
+    --input:  210 20% 82%;
+    --ring:   51 100% 50%;
+    --radius: 0.625rem;
+
+    /* ── CryptoVerse semantic tokens (always available) ── */
+    --cv-gold:     51 100% 50%;       /* #FFD700 */
+    --cv-success:  145 100% 39%;      /* #00C853 */
+    --cv-danger:   3   100% 59%;      /* #FF3B30 */
+    --cv-warning:  35  100% 50%;      /* #FF9500 */
+    --cv-navy:     210 62% 10%;       /* #0A1929 */
+    --cv-navy-mid: 210 45% 14%;       /* panel bg  */
+    --cv-navy-hi:  210 35% 19%;       /* hover     */
+    --cv-text:     0 0% 100%;         /* #FFFFFF   */
+    --cv-muted:    220 9% 66%;        /* #9CA3AF   */
+
+    /* chart */
+    --cv-chart-equity:   51  100% 50%;  /* gold   */
+    --cv-chart-dd:       3   100% 59%;  /* red    */
+    --cv-chart-pos:      145 100% 39%;  /* green  */
+    --cv-chart-neg:      3   100% 59%;  /* red    */
+
+    /* ── Dashboard trading terminal tokens (light mode) ── */
+    --cv-dash-bg:              #f5f5f5;
+    --cv-dash-header-bg:       #ffffff;
+    --cv-dash-panel-bg:        #ffffff;
+    --cv-dash-chart-bg:        #fafafa;
+    --cv-dash-hover-bg:        rgba(0,0,0,0.03);
+    --cv-dash-active-bg:       rgba(0,0,0,0.05);
+    --cv-dash-input-bg:        rgba(0,0,0,0.03);
+    --cv-dash-border:          rgba(0,0,0,0.06);
+    --cv-dash-border-light:    rgba(0,0,0,0.03);
+    --cv-dash-text:            #0b0e14;
+    --cv-dash-text-secondary:  rgba(0,0,0,0.70);
+    --cv-dash-text-tertiary:   rgba(0,0,0,0.40);
+    --cv-dash-text-muted:      rgba(0,0,0,0.25);
+    --cv-dash-accent:          #f0b90b;
+    --cv-dash-accent-bg:       rgba(240,185,11,0.15);
+    --cv-dash-green:           #0ecb81;
+    --cv-dash-green-bg:        rgba(14,203,129,0.12);
+    --cv-dash-red:             #f6465d;
+    --cv-dash-red-bg:          rgba(246,70,93,0.12);
+    --cv-dash-divider:         rgba(0,0,0,0.06);
+
+    /* ── Generic admin-panel tokens (light) — used by admin table/card UI
+     * so hardcoded colors can be swapped for theme-aware variables. ── */
+    --bg-card:      #ffffff;
+    --bg-secondary: rgba(0,0,0,0.03);
+    --text-primary: #0b0e14;
+    --text-secondary: rgba(0,0,0,0.70);
+    --text-muted:   rgba(0,0,0,0.40);
+    --border-color: rgba(0,0,0,0.08);
+  }
+
+  .dark {
+    /* ── Dark mode = CryptoVerse native palette ──────────────────────────── */
+
+    /* base backgrounds — dark navy */
+    --background: 210 62% 6%;         /* #020D18 */
+    --foreground: 0 0% 96%;           /* near-white */
+
+    /* card slightly lighter than bg */
+    --card: 210 55% 9%;               /* #0A1929 */
+    --card-foreground: 0 0% 94%;
+
+    /* popovers */
+    --popover: 210 55% 7%;
+    --popover-foreground: 220 9% 66%;
+
+    /* primary = gold */
+    --primary: 51 100% 50%;           /* #FFD700 */
+    --primary-foreground: 210 62% 5%; /* dark navy text on gold */
+
+    /* secondary panel surfaces */
+    --secondary: 210 45% 14%;         /* #0F2030 */
+    --secondary-foreground: 0 0% 88%;
+
+    /* muted */
+    --muted: 210 40% 12%;
+    --muted-foreground: 220 9% 54%;   /* #9CA3AF */
+
+    /* accent = gold tint on dark */
+    --accent: 51 60% 18%;
+    --accent-foreground: 51 100% 75%;
+
+    /* semantic */
+    --destructive: 3 85% 45%;         /* #FF3B30 muted for dark bg */
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 210 40% 16%;
+    --input:  210 40% 16%;
+    --ring:   51 100% 50%;            /* gold focus ring */
+
+    /* semantic tokens — same as light */
+    --cv-gold:     51 100% 50%;
+    --cv-success:  145 100% 39%;
+    --cv-danger:   3   100% 59%;
+    --cv-warning:  35  100% 50%;
+    --cv-navy:     210 62% 10%;
+    --cv-navy-mid: 210 45% 14%;
+    --cv-navy-hi:  210 35% 19%;
+    --cv-text:     0 0% 100%;
+    --cv-muted:    220 9% 66%;
+
+    /* chart */
+    --cv-chart-equity:   51  100% 50%;
+    --cv-chart-dd:       3   100% 59%;
+    --cv-chart-pos:      145 100% 39%;
+    --cv-chart-neg:      3   100% 59%;
+
+    /* ── Dashboard trading terminal tokens ── */
+    --cv-dash-bg:              #0b0e14;
+    --cv-dash-header-bg:       #0f1117;
+    --cv-dash-panel-bg:        #0f1117;
+    --cv-dash-chart-bg:        #1e2026;
+    --cv-dash-hover-bg:        rgba(255,255,255,0.04);
+    --cv-dash-active-bg:       rgba(255,255,255,0.06);
+    --cv-dash-input-bg:        rgba(255,255,255,0.05);
+    --cv-dash-border:          rgba(255,255,255,0.06);
+    --cv-dash-border-light:    rgba(255,255,255,0.04);
+    --cv-dash-text:            #ffffff;
+    --cv-dash-text-secondary:  rgba(255,255,255,0.70);
+    --cv-dash-text-tertiary:   rgba(255,255,255,0.40);
+    --cv-dash-text-muted:      rgba(255,255,255,0.25);
+    --cv-dash-accent:          #f0b90b;
+    --cv-dash-accent-bg:       rgba(240,185,11,0.20);
+    --cv-dash-green:           #0ecb81;
+    --cv-dash-green-bg:        rgba(14,203,129,0.15);
+    --cv-dash-red:             #f6465d;
+    --cv-dash-red-bg:          rgba(246,70,93,0.15);
+    --cv-dash-divider:         rgba(255,255,255,0.06);
+
+    /* ── Generic admin-panel tokens (dark) ── */
+    --bg-card:      #0f1117;
+    --bg-secondary: rgba(255,255,255,0.04);
+    --text-primary: #ffffff;
+    --text-secondary: rgba(255,255,255,0.70);
+    --text-muted:   rgba(255,255,255,0.40);
+    --border-color: rgba(255,255,255,0.08);
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply font-sans antialiased bg-background text-foreground;
+  }
+}
+
+
+
+:root {
+  /* Sidebar tokens (kept compatible) */
+  --sidebar: hsl(210 30% 95%);
+  --sidebar-foreground: hsl(210 62% 8%);
+  --sidebar-primary: hsl(51 100% 40%);
+  --sidebar-primary-foreground: hsl(210 62% 5%);
+  --sidebar-accent: hsl(210 20% 90%);
+  --sidebar-accent-foreground: hsl(210 30% 20%);
+  --sidebar-border: hsl(210 20% 82%);
+  --sidebar-ring: hsl(51 100% 50%);
+}
+
+.dark {
+  --sidebar: hsl(210 55% 9%);
+  --sidebar-foreground: hsl(0 0% 92%);
+  --sidebar-primary: hsl(51 100% 50%);
+  --sidebar-primary-foreground: hsl(210 62% 5%);
+  --sidebar-accent: hsl(210 45% 14%);
+  --sidebar-accent-foreground: hsl(0 0% 88%);
+  --sidebar-border: hsl(210 40% 16%);
+  --sidebar-ring: hsl(51 100% 50%);
+}
+
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* Bell ring for active price alerts */
+@keyframes bell-ring {
+  0%, 100% { transform: rotate(0deg); }
+  10%       { transform: rotate(14deg); }
+  20%       { transform: rotate(-12deg); }
+  30%       { transform: rotate(10deg); }
+  40%       { transform: rotate(-8deg); }
+  50%       { transform: rotate(6deg); }
+  60%       { transform: rotate(-4deg); }
+  70%       { transform: rotate(2deg); }
+  80%       { transform: rotate(0deg); }
+}
+
+/* OTP wrong-code shake */
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  15%       { transform: translateX(-6px); }
+  30%       { transform: translateX(6px); }
+  45%       { transform: translateX(-4px); }
+  60%       { transform: translateX(4px); }
+  75%       { transform: translateX(-2px); }
+  90%       { transform: translateX(2px); }
+}
+.shake {
+  animation: shake 0.45s ease-in-out;
+}
+
+/* Match simulation shimmer sweep */
+@keyframes shimmer {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(200%);  }
+}
+
+/* Full screen spinner styles */
+.genesis__spinner-container {
+  position: fixed;
+  inset: 0;
+  background: #000000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+
+.genesis__spinner-ring {
+  width: 20px;
+  height: 20px;
+  border: 1.5px solid transparent;
+  border-top: 1.5px solid rgba(255, 255, 255, 0.6);
+  border-radius: 50%;
+  animation: genesis__spin 1s linear infinite;
+}
+
+@keyframes genesis__spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Respect reduced motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  .genesis__spinner-ring {
+    animation: none;
+    border-top-color: rgba(255, 255, 255, 0.9);
+  }
+}
+
+/* ── CryptoVerse HQ — Chart Color Tokens ─────────────────────────────────────
+ *
+ *  Used by Recharts & inline styles throughout the Backtest Engine.
+ *  Exposed as CSS custom props so they work in both light and dark contexts.
+ *
+ *  --cv-color-equity    Gold    #FFD700   equity curve stroke
+ *  --cv-color-dd        Red     #FF3B30   drawdown fill (30% alpha applied inline)
+ *  --cv-color-pos       Green   #00C853   positive return bars / text
+ *  --cv-color-neg       Red     #FF3B30   negative return bars / text
+ *  --cv-color-navy      Navy    #0A1929   panel / card background
+ *  --cv-color-gold-dim  Gold50  #7D6800   muted gold for secondary labels
+ * ────────────────────────────────────────────────────────────────────────── */
+:root,
+.dark {
+  --cv-color-equity:   #FFD700;
+  --cv-color-dd:       #FF3B30;
+  --cv-color-pos:      #00C853;
+  --cv-color-neg:      #FF3B30;
+  --cv-color-navy:     #0A1929;
+  --cv-color-navy-mid: #0F2030;
+  --cv-color-navy-hi:  #1A3145;
+  --cv-color-gold-dim: #B89A00;
+  --cv-color-warning:  #FF9500;
+  --cv-color-white:    #FFFFFF;
+  --cv-color-gray:     #9CA3AF;
+}
+
+/* Gold glow utility — used on equity curve highlight, run button */
+.cv-glow-gold {
+  box-shadow: 0 0 18px 2px rgba(255, 215, 0, 0.22),
+              0 0 4px  1px rgba(255, 215, 0, 0.14);
+}
+.cv-glow-green {
+  box-shadow: 0 0 14px 2px rgba(0, 200, 83, 0.18),
+              0 0 4px  1px rgba(0, 200, 83, 0.12);
+}
+.cv-glow-red {
+  box-shadow: 0 0 14px 2px rgba(255, 59, 48, 0.18),
+              0 0 4px  1px rgba(255, 59, 48, 0.12);
+}
+
+/* Backtest panel navy background helper */
+.cv-bg-navy     { background-color: var(--cv-color-navy);     }
+.cv-bg-navy-mid { background-color: var(--cv-color-navy-mid); }
+.cv-bg-navy-hi  { background-color: var(--cv-color-navy-hi);  }
+
+/* Gold pulsing border for "running" state */
+@keyframes cv-gold-pulse-border {
+  0%, 100% { border-color: rgba(255, 215, 0, 0.25); }
+  50%       { border-color: rgba(255, 215, 0, 0.55); }
+}
+.cv-border-pulse-gold {
+  animation: cv-gold-pulse-border 2s ease-in-out infinite;
+}
+
+/* Ticker tape shimmer for loading bars */
+@keyframes cv-shimmer {
+  0%   { background-position: -400px 0; }
+  100% { background-position:  400px 0; }
+}
+.cv-skeleton {
+  background: linear-gradient(
+    90deg,
+    rgba(255,215,0,0.04) 25%,
+    rgba(255,215,0,0.10) 50%,
+    rgba(255,215,0,0.04) 75%
+  );
+  background-size: 400px 100%;
+  animation: cv-shimmer 1.6s ease-in-out infinite;
+}
+
+/* ─── Light mode overrides for hardcoded colors ─────────────────────────── */
+/* TEXT: all white-on-dark text → dark text in light mode */
+html:not(.dark) .text-white { color: #111 !important; }
+html:not(.dark) .text-white\/10 { color: #ccc !important; }
+html:not(.dark) .text-white\/15 { color: #999 !important; }
+html:not(.dark) .text-white\/20 { color: #999 !important; }
+html:not(.dark) .text-white\/25 { color: #888 !important; }
+html:not(.dark) .text-white\/30 { color: #777 !important; }
+html:not(.dark) .text-white\/35 { color: #777 !important; }
+html:not(.dark) .text-white\/40 { color: #666 !important; }
+html:not(.dark) .text-white\/45 { color: #666 !important; }
+html:not(.dark) .text-white\/50 { color: #666 !important; }
+html:not(.dark) .text-white\/60 { color: #555 !important; }
+html:not(.dark) .text-white\/65 { color: #555 !important; }
+html:not(.dark) .text-white\/70 { color: #444 !important; }
+html:not(.dark) .text-white\/75 { color: #444 !important; }
+html:not(.dark) .text-white\/80 { color: #333 !important; }
+html:not(.dark) .text-white\/85 { color: #333 !important; }
+html:not(.dark) .text-white\/90 { color: #222 !important; }
+html:not(.dark) .text-white\/95 { color: #1a1a1a !important; }
+/* TEXT: text-white as arbitrary value */
+html:not(.dark) .text-\[\#FFFFFF\] { color: #111 !important; }
+html:not(.dark) .text-\[\#ffffff\] { color: #111 !important; }
+/* TEXT: colored text that's too light for light mode */
+html:not(.dark) .text-red-300 { color: #b91c1c !important; }
+html:not(.dark) .text-red-400 { color: #dc2626 !important; }
+html:not(.dark) .text-green-300 { color: #16a34a !important; }
+html:not(.dark) .text-green-400 { color: #22c55e !important; }
+html:not(.dark) .text-amber-300 { color: #92400e !important; }
+html:not(.dark) .text-amber-400 { color: #d97706 !important; }
+html:not(.dark) .text-amber-200 { color: #b45309 !important; }
+html:not(.dark) .text-blue-300 { color: #1e40af !important; }
+html:not(.dark) .text-blue-400 { color: #2563eb !important; }
+html:not(.dark) .text-blue-300\/70 { color: #1e40af !important; }
+html:not(.dark) .text-slate-300 { color: #475569 !important; }
+html:not(.dark) .text-slate-400 { color: #64748b !important; }
+html:not(.dark) .text-gray-400 { color: #6b7280 !important; }
+html:not(.dark) .text-gray-300 { color: #4b5563 !important; }
+html:not(.dark) .text-yellow-300 { color: #ca8a04 !important; }
+html:not(.dark) .text-purple-300 { color: #7e22ce !important; }
+html:not(.dark) .text-orange-300 { color: #c2410c !important; }
+html:not(.dark) .text-emerald-300 { color: #047857 !important; }
+/* TEXT: muted foreground */
+html:not(.dark) .text-muted-foreground { color: #555 !important; }
+/* BACKGROUND: solid dark backgrounds → light backgrounds */
+html:not(.dark) .bg-\[\#0A0A10\] { background-color: #f5f5f5 !important; }
+html:not(.dark) .bg-\[\#0a0a0f\] { background-color: #f5f5f5 !important; }
+html:not(.dark) .bg-\[\#0d0d14\] { background-color: #ffffff !important; }
+html:not(.dark) .bg-\[\#0A1929\] { background-color: #e8edf2 !important; }
+html:not(.dark) .bg-\[\#060F1A\] { background-color: #e8edf2 !important; }
+html:not(.dark) .bg-\[\#0b0e14\] { background-color: #e8ecf2 !important; }
+html:not(.dark) .bg-\[\#0f1117\] { background-color: #f0f4f8 !important; }
+html:not(.dark) .bg-\[\#12121a\] { background-color: #ffffff !important; }
+html:not(.dark) .bg-\[\#12121d\] { background-color: #ffffff !important; }
+html:not(.dark) .bg-\[\#13151a\] { background-color: #f5f7fa !important; }
+html:not(.dark) .bg-\[\#161a1e\] { background-color: #eef1f5 !important; }
+html:not(.dark) .bg-\[\#161a1e\]\/70 { background-color: #f0f3f6 !important; }
+html:not(.dark) .bg-\[\#0e1014\] { background-color: #ffffff !important; }
+html:not(.dark) .bg-\[\#1e2026\] { background-color: #ffffff !important; }
+html:not(.dark) .bg-\[\#1a1a2e\] { background-color: #f0f0f5 !important; }
+html:not(.dark) .bg-\[\#050508\] { background-color: #f5f5f5 !important; }
+/* BACKGROUND: black at opacity → subtle gray */
+html:not(.dark) .bg-black\/10 { background-color: rgba(0,0,0,0.06) !important; }
+html:not(.dark) .bg-black\/20 { background-color: rgba(0,0,0,0.08) !important; }
+html:not(.dark) .bg-black\/30 { background-color: rgba(0,0,0,0.10) !important; }
+html:not(.dark) .bg-black\/40 { background-color: rgba(0,0,0,0.15) !important; }
+html:not(.dark) .bg-black\/50 { background-color: rgba(0,0,0,0.20) !important; }
+html:not(.dark) .bg-black\/60 { background-color: rgba(0,0,0,0.25) !important; }
+html:not(.dark) .bg-black\/70 { background-color: rgba(0,0,0,0.15) !important; }
+html:not(.dark) .bg-black\/80 { background-color: rgba(0,0,0,0.20) !important; }
+/* BACKGROUND: white at opacity (dark-mode cards) → light grays */
+html:not(.dark) .bg-white\/2,
+html:not(.dark) .hover\:bg-white\/2\:hover { background-color: #f5f5f5 !important; }
+html:not(.dark) .bg-white\/3 { background-color: #f3f3f5 !important; }
+html:not(.dark) .bg-white\/4 { background-color: #eef0f4 !important; }
+html:not(.dark) .bg-white\/5 { background-color: #e8ecf0 !important; }
+html:not(.dark) .bg-white\/\[0\.02\] { background-color: #f5f8fa !important; }
+html:not(.dark) .bg-white\/\[0\.03\] { background-color: #f0f4f8 !important; }
+html:not(.dark) .bg-white\/\[0\.04\] { background-color: #e8ecf0 !important; }
+html:not(.dark) .bg-white\/\[0\.05\] { background-color: #e4e8ec !important; }
+html:not(.dark) .bg-white\/\[0\.06\] { background-color: #dce0e4 !important; }
+html:not(.dark) .bg-white\/\[0\.08\] { background-color: #d4d8dc !important; }
+/* HOVER: white hover states */
+html:not(.dark) .hover\:bg-white\/4\:hover { background-color: #e8ecf0 !important; }
+html:not(.dark) .hover\:bg-white\/5\:hover { background-color: #e4e8ec !important; }
+html:not(.dark) .hover\:bg-white\/\[0\.02\]\:hover { background-color: #f0f4f8 !important; }
+html:not(.dark) .hover\:bg-white\/\[0\.04\]\:hover { background-color: rgba(0,0,0,0.04) !important; }
+html:not(.dark) .hover\:bg-white\/\[0\.06\]\:hover { background-color: rgba(0,0,0,0.05) !important; }
+html:not(.dark) .hover\:text-white\:hover { color: #111 !important; }
+html:not(.dark) .hover\:text-white\/80\:hover { color: #333 !important; }
+/* BORDER: white border at opacity → gray border */
+html:not(.dark) .border-white\/4 { border-color: #e0e0e0 !important; }
+html:not(.dark) .border-white\/5 { border-color: #ddd !important; }
+html:not(.dark) .border-white\/8 { border-color: #d8d8d8 !important; }
+html:not(.dark) .border-white\/10 { border-color: #d5d5d5 !important; }
+html:not(.dark) .border-white\/12 { border-color: #ccc !important; }
+html:not(.dark) .border-white\/15 { border-color: #bbb !important; }
+html:not(.dark) .border-white\/20 { border-color: #aaa !important; }
+html:not(.dark) .border-white\/\[0\.05\] { border-color: #ddd !important; }
+html:not(.dark) .border-white\/\[0\.06\] { border-color: #ddd !important; }
+html:not(.dark) .border-white\/\[0\.08\] { border-color: #d5d5d5 !important; }
+/* BORDER: hover overrides */
+html:not(.dark) .hover\:border-white\/8\:hover { border-color: #bbb !important; }
+html:not(.dark) .hover\:border-white\/12\:hover { border-color: #bbb !important; }
+/* SEMANTIC: colored backgrounds on white-opacity → proper light tints */
+html:not(.dark) .bg-secondary\/10,
+html:not(.dark) .bg-secondary\/20,
+html:not(.dark) .bg-secondary\/30,
+html:not(.dark) .bg-secondary\/40,
+html:not(.dark) .bg-secondary\/50 { background-color: #e2e6eb !important; }
+html:not(.dark) .bg-card { background-color: #fff !important; }
+html:not(.dark) .bg-background { background-color: #f0f4f8 !important; }
+html:not(.dark) .bg-yellow-500\/5 { background-color: #fff8e1 !important; }
+html:not(.dark) .bg-amber-400\/5 { background-color: #fff8e1 !important; }
+html:not(.dark) .bg-amber-500\/10 { background-color: #fef3c7 !important; }
+html:not(.dark) .bg-amber-500\/15 { background-color: #fef3c7 !important; }
+html:not(.dark) .bg-amber-500\/20 { background-color: #fde68a !important; }
+html:not(.dark) .bg-blue-500\/10 { background-color: #e3f2fd !important; }
+html:not(.dark) .bg-blue-500\/15 { background-color: #e3f2fd !important; }
+html:not(.dark) .bg-blue-500\/20 { background-color: #bbdefb !important; }
+html:not(.dark) .bg-green-500\/10 { background-color: #e8f5e9 !important; }
+html:not(.dark) .bg-green-500\/15 { background-color: #e8f5e9 !important; }
+html:not(.dark) .bg-red-500\/10 { background-color: #ffebee !important; }
+html:not(.dark) .bg-red-500\/15 { background-color: #ffebee !important; }
+html:not(.dark) .bg-purple-500\/10 { background-color: #f3e5f5 !important; }
+html:not(.dark) .bg-slate-500\/5 { background-color: #f1f5f9 !important; }
+html:not(.dark) .bg-primary\/5 { background-color: #fffde7 !important; }
+html:not(.dark) .bg-primary\/10 { background-color: #fff9c4 !important; }
+/* DIVIDER/BORDER */
+html:not(.dark) .divide-white\/4 > :not([hidden]) ~ :not([hidden]) { border-color: #e0e0e0 !important; }
+/* PLACEHOLDER */
+html:not(.dark) .placeholder\:text-white\/20\:\:placeholder { color: #aaa !important; }
+html:not(.dark) .placeholder\:text-white\/30\:\:placeholder { color: #999 !important; }
+html:not(.dark) .placeholder\:text-white\/40\:\:placeholder { color: #888 !important; }
+/* SHADOW */
+html:not(.dark) .shadow-black\/50 { --tw-shadow-color: rgba(0,0,0,0.08) !important; }
+html:not(.dark) .shadow-black\/30 { --tw-shadow-color: rgba(0,0,0,0.06) !important; }
+html:not(.dark) .shadow-black\/20 { --tw-shadow-color: rgba(0,0,0,0.04) !important; }
+/* INLINE STYLES — background */
+html:not(.dark) [style*="background:#0b0e14"],
+html:not(.dark) [style*="background: #0b0e14"],
+html:not(.dark) [style*="background:rgb(11,14,20)"],
+html:not(.dark) [style*="background:rgb(11, 14, 20)"],
+html:not(.dark) [style*="background:rgb(11,14, 20)"] { background: #e8ecf2 !important; }
+html:not(.dark) [style*="background:#060F1A"],
+html:not(.dark) [style*="background: #060F1A"] { background: #e8edf2 !important; }
+html:not(.dark) [style*="background:rgb(15"],
+html:not(.dark) [style*="background: rgb(15"] { background: #e6eaf0 !important; }
+html:not(.dark) [style*="background:rgb(11"],
+html:not(.dark) [style*="background: rgb(11"] { background: #e8ecf2 !important; }
+html:not(.dark) [style*="background:#0a0a"],
+html:not(.dark) [style*="background: #0a0a"] { background: #f5f5f5 !important; }
+html:not(.dark) [style*="background:#0d0d"],
+html:not(.dark) [style*="background: #0d0d"] { background: #ffffff !important; }
+html:not(.dark) [style*="background:#1212"],
+html:not(.dark) [style*="background: #1212"] { background: #ffffff !important; }
+/* INLINE STYLES — text color */
+html:not(.dark) [style*="color:#FFFFFF"],
+html:not(.dark) [style*="color: #FFFFFF"],
+html:not(.dark) [style*="color:#ffffff"],
+html:not(.dark) [style*="color: #ffffff"],
+html:not(.dark) [style*="color:white"] { color: #1a1a1a !important; }
+html:not(.dark) [style*="color:#eaecef"],
+html:not(.dark) [style*="color: #eaecef"] { color: #1a1a1a !important; }
+/* INLINE STYLES — rgba backgrounds */
+html:not(.dark) [style*="rgba(10,25,41"] { background-color: #f0f4f8 !important; border-color: #ddd !important; }
+html:not(.dark) [class*="Marketplace"] [style*="rgba(255,255,255"],
+html:not(.dark) [class*="marketplace"] [style*="rgba(255,255,255"] { background-color: #f0f4f8 !important; color: #1a1a1a !important; border-color: #ddd !important; }
+html:not(.dark) [style*="rgba(255,255,255,0.02)"] { background-color: #f5f8fa !important; }
+html:not(.dark) [style*="rgba(255,255,255,0.03)"] { background-color: #f0f4f8 !important; }
+html:not(.dark) [style*="rgba(255,255,255,0.04)"] { background-color: #e8ecf0 !important; }
+html:not(.dark) [style*="rgba(255,255,255,0.05)"] { background-color: #e4e8ec !important; }
+html:not(.dark) [style*="rgba(255,255,255,0.06)"] { border-color: #ddd !important; background-color: #e8ecf0 !important; }
+html:not(.dark) [style*="rgba(255,255,255,0.07)"] { background-color: #dce0e4 !important; }
+html:not(.dark) [style*="rgba(255,255,255,0.08)"] { background-color: #d4d8dc !important; }
+html:not(.dark) [style*="rgba(255,255,255,0.10)"] { background-color: #ccd0d4 !important; }
+html:not(.dark) [style*="rgba(255,255,255,0.15)"] { background-color: #bec2c6 !important; }
+html:not(.dark) [style*="rgba(255,255,255,0.85)"] { color: #1a1a1a !important; }
+html:not(.dark) [style*="rgba(255,255,255,0.90)"] { color: #1a1a1a !important; }
+
+/* ─── Light mode: Modal / Dialog / Overlay backgrounds ───────────────────── */
+html:not(.dark) [class*="modal"] > div[class*="bg-"],
+html:not(.dark) [class*="dialog"] > div[class*="bg-"],
+html:not(.dark) [role="dialog"],
+html:not(.dark) [data-sonner-toast] {
+  background-color: #ffffff !important;
+  color: #1a1a1a !important;
+}
+html:not(.dark) .sonner-toast-warning,
+html:not(.dark) [data-sonner-toast][data-type="warning"] {
+  background-color: #fff8e1 !important;
+  color: #1a1a1a !important;
+  border: 1px solid #f59e0b !important;
+}
+html:not(.dark) [role="tooltip"],
+html:not(.dark) [data-tooltip],
+html:not(.dark) .tooltip-content,
+html:not(.dark) [class*="Tooltip"] > div:last-child {
+  background-color: #ffffff !important;
+  color: #1a1a1a !important;
+  border: 1px solid #ddd !important;
+}
+
+/* ─── Light mode: Chart & Panel overrides ───────────────────────────────── */
+html:not(.dark) .recharts-tooltip-wrapper div,
+html:not(.dark) .recharts-default-tooltip {
+  background-color: #ffffff !important;
+  color: #1a1a1a !important;
+  border: 1px solid #ddd !important;
+}
+html:not(.dark) .recharts-cartesian-grid-horizontal line,
+html:not(.dark) .recharts-cartesian-grid-vertical line { stroke: #e0e0e0 !important; }
+html:not(.dark) .recharts-text { fill: #333 !important; }
+html:not(.dark) [class*="chart"] [class*="bg-"] { background-color: #fafafa !important; }
+
+/* ─── Light mode: Signal / Alert / Notification boxes ───────────────────── */
+html:not(.dark) [class*="signal"] > div,
+html:not(.dark) [class*="Signal"] > div,
+html:not(.dark) [class*="alert"] > div,
+html:not(.dark) [class*="Alert"] > div,
+html:not(.dark) [class*="notification"] > div,
+html:not(.dark) [class*="Notification"] > div {
+  background-color: #ffffff !important;
+  color: #1a1a1a !important;
+  border-color: #ddd !important;
+}
+
+/* ─── Light mode: Market Signal / Analysis boxes ────────────────────────── */
+html:not(.dark) [class*="Market"][class*="Signal"],
+html:not(.dark) [class*="market"][class*="signal"],
+html:not(.dark) [class*="analysis"][class*="box"] {
+  background-color: #ffffff !important;
+  color: #1a1a1a !important;
+  border: 1px solid #ddd !important;
+}
+
+/* ─── Light mode: Upgrade / Prompt / CTA modals ─────────────────────────── */
+html:not(.dark) [class*="upgrade"] > div,
+html:not(.dark) [class*="Upgrade"] > div,
+html:not(.dark) [class*="prompt"] > div,
+html:not(.dark) [class*="Prompt"] > div,
+html:not(.dark) [class*="cta"] > div,
+html:not(.dark) [class*="CTA"] > div {
+  background-color: #ffffff !important;
+  color: #1a1a1a !important;
+  border: 1px solid #ddd !important;
+}
+html:not(.dark) [class*="upgrade"] button,
+html:not(.dark) [class*="Upgrade"] button,
+html:not(.dark) [class*="prompt"] button,
+html:not(.dark) [class*="Prompt"] button {
+  color: #1a1a1a !important;
+}
+
+/* ─── Light mode: VP / Patterns / Volume Profile boxes ──────────────────── */
+html:not(.dark) [class*="volume"][class*="profile"],
+html:not(.dark) [class*="Volume"][class*="Profile"],
+html:not(.dark) [class*="pattern"][class*="overlay"],
+html:not(.dark) [class*="Pattern"][class*="Overlay"],
+html:not(.dark) [class*="vp-"],
+html:not(.dark) [class*="VP-"] {
+  background-color: rgba(255,255,255,0.95) !important;
+  color: #1a1a1a !important;
+  border: 1px solid #ddd !important;
+}
+
+/* ─── Light mode: Dropdown menus ────────────────────────────────────────── */
+html:not(.dark) [class*="dropdown"] > div,
+html:not(.dark) [class*="Dropdown"] > div,
+html:not(.dark) [class*="popover"] > div,
+html:not(.dark) [class*="Popover"] > div,
+html:not(.dark) [role="menu"],
+html:not(.dark) [data-radix-popper-content-wrapper] > div {
+  background-color: #ffffff !important;
+  color: #1a1a1a !important;
+  border: 1px solid #ddd !important;
+}
+
+/* ─── Light mode: Radix UI primitives ───────────────────────────────────── */
+html:not(.dark) [data-radix-select-content],
+html:not(.dark) [data-radix-dropdown-menu-content],
+html:not(.dark) [data-radix-context-menu-content],
+html:not(.dark) [data-radix-popover-content],
+html:not(.dark) [data-radix-tooltip-content],
+html:not(.dark) [data-radix-hover-card-content],
+html:not(.dark) [data-radix-navigation-menu-content],
+html:not(.dark) [data-radix-alert-dialog-overlay] + div,
+html:not(.dark) [data-radix-dialog-overlay] + div {
+  background-color: #ffffff !important;
+  color: #1a1a1a !important;
+  border: 1px solid #ddd !important;
+}
+
+/* ─── Light mode: Help / Info tooltip (?) boxes ─────────────────────────── */
+html:not(.dark) [class*="help"][class*="tooltip"],
+html:not(.dark) [class*="Help"][class*="Tooltip"],
+html:not(.dark) [class*="info"][class*="tooltip"],
+html:not(.dark) [class*="Info"][class*="Tooltip"],
+html:not(.dark) [title]::after { color: #1a1a1a !important; }
+
+/* ─── Light mode: Buy/Sell button states ────────────────────────────────── */
+html:not(.dark) button[class*="buy"],
+html:not(.dark) button[class*="Buy"] { color: #fff !important; }
+html:not(.dark) button[class*="sell"],
+html:not(.dark) button[class*="Sell"] { color: #fff !important; }
+
+/* ─── ULTRA-AGGRESSIVE: Light-mode everything below this line ─────────── */
+/* These catch ALL remaining dark elements regardless of component name */
+html:not(.dark) [class*="bg-["]:not([class*="bg-white"]):not([class*="bg-background"]):not([class*="bg-card"]):not([class*="bg-secondary"]):not([class*="bg-primary"]):not([class*="bg-muted"]) {
+  background-color: #ffffff !important;
+}
+html:not(.dark) [class*="text-["]:not([class*="text-black"]):not([class*="text-foreground"]):not([class*="text-muted"]):not([class*="text-primary"]) {
+  color: #1a1a1a !important;
+}
+html:not(.dark) [class*="border-["]:not([class*="border-border"]):not([class*="border-input"]) {
+  border-color: #ddd !important;
+}
+
+/* ─── ALL modals/dialogs/overlays in light mode ────────────────────────── */
+html:not(.dark) .fixed.inset-0,
+html:not(.dark) [class*="overlay"],
+html:not(.dark) [class*="Overlay"] {
+  background-color: rgba(0,0,0,0.3) !important;
+}
+html:not(.dark) [class*="modal"] [class*="bg-"],
+html:not(.dark) [class*="Modal"] [class*="bg-"],
+html:not(.dark) [class*="sheet"] [class*="bg-"],
+html:not(.dark) [class*="Sheet"] [class*="bg-"],
+html:not(.dark) [class*="drawer"] [class*="bg-"],
+html:not(.dark) [class*="Drawer"] [class*="bg-"] {
+  background-color: #ffffff !important;
+  color: #1a1a1a !important;
+  border-color: #ddd !important;
+}
+
+/* ─── ALL tables/rows/cells in light mode ──────────────────────────────── */
+html:not(.dark) table th,
+html:not(.dark) table td { color: #1a1a1a !important; border-color: #ddd !important; }
+html:not(.dark) thead { background-color: #f5f5f5 !important; }
+html:not(.dark) tr:hover td { background-color: #f0f4f8 !important; }
+
+/* ─── ALL input/select/textarea in light mode ──────────────────────────── */
+html:not(.dark) input:not([type="submit"]):not([type="button"]),
+html:not(.dark) select,
+html:not(.dark) textarea {
+  background-color: #f8f8f8 !important;
+  color: #1a1a1a !important;
+  border-color: #ccc !important;
+}
+html:not(.dark) input::placeholder,
+html:not(.dark) textarea::placeholder { color: #888 !important; }
+
+/* ─── ALL buttons (non-destructive, non-buy/sell) in light mode ────────── */
+html:not(.dark) button:not([class*="buy"]):not([class*="Buy"]):not([class*="sell"]):not([class*="Sell"]):not([class*="destructive"]):not([class*="danger"]) {
+  color: #1a1a1a !important;
+}
+html:not(.dark) button[class*="primary"] { color: var(--primary-foreground) !important; }
+
+/* ── Trading terminal (Binance-style palette) light-mode overrides ───────────
+ * The trading components (TradingChart toolbar, OrderBook, TradePanel,
+ * BottomPanel, MultiTimeframePanel legacy usages) use arbitrary Tailwind
+ * classes from the Binance dark palette. These make them readable in light
+ * mode without touching every call site. */
+html:not(.dark) .text-\[\#eaecef\] { color: #16181d !important; }
+html:not(.dark) .hover\:text-\[\#eaecef\]:hover { color: #16181d !important; }
+html:not(.dark) .bg-\[\#161a1e\] { background-color: #eef1f5 !important; }
+html:not(.dark) .bg-\[\#161a1e\]\/70 { background-color: #f0f3f6 !important; }
+html:not(.dark) .hover\:bg-\[\#1e2026\]:hover { background-color: #e6eaef !important; }
+html:not(.dark) .bg-\[\#13151a\] { background-color: #f5f7fa !important; }
+html:not(.dark) .bg-\[\#0e1014\] { background-color: #ffffff !important; }
+html:not(.dark) .bg-\[\#1e2026\] { background-color: #ffffff !important; }
+html:not(.dark) .text-\[\#4a4e57\] { color: #8a8f99 !important; }
+html:not(.dark) .hover\:bg-white\/5:hover { background-color: rgba(0,0,0,0.05) !important; }
+html:not(.dark) .text-white\/75 { color: #333 !important; }
+html:not(.dark) .text-white\/20 { color: #888 !important; }
+html:not(.dark) .hover\:text-white:hover { color: #111 !important; }
+html:not(.dark) .hover\:bg-white\/\[0\.06\]:hover { background-color: rgba(0,0,0,0.05) !important; }
+html:not(.dark) .hover\:bg-white\/\[0\.04\]:hover { background-color: rgba(0,0,0,0.04) !important; }
+html:not(.dark) .hover\:bg-white\/\[0\.02\]:hover { background-color: rgba(0,0,0,0.03) !important; }
+html:not(.dark) .bg-\[hsl\(var\(--card\)\)\] { background-color: #ffffff !important; }
+
+/* ── ProDashboard mobile trading terminal (<768px) ──────────────────────────
+ * Tab bar used by MobileTabBar.tsx to switch between Chart / Order Book /
+ * Trade / More on phones, replacing the desktop 3-4 panel side-by-side
+ * layout that doesn't fit narrow screens. Uses the same theme tokens as the
+ * rest of the app (already flip correctly between light/dark via the
+ * :root/.dark blocks above), not new hardcoded colors. */
+.mobile-trading {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+.tab-bar {
+  display: flex;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-color);
+  overflow-x: auto;
+  flex-shrink: 0;
+}
+.tab-item {
+  flex: 1;
+  min-width: max-content;
+  padding: 12px 14px;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  border-bottom: 2px solid transparent;
+  white-space: nowrap;
+}
+.tab-item.active {
+  color: var(--text-primary);
+  border-bottom-color: var(--cv-dash-accent);
+}
+.tab-content {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  background: var(--cv-dash-bg);
+}

@@ -1,0 +1,115 @@
+{
+  "version": "2",
+  "flowTitle": "NOWPayments — Checkout Session Proxy",
+  "trigger": {
+    "valid": true,
+    "type": "WEBHOOK",
+    "settings": {
+      "input": {
+        "type": "object",
+        "properties": {
+          "order_id": {
+            "type": "string",
+            "description": "Input for order_id"
+          },
+          "cancel_url": {
+            "type": "string",
+            "description": "Input for cancel_url"
+          },
+          "success_url": {
+            "type": "string",
+            "description": "Input for success_url"
+          },
+          "pay_currency": {
+            "type": "string",
+            "description": "Input for pay_currency"
+          },
+          "price_amount": {
+            "type": "number"
+          },
+          "price_currency": {
+            "type": "string",
+            "description": "Input for price_currency"
+          },
+          "order_description": {
+            "type": "string",
+            "description": "Input for order_description"
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "actions": [
+    {
+      "name": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+      "valid": true,
+      "displayName": "Create NOWPayments Invoice",
+      "type": "PIECE",
+      "settings": {
+        "pieceName": "@taskade/automade-piece-http",
+        "pieceVersion": "1.0.0",
+        "actionName": "http.sendRequest",
+        "input": {
+          "url": "https://api.nowpayments.io/v1/payment",
+          "body": "{\n  \"price_amount\": {{ trigger[\"body\"][\"price_amount\"] }},\n  \"price_currency\": \"{{ trigger[\"body\"][\"price_currency\"] }}\",\n  \"pay_currency\": \"{{ trigger[\"body\"][\"pay_currency\"] }}\",\n  \"order_id\": \"{{ trigger[\"body\"][\"order_id\"] }}\",\n  \"order_description\": \"{{ trigger[\"body\"][\"order_description\"] }}\",\n  \"ipn_callback_url\": \"https://www.taskade.com/webhooks/flow/01KVFCBKC478XG5D4XKNSSS024/sync\",\n  \"success_url\": \"{{ trigger[\"body\"][\"success_url\"] }}\",\n  \"cancel_url\": \"{{ trigger[\"body\"][\"cancel_url\"] }}\"\n}",
+          "method": "POST",
+          "headers": [
+            {
+              "x-api-key": "AT6MP3J-3AR4W60-H07G91G-769TQCX"
+            }
+          ],
+          "bodyType": "json",
+          "responseType": "json"
+        }
+      }
+    }
+  ],
+  "outputs": [
+    {
+      "type": "http_response",
+      "body": {
+        "type": "json",
+        "data": {
+          "type": "basic",
+          "payload": [
+            {
+              "payment_id": "{{ a1b2c3d4-e5f6-7890-abcd-ef1234567890[\"responseData\"][\"payment_id\"] }}"
+            },
+            {
+              "payment_status": "{{ a1b2c3d4-e5f6-7890-abcd-ef1234567890[\"responseData\"][\"payment_status\"] }}"
+            },
+            {
+              "pay_address": "{{ a1b2c3d4-e5f6-7890-abcd-ef1234567890[\"responseData\"][\"pay_address\"] }}"
+            },
+            {
+              "pay_amount": "{{ a1b2c3d4-e5f6-7890-abcd-ef1234567890[\"responseData\"][\"pay_amount\"] }}"
+            },
+            {
+              "pay_currency": "{{ a1b2c3d4-e5f6-7890-abcd-ef1234567890[\"responseData\"][\"pay_currency\"] }}"
+            },
+            {
+              "price_amount": "{{ a1b2c3d4-e5f6-7890-abcd-ef1234567890[\"responseData\"][\"price_amount\"] }}"
+            },
+            {
+              "price_currency": "{{ a1b2c3d4-e5f6-7890-abcd-ef1234567890[\"responseData\"][\"price_currency\"] }}"
+            },
+            {
+              "order_id": "{{ a1b2c3d4-e5f6-7890-abcd-ef1234567890[\"responseData\"][\"order_id\"] }}"
+            },
+            {
+              "order_description": "{{ a1b2c3d4-e5f6-7890-abcd-ef1234567890[\"responseData\"][\"order_description\"] }}"
+            },
+            {
+              "created_at": "{{ a1b2c3d4-e5f6-7890-abcd-ef1234567890[\"responseData\"][\"created_at\"] }}"
+            },
+            {
+              "purchase_id": "{{ a1b2c3d4-e5f6-7890-abcd-ef1234567890[\"responseData\"][\"purchase_id\"] }}"
+            }
+          ]
+        }
+      },
+      "key": "trigger"
+    }
+  ]
+}

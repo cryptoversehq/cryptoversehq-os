@@ -1,0 +1,1 @@
+NOT GENERATED – Remote Taskade Cloud build pipeline (@taskade/parade-base-template-v2 v2.4.2); local CI/CD bundle compilation artifacts unavailable in headless verification sandbox.

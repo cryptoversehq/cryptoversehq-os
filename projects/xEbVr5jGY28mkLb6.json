@@ -1,0 +1,1223 @@
+{
+  "root": {
+    "type": "root",
+    "children": [
+      {
+        "type": "text",
+        "id": "c5c25f4c-2522-40bf-a512-cae6ba5948a5",
+        "text": {
+          "ops": [
+            {
+              "insert": "Cryptoverse — Support Tickets"
+            },
+            {
+              "insert": "\n",
+              "attributes": {
+                "paragraph": true
+              }
+            }
+          ]
+        },
+        "format": null,
+        "collapsed": false,
+        "completed": false,
+        "children": [
+          {
+            "type": "text",
+            "id": "0133ceff-8c19-4bf8-ba2a-35f9bb61110a",
+            "text": {
+              "ops": [
+                {
+                  "insert": "هوش مصنوعی"
+                },
+                {
+                  "insert": "\n",
+                  "attributes": {
+                    "paragraph": true
+                  }
+                }
+              ]
+            },
+            "format": null,
+            "collapsed": false,
+            "completed": false,
+            "attributes": {
+              "@tk_uat": {
+                "type": "DateTime",
+                "dateTime": {
+                  "date": "2026-06-05",
+                  "time": "13:48:12",
+                  "timezone": "Etc/UTC"
+                }
+              },
+              "@tk_adminid": "admin",
+              "@tk_rating": 5,
+              "@tk_uid": "nf138992@gmail.com",
+              "@tk_sect": "general",
+              "@tk_cat": {
+                "type": "DateTime",
+                "dateTime": {
+                  "date": "2026-06-05",
+                  "time": "13:44:53",
+                  "timezone": "Etc/UTC"
+                }
+              },
+              "@tk_title": "هوش مصنوعی",
+              "@tk_prio": {
+                "type": "Select",
+                "optionId": "tk_critical"
+              },
+              "@tk_uname": "super admin",
+              "@tk_desc": "چرا هوش مصنوعی هیچ سوالی را جواب نمی دهد؟",
+              "@tk_status": {
+                "type": "Select",
+                "optionId": "tk_closed"
+              },
+              "@tk_adresp": "تا دقایقی دیگه مشکل بوجود آمده برطرف می شود"
+            },
+            "children": []
+          },
+          {
+            "type": "text",
+            "id": "9ea38c0f-e4f6-4079-8f99-b99e64a723ed",
+            "text": {
+              "ops": [
+                {
+                  "insert": "سلام چرا هوش مصنوعی من باز نمیشه؟"
+                },
+                {
+                  "insert": "\n",
+                  "attributes": {
+                    "paragraph": true
+                  }
+                }
+              ]
+            },
+            "format": null,
+            "collapsed": false,
+            "completed": false,
+            "attributes": {
+              "@tk_uat": {
+                "type": "DateTime",
+                "dateTime": {
+                  "date": "2026-06-19",
+                  "time": "09:00:12",
+                  "timezone": "Etc/UTC"
+                }
+              },
+              "@tk_adminid": "admin",
+              "@tk_uid": "nf138992@gmail.com",
+              "@tk_sect": "sentiment",
+              "@tk_cat": {
+                "type": "DateTime",
+                "dateTime": {
+                  "date": "2026-06-17",
+                  "time": "20:26:52",
+                  "timezone": "Etc/UTC"
+                }
+              },
+              "@tk_title": "سلام چرا هوش مصنوعی من باز نمیشه؟",
+              "@tk_prio": {
+                "type": "Select",
+                "optionId": "tk_critical"
+              },
+              "@tk_uname": "super admin",
+              "@tk_desc": "منتظر جوابتون هستم",
+              "@tk_status": {
+                "type": "Select",
+                "optionId": "tk_resolved"
+              },
+              "@tk_adresp": "سلام در دست بررسی است از شکیبایی شما متشکرم"
+            },
+            "children": []
+          },
+          {
+            "type": "text",
+            "id": "14c8c911-a036-455f-83c3-9b8314a72681",
+            "text": {
+              "ops": [
+                {
+                  "insert": "کار با شبیه ساز"
+                },
+                {
+                  "insert": "\n",
+                  "attributes": {
+                    "paragraph": true
+                  }
+                }
+              ]
+            },
+            "format": null,
+            "collapsed": false,
+            "completed": false,
+            "attributes": {
+              "@tk_uat": {
+                "type": "DateTime",
+                "dateTime": {
+                  "date": "2026-08-17",
+                  "time": "16:32:11",
+                  "timezone": "Etc/UTC"
+                }
+              },
+              "@tk_uid": "bat_test@cryptoverse.test",
+              "@tk_sect": "trade",
+              "@tk_cat": {
+                "type": "DateTime",
+                "dateTime": {
+                  "date": "2026-08-17",
+                  "time": "16:32:11",
+                  "timezone": "Etc/UTC"
+                }
+              },
+              "@tk_title": "کار با شبیه ساز",
+              "@tk_prio": {
+                "type": "Select",
+                "optionId": "tk_medium"
+              },
+              "@tk_uname": "BAT Tester",
+              "@tk_desc": "سلام من چطور باید با شبیه ساز کار کنم؟",
+              "@tk_status": {
+                "type": "Select",
+                "optionId": "tk_ai"
+              }
+            },
+            "children": []
+          }
+        ]
+      }
+    ],
+    "views": {
+      "list": {
+        "id": "list",
+        "type": "list",
+        "rank": "A",
+        "displayedFields": {
+          "/text": {
+            "id": "/text",
+            "fieldPath": "/text",
+            "rank": "7"
+          },
+          "/attributes/agent": {
+            "id": "/attributes/agent",
+            "fieldPath": "/attributes/agent",
+            "rank": "A"
+          },
+          "/attributes/date": {
+            "id": "/attributes/date",
+            "fieldPath": "/attributes/date",
+            "rank": "F"
+          },
+          "/attributes/assignee": {
+            "id": "/attributes/assignee",
+            "fieldPath": "/attributes/assignee",
+            "rank": "N"
+          },
+          "/attributes/comment": {
+            "id": "/attributes/comment",
+            "fieldPath": "/attributes/comment",
+            "rank": "V"
+          },
+          "/attributes/reaction": {
+            "id": "/attributes/reaction",
+            "fieldPath": "/attributes/reaction",
+            "rank": "c"
+          },
+          "/attributes/timer": {
+            "id": "/attributes/timer",
+            "fieldPath": "/attributes/timer",
+            "rank": "k"
+          },
+          "/attributes/media": {
+            "id": "/attributes/media",
+            "fieldPath": "/attributes/media",
+            "rank": "s"
+          },
+          "/attributes/created/at": {
+            "id": "/attributes/created/at",
+            "fieldPath": "/attributes/created/at",
+            "rank": "t"
+          },
+          "/attributes/created/by": {
+            "id": "/attributes/created/by",
+            "fieldPath": "/attributes/created/by",
+            "rank": "u"
+          },
+          "/attributes/updated/at": {
+            "id": "/attributes/updated/at",
+            "fieldPath": "/attributes/updated/at",
+            "rank": "vF"
+          },
+          "/attributes/updated/by": {
+            "id": "/attributes/updated/by",
+            "fieldPath": "/attributes/updated/by",
+            "rank": "wF"
+          },
+          "/attributes/completed/at": {
+            "id": "/attributes/completed/at",
+            "fieldPath": "/attributes/completed/at",
+            "rank": "x"
+          },
+          "/attributes/completed/by": {
+            "id": "/attributes/completed/by",
+            "fieldPath": "/attributes/completed/by",
+            "rank": "y"
+          },
+          "/attributes/@tk_uid": {
+            "id": "/attributes/@tk_uid",
+            "fieldPath": "/attributes/@tk_uid",
+            "rank": "z"
+          },
+          "/attributes/@tk_uname": {
+            "id": "/attributes/@tk_uname",
+            "fieldPath": "/attributes/@tk_uname",
+            "rank": "zV"
+          },
+          "/attributes/@tk_sect": {
+            "id": "/attributes/@tk_sect",
+            "fieldPath": "/attributes/@tk_sect",
+            "rank": "zk"
+          },
+          "/attributes/@tk_title": {
+            "id": "/attributes/@tk_title",
+            "fieldPath": "/attributes/@tk_title",
+            "rank": "zs"
+          },
+          "/attributes/@tk_desc": {
+            "id": "/attributes/@tk_desc",
+            "fieldPath": "/attributes/@tk_desc",
+            "rank": "zw"
+          },
+          "/attributes/@tk_status": {
+            "id": "/attributes/@tk_status",
+            "fieldPath": "/attributes/@tk_status",
+            "rank": "zy"
+          },
+          "/attributes/@tk_prio": {
+            "id": "/attributes/@tk_prio",
+            "fieldPath": "/attributes/@tk_prio",
+            "rank": "zz"
+          },
+          "/attributes/@tk_rating": {
+            "id": "/attributes/@tk_rating",
+            "fieldPath": "/attributes/@tk_rating",
+            "rank": "zzV"
+          },
+          "/attributes/@tk_airesp": {
+            "id": "/attributes/@tk_airesp",
+            "fieldPath": "/attributes/@tk_airesp",
+            "rank": "zzk"
+          },
+          "/attributes/@tk_adresp": {
+            "id": "/attributes/@tk_adresp",
+            "fieldPath": "/attributes/@tk_adresp",
+            "rank": "zzs"
+          },
+          "/attributes/@tk_adminid": {
+            "id": "/attributes/@tk_adminid",
+            "fieldPath": "/attributes/@tk_adminid",
+            "rank": "zzw"
+          },
+          "/attributes/@tk_cat": {
+            "id": "/attributes/@tk_cat",
+            "fieldPath": "/attributes/@tk_cat",
+            "rank": "zzy"
+          },
+          "/attributes/@tk_uat": {
+            "id": "/attributes/@tk_uat",
+            "fieldPath": "/attributes/@tk_uat",
+            "rank": "zzz"
+          }
+        }
+      },
+      "board": {
+        "id": "board",
+        "type": "board",
+        "rank": "B",
+        "displayedFields": {
+          "/text": {
+            "id": "/text",
+            "fieldPath": "/text",
+            "rank": "7"
+          },
+          "/attributes/agent": {
+            "id": "/attributes/agent",
+            "fieldPath": "/attributes/agent",
+            "rank": "A"
+          },
+          "/attributes/date": {
+            "id": "/attributes/date",
+            "fieldPath": "/attributes/date",
+            "rank": "F"
+          },
+          "/attributes/assignee": {
+            "id": "/attributes/assignee",
+            "fieldPath": "/attributes/assignee",
+            "rank": "N"
+          },
+          "/attributes/comment": {
+            "id": "/attributes/comment",
+            "fieldPath": "/attributes/comment",
+            "rank": "V"
+          },
+          "/attributes/reaction": {
+            "id": "/attributes/reaction",
+            "fieldPath": "/attributes/reaction",
+            "rank": "c"
+          },
+          "/attributes/timer": {
+            "id": "/attributes/timer",
+            "fieldPath": "/attributes/timer",
+            "rank": "k"
+          },
+          "/attributes/media": {
+            "id": "/attributes/media",
+            "fieldPath": "/attributes/media",
+            "rank": "s"
+          },
+          "/attributes/created/at": {
+            "id": "/attributes/created/at",
+            "fieldPath": "/attributes/created/at",
+            "rank": "t"
+          },
+          "/attributes/created/by": {
+            "id": "/attributes/created/by",
+            "fieldPath": "/attributes/created/by",
+            "rank": "u"
+          },
+          "/attributes/updated/at": {
+            "id": "/attributes/updated/at",
+            "fieldPath": "/attributes/updated/at",
+            "rank": "vF"
+          },
+          "/attributes/updated/by": {
+            "id": "/attributes/updated/by",
+            "fieldPath": "/attributes/updated/by",
+            "rank": "wF"
+          },
+          "/attributes/completed/at": {
+            "id": "/attributes/completed/at",
+            "fieldPath": "/attributes/completed/at",
+            "rank": "x"
+          },
+          "/attributes/completed/by": {
+            "id": "/attributes/completed/by",
+            "fieldPath": "/attributes/completed/by",
+            "rank": "y"
+          },
+          "/attributes/@tk_uid": {
+            "id": "/attributes/@tk_uid",
+            "fieldPath": "/attributes/@tk_uid",
+            "rank": "z"
+          },
+          "/attributes/@tk_uname": {
+            "id": "/attributes/@tk_uname",
+            "fieldPath": "/attributes/@tk_uname",
+            "rank": "zV"
+          },
+          "/attributes/@tk_sect": {
+            "id": "/attributes/@tk_sect",
+            "fieldPath": "/attributes/@tk_sect",
+            "rank": "zk"
+          },
+          "/attributes/@tk_title": {
+            "id": "/attributes/@tk_title",
+            "fieldPath": "/attributes/@tk_title",
+            "rank": "zs"
+          },
+          "/attributes/@tk_desc": {
+            "id": "/attributes/@tk_desc",
+            "fieldPath": "/attributes/@tk_desc",
+            "rank": "zw"
+          },
+          "/attributes/@tk_status": {
+            "id": "/attributes/@tk_status",
+            "fieldPath": "/attributes/@tk_status",
+            "rank": "zy"
+          },
+          "/attributes/@tk_prio": {
+            "id": "/attributes/@tk_prio",
+            "fieldPath": "/attributes/@tk_prio",
+            "rank": "zz"
+          },
+          "/attributes/@tk_rating": {
+            "id": "/attributes/@tk_rating",
+            "fieldPath": "/attributes/@tk_rating",
+            "rank": "zzV"
+          },
+          "/attributes/@tk_airesp": {
+            "id": "/attributes/@tk_airesp",
+            "fieldPath": "/attributes/@tk_airesp",
+            "rank": "zzk"
+          },
+          "/attributes/@tk_adresp": {
+            "id": "/attributes/@tk_adresp",
+            "fieldPath": "/attributes/@tk_adresp",
+            "rank": "zzs"
+          },
+          "/attributes/@tk_adminid": {
+            "id": "/attributes/@tk_adminid",
+            "fieldPath": "/attributes/@tk_adminid",
+            "rank": "zzw"
+          },
+          "/attributes/@tk_cat": {
+            "id": "/attributes/@tk_cat",
+            "fieldPath": "/attributes/@tk_cat",
+            "rank": "zzy"
+          },
+          "/attributes/@tk_uat": {
+            "id": "/attributes/@tk_uat",
+            "fieldPath": "/attributes/@tk_uat",
+            "rank": "zzz"
+          }
+        }
+      },
+      "mindmap": {
+        "id": "mindmap",
+        "type": "mindmap",
+        "rank": "D",
+        "displayedFields": {
+          "/text": {
+            "id": "/text",
+            "fieldPath": "/text",
+            "rank": "7"
+          },
+          "/attributes/agent": {
+            "id": "/attributes/agent",
+            "fieldPath": "/attributes/agent",
+            "rank": "A"
+          },
+          "/attributes/date": {
+            "id": "/attributes/date",
+            "fieldPath": "/attributes/date",
+            "rank": "F"
+          },
+          "/attributes/assignee": {
+            "id": "/attributes/assignee",
+            "fieldPath": "/attributes/assignee",
+            "rank": "N"
+          },
+          "/attributes/comment": {
+            "id": "/attributes/comment",
+            "fieldPath": "/attributes/comment",
+            "rank": "V"
+          },
+          "/attributes/reaction": {
+            "id": "/attributes/reaction",
+            "fieldPath": "/attributes/reaction",
+            "rank": "c"
+          },
+          "/attributes/timer": {
+            "id": "/attributes/timer",
+            "fieldPath": "/attributes/timer",
+            "rank": "k"
+          },
+          "/attributes/media": {
+            "id": "/attributes/media",
+            "fieldPath": "/attributes/media",
+            "rank": "s"
+          },
+          "/attributes/created/at": {
+            "id": "/attributes/created/at",
+            "fieldPath": "/attributes/created/at",
+            "rank": "t"
+          },
+          "/attributes/created/by": {
+            "id": "/attributes/created/by",
+            "fieldPath": "/attributes/created/by",
+            "rank": "u"
+          },
+          "/attributes/updated/at": {
+            "id": "/attributes/updated/at",
+            "fieldPath": "/attributes/updated/at",
+            "rank": "vF"
+          },
+          "/attributes/updated/by": {
+            "id": "/attributes/updated/by",
+            "fieldPath": "/attributes/updated/by",
+            "rank": "wF"
+          },
+          "/attributes/completed/at": {
+            "id": "/attributes/completed/at",
+            "fieldPath": "/attributes/completed/at",
+            "rank": "x"
+          },
+          "/attributes/completed/by": {
+            "id": "/attributes/completed/by",
+            "fieldPath": "/attributes/completed/by",
+            "rank": "y"
+          },
+          "/attributes/@tk_uid": {
+            "id": "/attributes/@tk_uid",
+            "fieldPath": "/attributes/@tk_uid",
+            "rank": "z"
+          },
+          "/attributes/@tk_uname": {
+            "id": "/attributes/@tk_uname",
+            "fieldPath": "/attributes/@tk_uname",
+            "rank": "zV"
+          },
+          "/attributes/@tk_sect": {
+            "id": "/attributes/@tk_sect",
+            "fieldPath": "/attributes/@tk_sect",
+            "rank": "zk"
+          },
+          "/attributes/@tk_title": {
+            "id": "/attributes/@tk_title",
+            "fieldPath": "/attributes/@tk_title",
+            "rank": "zs"
+          },
+          "/attributes/@tk_desc": {
+            "id": "/attributes/@tk_desc",
+            "fieldPath": "/attributes/@tk_desc",
+            "rank": "zw"
+          },
+          "/attributes/@tk_status": {
+            "id": "/attributes/@tk_status",
+            "fieldPath": "/attributes/@tk_status",
+            "rank": "zy"
+          },
+          "/attributes/@tk_prio": {
+            "id": "/attributes/@tk_prio",
+            "fieldPath": "/attributes/@tk_prio",
+            "rank": "zz"
+          },
+          "/attributes/@tk_rating": {
+            "id": "/attributes/@tk_rating",
+            "fieldPath": "/attributes/@tk_rating",
+            "rank": "zzV"
+          },
+          "/attributes/@tk_airesp": {
+            "id": "/attributes/@tk_airesp",
+            "fieldPath": "/attributes/@tk_airesp",
+            "rank": "zzk"
+          },
+          "/attributes/@tk_adresp": {
+            "id": "/attributes/@tk_adresp",
+            "fieldPath": "/attributes/@tk_adresp",
+            "rank": "zzs"
+          },
+          "/attributes/@tk_adminid": {
+            "id": "/attributes/@tk_adminid",
+            "fieldPath": "/attributes/@tk_adminid",
+            "rank": "zzw"
+          },
+          "/attributes/@tk_cat": {
+            "id": "/attributes/@tk_cat",
+            "fieldPath": "/attributes/@tk_cat",
+            "rank": "zzy"
+          },
+          "/attributes/@tk_uat": {
+            "id": "/attributes/@tk_uat",
+            "fieldPath": "/attributes/@tk_uat",
+            "rank": "zzz"
+          }
+        }
+      },
+      "orgchart": {
+        "id": "orgchart",
+        "type": "orgchart",
+        "rank": "E",
+        "displayedFields": {
+          "/text": {
+            "id": "/text",
+            "fieldPath": "/text",
+            "rank": "7"
+          },
+          "/attributes/agent": {
+            "id": "/attributes/agent",
+            "fieldPath": "/attributes/agent",
+            "rank": "A"
+          },
+          "/attributes/date": {
+            "id": "/attributes/date",
+            "fieldPath": "/attributes/date",
+            "rank": "F"
+          },
+          "/attributes/assignee": {
+            "id": "/attributes/assignee",
+            "fieldPath": "/attributes/assignee",
+            "rank": "N"
+          },
+          "/attributes/comment": {
+            "id": "/attributes/comment",
+            "fieldPath": "/attributes/comment",
+            "rank": "V"
+          },
+          "/attributes/reaction": {
+            "id": "/attributes/reaction",
+            "fieldPath": "/attributes/reaction",
+            "rank": "c"
+          },
+          "/attributes/timer": {
+            "id": "/attributes/timer",
+            "fieldPath": "/attributes/timer",
+            "rank": "k"
+          },
+          "/attributes/media": {
+            "id": "/attributes/media",
+            "fieldPath": "/attributes/media",
+            "rank": "s"
+          },
+          "/attributes/created/at": {
+            "id": "/attributes/created/at",
+            "fieldPath": "/attributes/created/at",
+            "rank": "t"
+          },
+          "/attributes/created/by": {
+            "id": "/attributes/created/by",
+            "fieldPath": "/attributes/created/by",
+            "rank": "u"
+          },
+          "/attributes/updated/at": {
+            "id": "/attributes/updated/at",
+            "fieldPath": "/attributes/updated/at",
+            "rank": "vF"
+          },
+          "/attributes/updated/by": {
+            "id": "/attributes/updated/by",
+            "fieldPath": "/attributes/updated/by",
+            "rank": "wF"
+          },
+          "/attributes/completed/at": {
+            "id": "/attributes/completed/at",
+            "fieldPath": "/attributes/completed/at",
+            "rank": "x"
+          },
+          "/attributes/completed/by": {
+            "id": "/attributes/completed/by",
+            "fieldPath": "/attributes/completed/by",
+            "rank": "y"
+          },
+          "/attributes/@tk_uid": {
+            "id": "/attributes/@tk_uid",
+            "fieldPath": "/attributes/@tk_uid",
+            "rank": "z"
+          },
+          "/attributes/@tk_uname": {
+            "id": "/attributes/@tk_uname",
+            "fieldPath": "/attributes/@tk_uname",
+            "rank": "zV"
+          },
+          "/attributes/@tk_sect": {
+            "id": "/attributes/@tk_sect",
+            "fieldPath": "/attributes/@tk_sect",
+            "rank": "zk"
+          },
+          "/attributes/@tk_title": {
+            "id": "/attributes/@tk_title",
+            "fieldPath": "/attributes/@tk_title",
+            "rank": "zs"
+          },
+          "/attributes/@tk_desc": {
+            "id": "/attributes/@tk_desc",
+            "fieldPath": "/attributes/@tk_desc",
+            "rank": "zw"
+          },
+          "/attributes/@tk_status": {
+            "id": "/attributes/@tk_status",
+            "fieldPath": "/attributes/@tk_status",
+            "rank": "zy"
+          },
+          "/attributes/@tk_prio": {
+            "id": "/attributes/@tk_prio",
+            "fieldPath": "/attributes/@tk_prio",
+            "rank": "zz"
+          },
+          "/attributes/@tk_rating": {
+            "id": "/attributes/@tk_rating",
+            "fieldPath": "/attributes/@tk_rating",
+            "rank": "zzV"
+          },
+          "/attributes/@tk_airesp": {
+            "id": "/attributes/@tk_airesp",
+            "fieldPath": "/attributes/@tk_airesp",
+            "rank": "zzk"
+          },
+          "/attributes/@tk_adresp": {
+            "id": "/attributes/@tk_adresp",
+            "fieldPath": "/attributes/@tk_adresp",
+            "rank": "zzs"
+          },
+          "/attributes/@tk_adminid": {
+            "id": "/attributes/@tk_adminid",
+            "fieldPath": "/attributes/@tk_adminid",
+            "rank": "zzw"
+          },
+          "/attributes/@tk_cat": {
+            "id": "/attributes/@tk_cat",
+            "fieldPath": "/attributes/@tk_cat",
+            "rank": "zzy"
+          },
+          "/attributes/@tk_uat": {
+            "id": "/attributes/@tk_uat",
+            "fieldPath": "/attributes/@tk_uat",
+            "rank": "zzz"
+          }
+        }
+      },
+      "gantt": {
+        "id": "gantt",
+        "type": "gantt",
+        "rank": "F",
+        "columns": {
+          "/text": {
+            "id": "/text",
+            "fieldPath": "/text",
+            "rank": "7",
+            "width": 480
+          },
+          "/attributes/agent": {
+            "id": "/attributes/agent",
+            "fieldPath": "/attributes/agent",
+            "rank": "A",
+            "hidden": true
+          },
+          "/attributes/date": {
+            "id": "/attributes/date",
+            "fieldPath": "/attributes/date",
+            "rank": "F",
+            "hidden": true
+          },
+          "/attributes/assignee": {
+            "id": "/attributes/assignee",
+            "fieldPath": "/attributes/assignee",
+            "rank": "N",
+            "hidden": true
+          },
+          "/attributes/comment": {
+            "id": "/attributes/comment",
+            "fieldPath": "/attributes/comment",
+            "rank": "V",
+            "hidden": true
+          },
+          "/attributes/reaction": {
+            "id": "/attributes/reaction",
+            "fieldPath": "/attributes/reaction",
+            "rank": "c",
+            "hidden": true
+          },
+          "/attributes/timer": {
+            "id": "/attributes/timer",
+            "fieldPath": "/attributes/timer",
+            "rank": "k",
+            "hidden": true
+          },
+          "/attributes/media": {
+            "id": "/attributes/media",
+            "fieldPath": "/attributes/media",
+            "rank": "s",
+            "hidden": true
+          },
+          "/attributes/created/at": {
+            "id": "/attributes/created/at",
+            "fieldPath": "/attributes/created/at",
+            "rank": "t",
+            "hidden": true
+          },
+          "/attributes/created/by": {
+            "id": "/attributes/created/by",
+            "fieldPath": "/attributes/created/by",
+            "rank": "u",
+            "hidden": true
+          },
+          "/attributes/updated/at": {
+            "id": "/attributes/updated/at",
+            "fieldPath": "/attributes/updated/at",
+            "rank": "vF",
+            "hidden": true
+          },
+          "/attributes/updated/by": {
+            "id": "/attributes/updated/by",
+            "fieldPath": "/attributes/updated/by",
+            "rank": "wF",
+            "hidden": true
+          },
+          "/attributes/completed/at": {
+            "id": "/attributes/completed/at",
+            "fieldPath": "/attributes/completed/at",
+            "rank": "x",
+            "hidden": true
+          },
+          "/attributes/completed/by": {
+            "id": "/attributes/completed/by",
+            "fieldPath": "/attributes/completed/by",
+            "rank": "y",
+            "hidden": true
+          },
+          "/attributes/@tk_uid": {
+            "id": "/attributes/@tk_uid",
+            "fieldPath": "/attributes/@tk_uid",
+            "rank": "z",
+            "hidden": false
+          },
+          "/attributes/@tk_uname": {
+            "id": "/attributes/@tk_uname",
+            "fieldPath": "/attributes/@tk_uname",
+            "rank": "zV",
+            "hidden": false
+          },
+          "/attributes/@tk_sect": {
+            "id": "/attributes/@tk_sect",
+            "fieldPath": "/attributes/@tk_sect",
+            "rank": "zk",
+            "hidden": false
+          },
+          "/attributes/@tk_title": {
+            "id": "/attributes/@tk_title",
+            "fieldPath": "/attributes/@tk_title",
+            "rank": "zs",
+            "hidden": false
+          },
+          "/attributes/@tk_desc": {
+            "id": "/attributes/@tk_desc",
+            "fieldPath": "/attributes/@tk_desc",
+            "rank": "zw",
+            "hidden": false
+          },
+          "/attributes/@tk_status": {
+            "id": "/attributes/@tk_status",
+            "fieldPath": "/attributes/@tk_status",
+            "rank": "zy",
+            "hidden": false
+          },
+          "/attributes/@tk_prio": {
+            "id": "/attributes/@tk_prio",
+            "fieldPath": "/attributes/@tk_prio",
+            "rank": "zz",
+            "hidden": false
+          },
+          "/attributes/@tk_rating": {
+            "id": "/attributes/@tk_rating",
+            "fieldPath": "/attributes/@tk_rating",
+            "rank": "zzV",
+            "hidden": false
+          },
+          "/attributes/@tk_airesp": {
+            "id": "/attributes/@tk_airesp",
+            "fieldPath": "/attributes/@tk_airesp",
+            "rank": "zzk",
+            "hidden": false
+          },
+          "/attributes/@tk_adresp": {
+            "id": "/attributes/@tk_adresp",
+            "fieldPath": "/attributes/@tk_adresp",
+            "rank": "zzs",
+            "hidden": false
+          },
+          "/attributes/@tk_adminid": {
+            "id": "/attributes/@tk_adminid",
+            "fieldPath": "/attributes/@tk_adminid",
+            "rank": "zzw",
+            "hidden": false
+          },
+          "/attributes/@tk_cat": {
+            "id": "/attributes/@tk_cat",
+            "fieldPath": "/attributes/@tk_cat",
+            "rank": "zzy",
+            "hidden": false
+          },
+          "/attributes/@tk_uat": {
+            "id": "/attributes/@tk_uat",
+            "fieldPath": "/attributes/@tk_uat",
+            "rank": "zzz",
+            "hidden": false
+          }
+        }
+      },
+      "table": {
+        "id": "table",
+        "type": "table",
+        "rank": "V",
+        "columns": {
+          "/text": {
+            "id": "/text",
+            "fieldPath": "/text",
+            "rank": "7",
+            "width": 480
+          },
+          "/attributes/agent": {
+            "id": "/attributes/agent",
+            "fieldPath": "/attributes/agent",
+            "rank": "A",
+            "hidden": true
+          },
+          "/attributes/date": {
+            "id": "/attributes/date",
+            "fieldPath": "/attributes/date",
+            "rank": "F",
+            "hidden": true
+          },
+          "/attributes/assignee": {
+            "id": "/attributes/assignee",
+            "fieldPath": "/attributes/assignee",
+            "rank": "N",
+            "hidden": true
+          },
+          "/attributes/comment": {
+            "id": "/attributes/comment",
+            "fieldPath": "/attributes/comment",
+            "rank": "V",
+            "hidden": true
+          },
+          "/attributes/reaction": {
+            "id": "/attributes/reaction",
+            "fieldPath": "/attributes/reaction",
+            "rank": "c",
+            "hidden": true
+          },
+          "/attributes/timer": {
+            "id": "/attributes/timer",
+            "fieldPath": "/attributes/timer",
+            "rank": "k",
+            "hidden": true
+          },
+          "/attributes/media": {
+            "id": "/attributes/media",
+            "fieldPath": "/attributes/media",
+            "rank": "s",
+            "hidden": true
+          },
+          "/attributes/created/at": {
+            "id": "/attributes/created/at",
+            "fieldPath": "/attributes/created/at",
+            "rank": "t",
+            "hidden": true
+          },
+          "/attributes/created/by": {
+            "id": "/attributes/created/by",
+            "fieldPath": "/attributes/created/by",
+            "rank": "u",
+            "hidden": true
+          },
+          "/attributes/updated/at": {
+            "id": "/attributes/updated/at",
+            "fieldPath": "/attributes/updated/at",
+            "rank": "vF",
+            "hidden": true
+          },
+          "/attributes/updated/by": {
+            "id": "/attributes/updated/by",
+            "fieldPath": "/attributes/updated/by",
+            "rank": "wF",
+            "hidden": true
+          },
+          "/attributes/completed/at": {
+            "id": "/attributes/completed/at",
+            "fieldPath": "/attributes/completed/at",
+            "rank": "x",
+            "hidden": true
+          },
+          "/attributes/completed/by": {
+            "id": "/attributes/completed/by",
+            "fieldPath": "/attributes/completed/by",
+            "rank": "y",
+            "hidden": true
+          },
+          "/attributes/@tk_uid": {
+            "id": "/attributes/@tk_uid",
+            "fieldPath": "/attributes/@tk_uid",
+            "rank": "z",
+            "hidden": false
+          },
+          "/attributes/@tk_uname": {
+            "id": "/attributes/@tk_uname",
+            "fieldPath": "/attributes/@tk_uname",
+            "rank": "zV",
+            "hidden": false
+          },
+          "/attributes/@tk_sect": {
+            "id": "/attributes/@tk_sect",
+            "fieldPath": "/attributes/@tk_sect",
+            "rank": "zk",
+            "hidden": false
+          },
+          "/attributes/@tk_title": {
+            "id": "/attributes/@tk_title",
+            "fieldPath": "/attributes/@tk_title",
+            "rank": "zs",
+            "hidden": false
+          },
+          "/attributes/@tk_desc": {
+            "id": "/attributes/@tk_desc",
+            "fieldPath": "/attributes/@tk_desc",
+            "rank": "zw",
+            "hidden": false
+          },
+          "/attributes/@tk_status": {
+            "id": "/attributes/@tk_status",
+            "fieldPath": "/attributes/@tk_status",
+            "rank": "zy",
+            "hidden": false
+          },
+          "/attributes/@tk_prio": {
+            "id": "/attributes/@tk_prio",
+            "fieldPath": "/attributes/@tk_prio",
+            "rank": "zz",
+            "hidden": false
+          },
+          "/attributes/@tk_rating": {
+            "id": "/attributes/@tk_rating",
+            "fieldPath": "/attributes/@tk_rating",
+            "rank": "zzV",
+            "hidden": false
+          },
+          "/attributes/@tk_airesp": {
+            "id": "/attributes/@tk_airesp",
+            "fieldPath": "/attributes/@tk_airesp",
+            "rank": "zzk",
+            "hidden": false
+          },
+          "/attributes/@tk_adresp": {
+            "id": "/attributes/@tk_adresp",
+            "fieldPath": "/attributes/@tk_adresp",
+            "rank": "zzs",
+            "hidden": false
+          },
+          "/attributes/@tk_adminid": {
+            "id": "/attributes/@tk_adminid",
+            "fieldPath": "/attributes/@tk_adminid",
+            "rank": "zzw",
+            "hidden": false
+          },
+          "/attributes/@tk_cat": {
+            "id": "/attributes/@tk_cat",
+            "fieldPath": "/attributes/@tk_cat",
+            "rank": "zzy",
+            "hidden": false
+          },
+          "/attributes/@tk_uat": {
+            "id": "/attributes/@tk_uat",
+            "fieldPath": "/attributes/@tk_uat",
+            "rank": "zzz",
+            "hidden": false
+          }
+        }
+      }
+    },
+    "fields": {
+      "@tk_uat": {
+        "type": "DateTime",
+        "title": "UpdatedAt"
+      },
+      "@tk_airesp": {
+        "type": "string",
+        "displayName": "AIResponse"
+      },
+      "@tk_adminid": {
+        "type": "string",
+        "displayName": "AdminId"
+      },
+      "@tk_rating": {
+        "type": "number",
+        "displayName": "Rating",
+        "render": {
+          "type": "text"
+        },
+        "format": {
+          "type": "decimal"
+        }
+      },
+      "@tk_uid": {
+        "type": "string",
+        "displayName": "UserEmail"
+      },
+      "@tk_sect": {
+        "type": "string",
+        "displayName": "Section"
+      },
+      "@tk_cat": {
+        "type": "DateTime",
+        "title": "CreatedAt"
+      },
+      "@tk_title": {
+        "type": "string",
+        "displayName": "Title"
+      },
+      "@tk_prio": {
+        "type": "Select",
+        "displayName": "Priority",
+        "options": {
+          "tk_low": {
+            "id": "tk_low",
+            "name": "low",
+            "color": "#6b7280",
+            "rank": "0"
+          },
+          "tk_medium": {
+            "id": "tk_medium",
+            "name": "medium",
+            "color": "#3b82f6",
+            "rank": "1"
+          },
+          "tk_high": {
+            "id": "tk_high",
+            "name": "high",
+            "color": "#f59e0b",
+            "rank": "2"
+          },
+          "tk_critical": {
+            "id": "tk_critical",
+            "name": "critical",
+            "color": "#ef4444",
+            "rank": "3"
+          }
+        }
+      },
+      "@tk_uname": {
+        "type": "string",
+        "displayName": "UserName"
+      },
+      "@tk_desc": {
+        "type": "string",
+        "displayName": "Description"
+      },
+      "@tk_status": {
+        "type": "Select",
+        "displayName": "Status",
+        "options": {
+          "tk_open": {
+            "id": "tk_open",
+            "name": "open",
+            "color": "#3b82f6",
+            "rank": "0"
+          },
+          "tk_ai": {
+            "id": "tk_ai",
+            "name": "ai_handling",
+            "color": "#8b5cf6",
+            "rank": "1"
+          },
+          "tk_admin": {
+            "id": "tk_admin",
+            "name": "admin_handling",
+            "color": "#f59e0b",
+            "rank": "2"
+          },
+          "tk_resolved": {
+            "id": "tk_resolved",
+            "name": "resolved",
+            "color": "#22c55e",
+            "rank": "3"
+          },
+          "tk_closed": {
+            "id": "tk_closed",
+            "name": "closed",
+            "color": "#6b7280",
+            "rank": "4"
+          }
+        }
+      },
+      "@tk_adresp": {
+        "type": "string",
+        "displayName": "AdminResponse"
+      }
+    }
+  },
+  "preferences": {
+    "defaultView": "table",
+    "avatar": {
+      "type": "emoji",
+      "value": "🗓️"
+    }
+  }
+}

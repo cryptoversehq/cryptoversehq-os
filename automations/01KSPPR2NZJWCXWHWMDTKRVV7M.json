@@ -1,0 +1,76 @@
+{
+  "version": "2",
+  "flowTitle": "CryptoVerse HQ — Verify OTP",
+  "trigger": {
+    "valid": true,
+    "type": "WEBHOOK",
+    "settings": {
+      "input": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "Input for code"
+          },
+          "email": {
+            "type": "string",
+            "description": "Input for email"
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "actions": [
+    {
+      "name": "f1a2b3c4-d5e6-7890-abcd-111222333444",
+      "valid": false,
+      "displayName": "Find User by Email",
+      "type": "PIECE",
+      "settings": {
+        "pieceName": "@taskade/automade-internalpiece-taskade",
+        "pieceVersion": "1.0.0",
+        "actionName": "tasks.find",
+        "input": {
+          "projectId": {
+            "type": "flow-template-variable-input-type",
+            "id": "3dMq65zUi1A7ayiC"
+          },
+          "rowsToReturn": "first_matching_row",
+          "noTasksFoundBehavior": "continue"
+        }
+      }
+    }
+  ],
+  "outputs": [
+    {
+      "type": "http_response",
+      "body": {
+        "type": "json",
+        "data": {
+          "type": "basic",
+          "payload": [
+            {
+              "found": "{{ f1a2b3c4-d5e6-7890-abcd-111222333444[\"nodeId\"] }}"
+            },
+            {
+              "email": "{{ trigger[\"body\"][\"email\"] }}"
+            },
+            {
+              "code": "{{ trigger[\"body\"][\"code\"] }}"
+            }
+          ]
+        }
+      },
+      "key": "trigger"
+    }
+  ],
+  "variables": {
+    "3dMq65zUi1A7ayiC": {
+      "id": "3dMq65zUi1A7ayiC",
+      "rank": "V",
+      "type": "string",
+      "format": "taskade-project-id"
+    }
+  }
+}

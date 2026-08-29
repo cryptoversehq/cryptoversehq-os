@@ -1,0 +1,4 @@
+{
+  "status": "NOT GENERATED",
+  "reason": "Headless serverless verification sandbox lacks graphical browser binaries and Playwright E2E test runner infrastructure."
+}

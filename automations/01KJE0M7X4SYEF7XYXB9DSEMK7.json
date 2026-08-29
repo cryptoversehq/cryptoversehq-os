@@ -1,0 +1,59 @@
+{
+  "version": "2",
+  "flowTitle": "CryptoVerse — Password Reset Confirmation",
+  "trigger": {
+    "valid": true,
+    "type": "WEBHOOK",
+    "settings": {
+      "input": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "description": "Input for email"
+          },
+          "displayName": {
+            "type": "string",
+            "description": "Input for displayName"
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "actions": [
+    {
+      "name": "b2c3d4e5-f678-90ab-cdef-123456780abc",
+      "valid": false,
+      "displayName": "Send Password Changed Confirmation",
+      "type": "PIECE",
+      "settings": {
+        "pieceName": "@taskade/automade-piece-gmail",
+        "pieceVersion": "1.0.0",
+        "actionName": "sendEmail",
+        "input": {
+          "to": "{{ trigger[\"body\"][\"email\"] }}",
+          "subject": "CryptoVerse AI — Your password has been reset",
+          "bodyHtml": "<!DOCTYPE html><html><head><meta charset='UTF-8'><style>body{margin:0;padding:0;background:#0d1117;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}.wrapper{background:#0d1117;padding:40px 20px}.card{background:#111827;border:1px solid #1f2937;border-radius:16px;padding:40px;max-width:480px;margin:0 auto}.greeting{color:#e5e7eb;font-size:16px;margin-bottom:8px}.body-text{color:#9ca3af;font-size:14px;line-height:1.6;margin-bottom:24px}.green-box{background:#052e16;border:1px solid rgba(22,163,74,0.25);border-radius:12px;padding:20px;margin-bottom:24px;text-align:center}.green-text{color:#4ade80;font-size:14px;font-weight:600}.warning{background:#1f2937;border-radius:8px;padding:12px 16px;margin-bottom:24px}.warning-text{color:#6b7280;font-size:12px;line-height:1.5}.footer{text-align:center;color:#374151;font-size:11px;margin-top:24px;padding-top:24px;border-top:1px solid #1f2937}</style></head><body><div class='wrapper'><div class='card'><div style='text-align:center;margin-bottom:24px'><div style='font-size:48px'>✅</div><div style='color:#fff;font-size:22px;font-weight:800'>CryptoVerse AI</div><div style='color:#f59e0b;font-size:12px;margin-top:2px'>Trade. Learn. Compete.</div></div><div class='greeting'>Hello {{ trigger[\"body\"][\"displayName\"] }} 👋</div><div class='body-text'>Your CryptoVerse AI password has been successfully updated. You can now sign in with your new password.</div><div class='green-box'><div class='green-text'>Password changed successfully</div></div><div class='warning'><div class='warning-text'>If you did not make this change, please contact our support team immediately and secure your account.</div></div><div class='footer'>2025 CryptoVerse AI - Trade smarter, not harder. This is an automated message, please do not reply.</div></div></div></body></html>"
+        }
+      }
+    }
+  ],
+  "outputs": [
+    {
+      "type": "http_response",
+      "body": {
+        "type": "json",
+        "data": {
+          "type": "basic",
+          "payload": [
+            {
+              "ok": "true"
+            }
+          ]
+        }
+      },
+      "key": "trigger"
+    }
+  ]
+}

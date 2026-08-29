@@ -1,0 +1,71 @@
+{
+  "version": "2",
+  "flowTitle": "CryptoVerse HQ - Login Tracker",
+  "trigger": {
+    "valid": true,
+    "type": "WEBHOOK",
+    "settings": {
+      "input": {
+        "type": "object",
+        "properties": {
+          "nodeId": {
+            "type": "string",
+            "description": "Input for nodeId"
+          },
+          "currentDate": {
+            "type": "string",
+            "description": "Input for currentDate"
+          },
+          "currentCount": {
+            "type": "number"
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "actions": [
+    {
+      "name": "d5e6f7a8-b9c0-4d1e-9f2a-3b4c5d6e7f8a",
+      "valid": false,
+      "displayName": "Update last login & count",
+      "type": "PIECE",
+      "settings": {
+        "pieceName": "@taskade/automade-internalpiece-taskade",
+        "pieceVersion": "1.0.0",
+        "actionName": "updateCustomFields",
+        "input": {
+          "fields": {
+            "@cv_lcnt": {
+              "data": {
+                "value": "{{ trigger[\"body\"][\"currentCount\"] }}"
+              },
+              "rank": "0",
+              "fieldId": "@cv_lcnt"
+            },
+            "@cv_llog": {
+              "data": {
+                "value": "{{ trigger[\"body\"][\"currentDate\"] }}"
+              },
+              "rank": "1",
+              "fieldId": "@cv_llog"
+            }
+          },
+          "nodeId": "{{ trigger[\"body\"][\"nodeId\"] }}",
+          "projectId": {
+            "type": "flow-template-variable-input-type",
+            "id": "3dMq65zUi1A7ayiC"
+          }
+        }
+      }
+    }
+  ],
+  "variables": {
+    "3dMq65zUi1A7ayiC": {
+      "id": "3dMq65zUi1A7ayiC",
+      "rank": "V",
+      "type": "string",
+      "format": "taskade-project-id"
+    }
+  }
+}

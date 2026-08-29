@@ -1,0 +1,951 @@
+{
+  "root": {
+    "type": "root",
+    "children": [
+      {
+        "type": "text",
+        "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+        "text": {
+          "ops": [
+            {
+              "insert": "Rebrand: CryptoPlay → CryptoVerse AI"
+            },
+            {
+              "insert": "\n",
+              "attributes": {
+                "paragraph": true
+              }
+            }
+          ]
+        },
+        "format": null,
+        "collapsed": false,
+        "completed": false,
+        "children": [
+          {
+            "type": "text",
+            "id": "b2c3d4e5-f678-90ab-cdef-123456789abc",
+            "text": {
+              "ops": [
+                {
+                  "insert": "Rebrand completed 2026-04-20",
+                  "attributes": {}
+                },
+                {
+                  "insert": "\n",
+                  "attributes": {
+                    "paragraph": true
+                  }
+                }
+              ]
+            },
+            "format": {
+              "node": "h1",
+              "children": null
+            },
+            "collapsed": false,
+            "completed": true,
+            "children": []
+          },
+          {
+            "type": "text",
+            "id": "c3d4e5f6-7890-abcd-ef12-34567890abcd",
+            "text": {
+              "ops": [
+                {
+                  "insert": "index.html — all meta/OG/Twitter tags updated",
+                  "attributes": {}
+                },
+                {
+                  "insert": "\n",
+                  "attributes": {
+                    "paragraph": true
+                  }
+                }
+              ]
+            },
+            "format": {
+              "node": "checkbox",
+              "children": null
+            },
+            "collapsed": false,
+            "completed": true,
+            "children": []
+          },
+          {
+            "type": "text",
+            "id": "d4e5f678-90ab-cdef-1234-567890abcdef",
+            "text": {
+              "ops": [
+                {
+                  "insert": "App.tsx sidebar logo text → CryptoVerse AI (with new CryptoVerseLogo component)",
+                  "attributes": {}
+                },
+                {
+                  "insert": "\n",
+                  "attributes": {
+                    "paragraph": true
+                  }
+                }
+              ]
+            },
+            "format": {
+              "node": "checkbox",
+              "children": null
+            },
+            "collapsed": false,
+            "completed": true,
+            "children": []
+          },
+          {
+            "type": "text",
+            "id": "e5f67890-abcd-ef12-3456-7890abcdef01",
+            "text": {
+              "ops": [
+                {
+                  "insert": "AgentChat.tsx — mentor title updated",
+                  "attributes": {}
+                },
+                {
+                  "insert": "\n",
+                  "attributes": {
+                    "paragraph": true
+                  }
+                }
+              ]
+            },
+            "format": {
+              "node": "checkbox",
+              "children": null
+            },
+            "collapsed": false,
+            "completed": true,
+            "children": []
+          },
+          {
+            "type": "text",
+            "id": "f6789012-bcde-f123-4567-890abcdef012",
+            "text": {
+              "ops": [
+                {
+                  "insert": "i18n.ts — 8 languages welcome.title updated (EN, ES, AR, FA, FR, DE, RU, JA, ZH)",
+                  "attributes": {}
+                },
+                {
+                  "insert": "\n",
+                  "attributes": {
+                    "paragraph": true
+                  }
+                }
+              ]
+            },
+            "format": {
+              "node": "checkbox",
+              "children": null
+            },
+            "collapsed": false,
+            "completed": true,
+            "children": []
+          },
+          {
+            "type": "text",
+            "id": "07890123-cdef-1234-5678-90abcdef0123",
+            "text": {
+              "ops": [
+                {
+                  "insert": "authStore.ts — OAuth emails + storage keys → cryptoverse_",
+                  "attributes": {}
+                },
+                {
+                  "insert": "\n",
+                  "attributes": {
+                    "paragraph": true
+                  }
+                }
+              ]
+            },
+            "format": {
+              "node": "checkbox",
+              "children": null
+            },
+            "collapsed": false,
+            "completed": true,
+            "children": []
+          },
+          {
+            "type": "text",
+            "id": "18901234-def0-1234-6789-0abcdef01234",
+            "text": {
+              "ops": [
+                {
+                  "insert": "adminAuthStore.ts — superadmin@cryptoverse.ai + session keys → cryptoverse_",
+                  "attributes": {}
+                },
+                {
+                  "insert": "\n",
+                  "attributes": {
+                    "paragraph": true
+                  }
+                }
+              ]
+            },
+            "format": {
+              "node": "checkbox",
+              "children": null
+            },
+            "collapsed": false,
+            "completed": true,
+            "children": []
+          },
+          {
+            "type": "text",
+            "id": "29012345-ef01-2345-789a-bcdef0123456",
+            "text": {
+              "ops": [
+                {
+                  "insert": "AdminLogin.tsx — title + pre-filled email updated",
+                  "attributes": {}
+                },
+                {
+                  "insert": "\n",
+                  "attributes": {
+                    "paragraph": true
+                  }
+                }
+              ]
+            },
+            "format": {
+              "node": "checkbox",
+              "children": null
+            },
+            "collapsed": false,
+            "completed": true,
+            "children": []
+          },
+          {
+            "type": "text",
+            "id": "30123456-f012-3456-89ab-cdef01234567",
+            "text": {
+              "ops": [
+                {
+                  "insert": "AdminPortalLayout.tsx — sidebar name updated, logo replaced",
+                  "attributes": {}
+                },
+                {
+                  "insert": "\n",
+                  "attributes": {
+                    "paragraph": true
+                  }
+                }
+              ]
+            },
+            "format": {
+              "node": "checkbox",
+              "children": null
+            },
+            "collapsed": false,
+            "completed": true,
+            "children": []
+          },
+          {
+            "type": "text",
+            "id": "41234567-0123-4567-9abc-def012345678",
+            "text": {
+              "ops": [
+                {
+                  "insert": "adminManagementStore.ts — all 7 localStorage keys → cryptoverse_",
+                  "attributes": {}
+                },
+                {
+                  "insert": "\n",
+                  "attributes": {
+                    "paragraph": true
+                  }
+                }
+              ]
+            },
+            "format": {
+              "node": "checkbox",
+              "children": null
+            },
+            "collapsed": false,
+            "completed": true,
+            "children": []
+          },
+          {
+            "type": "text",
+            "id": "52345678-1234-5678-abcd-ef0123456789",
+            "text": {
+              "ops": [
+                {
+                  "insert": "adminPortalStore.ts — TWO_MAN_KEY + NOTIF_CTR_KEY → cryptoverse_",
+                  "attributes": {}
+                },
+                {
+                  "insert": "\n",
+                  "attributes": {
+                    "paragraph": true
+                  }
+                }
+              ]
+            },
+            "format": {
+              "node": "checkbox",
+              "children": null
+            },
+            "collapsed": false,
+            "completed": true,
+            "children": []
+          },
+          {
+            "type": "text",
+            "id": "63456789-2345-6789-bcde-f01234567890",
+            "text": {
+              "ops": [
+                {
+                  "insert": "loginHistoryStore.ts — HISTORY_KEY → cryptoverse_",
+                  "attributes": {}
+                },
+                {
+                  "insert": "\n",
+                  "attributes": {
+                    "paragraph": true
+                  }
+                }
+              ]
+            },
+            "format": {
+              "node": "checkbox",
+              "children": null
+            },
+            "collapsed": false,
+            "completed": true,
+            "children": []
+          },
+          {
+            "type": "text",
+            "id": "74567890-3456-789a-cdef-012345678901",
+            "text": {
+              "ops": [
+                {
+                  "insert": "New assets: /public/favicon.svg + src/components/CryptoVerseLogo.tsx",
+                  "attributes": {}
+                },
+                {
+                  "insert": "\n",
+                  "attributes": {
+                    "paragraph": true
+                  }
+                }
+              ]
+            },
+            "format": {
+              "node": "checkbox",
+              "children": null
+            },
+            "collapsed": false,
+            "completed": true,
+            "children": []
+          },
+          {
+            "type": "text",
+            "id": "aa111111-0000-1111-2222-333344445555",
+            "text": {
+              "ops": [
+                {
+                  "insert": "Round 2 fixes (missed in round 1)",
+                  "attributes": {}
+                },
+                {
+                  "insert": "\n",
+                  "attributes": {
+                    "paragraph": true
+                  }
+                }
+              ]
+            },
+            "format": {
+              "node": "h2",
+              "children": null
+            },
+            "collapsed": false,
+            "completed": true,
+            "children": []
+          },
+          {
+            "type": "text",
+            "id": "bb222222-0000-1111-2222-333344445555",
+            "text": {
+              "ops": [
+                {
+                  "insert": "AuthPage.tsx — desktop left panel h1, mobile logo span, biometric email replace strings",
+                  "attributes": {}
+                },
+                {
+                  "insert": "\n",
+                  "attributes": {
+                    "paragraph": true
+                  }
+                }
+              ]
+            },
+            "format": {
+              "node": "checkbox",
+              "children": null
+            },
+            "collapsed": false,
+            "completed": true,
+            "children": []
+          },
+          {
+            "type": "text",
+            "id": "cc333333-0000-1111-2222-333344445555",
+            "text": {
+              "ops": [
+                {
+                  "insert": "i18nStore.ts — applyLang() writes cryptoverse_lang instead of cryptoplay_lang",
+                  "attributes": {}
+                },
+                {
+                  "insert": "\n",
+                  "attributes": {
+                    "paragraph": true
+                  }
+                }
+              ]
+            },
+            "format": {
+              "node": "checkbox",
+              "children": null
+            },
+            "collapsed": false,
+            "completed": true,
+            "children": []
+          },
+          {
+            "type": "text",
+            "id": "dd444444-0000-1111-2222-333344445555",
+            "text": {
+              "ops": [
+                {
+                  "insert": "subscriptionStore.ts — STORE_KEY + WARN_KEY → cryptoverse_",
+                  "attributes": {}
+                },
+                {
+                  "insert": "\n",
+                  "attributes": {
+                    "paragraph": true
+                  }
+                }
+              ]
+            },
+            "format": {
+              "node": "checkbox",
+              "children": null
+            },
+            "collapsed": false,
+            "completed": true,
+            "children": []
+          },
+          {
+            "type": "text",
+            "id": "ee555555-0000-1111-2222-333344445555",
+            "text": {
+              "ops": [
+                {
+                  "insert": "biometricStore.ts — CRED_KEY → cryptoverse_biometric_creds",
+                  "attributes": {}
+                },
+                {
+                  "insert": "\n",
+                  "attributes": {
+                    "paragraph": true
+                  }
+                }
+              ]
+            },
+            "format": {
+              "node": "checkbox",
+              "children": null
+            },
+            "collapsed": false,
+            "completed": true,
+            "children": []
+          },
+          {
+            "type": "text",
+            "id": "ff666666-0000-1111-2222-333344445555",
+            "text": {
+              "ops": [
+                {
+                  "insert": "translationService.ts — CACHE_PREFIX + STATS_KEY → cryptoverse_trans_",
+                  "attributes": {}
+                },
+                {
+                  "insert": "\n",
+                  "attributes": {
+                    "paragraph": true
+                  }
+                }
+              ]
+            },
+            "format": {
+              "node": "checkbox",
+              "children": null
+            },
+            "collapsed": false,
+            "completed": true,
+            "children": []
+          },
+          {
+            "type": "text",
+            "id": "75fdba9b-8d34-4131-b1bb-e84c35904552",
+            "text": {
+              "ops": [
+                {
+                  "insert": "adminPaymentStore.ts — SUB_KEY + USERS_KEY + SESSION_KEY → cryptoverse_",
+                  "attributes": {}
+                },
+                {
+                  "insert": "\n",
+                  "attributes": {
+                    "paragraph": true
+                  }
+                }
+              ]
+            },
+            "format": {
+              "node": "checkbox",
+              "children": null
+            },
+            "collapsed": false,
+            "completed": true,
+            "children": []
+          },
+          {
+            "type": "text",
+            "id": "14000001-0000-1111-2222-333344445555",
+            "text": {
+              "ops": [
+                {
+                  "insert": "Parts 10-14 complete — 2026-04-21",
+                  "attributes": {}
+                },
+                {
+                  "insert": "\n",
+                  "attributes": {
+                    "paragraph": true
+                  }
+                }
+              ]
+            },
+            "format": {
+              "node": "h1",
+              "children": null
+            },
+            "collapsed": false,
+            "completed": true,
+            "children": [
+              {
+                "type": "text",
+                "id": "14000002-0000-1111-2222-333344445555",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "Part 12: API layer — 13 files, 37 endpoints (strategies, bots, backtest, copy, onchain, sentiment, nft, events, recommendations, exchange)",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "checkbox",
+                  "children": null
+                },
+                "collapsed": false,
+                "completed": true,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "14000003-0000-1111-2222-333344445555",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "Part 13: env.example + src/lib/env.ts — 13 VITE_ vars typed with isConfigured() guards",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "checkbox",
+                  "children": null
+                },
+                "collapsed": false,
+                "completed": true,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "14000004-0000-1111-2222-333344445555",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "Part 14: storeIndex.ts — secondary indexes for 14 tables (userId, strategyId, status, createdAt)",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "checkbox",
+                  "children": null
+                },
+                "collapsed": false,
+                "completed": true,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "14000005-0000-1111-2222-333344445555",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "Part 14: schemaRegistry.ts — 22 tables documented with PKs, FKs, indexes, types, persistence keys",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "checkbox",
+                  "children": null
+                },
+                "collapsed": false,
+                "completed": true,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "14000006-0000-1111-2222-333344445555",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "Part 14 audit: no forbidden UI created. Existing UI is from Parts 1-9 (pre-existing). No payment logic, no trading bot logic, no real API integrations.",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "checkbox",
+                  "children": null
+                },
+                "collapsed": false,
+                "completed": true,
+                "children": []
+              }
+            ]
+          },
+          {
+            "type": "text",
+            "id": "aa000001-0000-1111-2222-333344445556",
+            "text": {
+              "ops": [
+                {
+                  "insert": "Auth System — Complete 2026-05-28",
+                  "attributes": {}
+                },
+                {
+                  "insert": "\n",
+                  "attributes": {
+                    "paragraph": true
+                  }
+                }
+              ]
+            },
+            "format": {
+              "node": "h1",
+              "children": null
+            },
+            "collapsed": false,
+            "completed": true,
+            "children": [
+              {
+                "type": "text",
+                "id": "aa000002-0000-1111-2222-333344445556",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "Users project: added @cv_otp (string) + @cv_otpexp (string) fields",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "checkbox",
+                  "children": null
+                },
+                "collapsed": false,
+                "completed": true,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "aa000003-0000-1111-2222-333344445556",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "Send OTP Email (01KJE0M3TJC8FJSZM6DJ2JPFRY): inputs=email,name,code; correct subject+body",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "checkbox",
+                  "children": null
+                },
+                "collapsed": false,
+                "completed": true,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "aa000004-0000-1111-2222-333344445556",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "Verify OTP (01KSPPR2NZJWCXWHWMDTKRVV7M): webhook, email+code inputs",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "checkbox",
+                  "children": null
+                },
+                "collapsed": false,
+                "completed": true,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "aa000005-0000-1111-2222-333344445556",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "authApi.ts: full Taskade project API layer (find, create, update, OTP, send email)",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "checkbox",
+                  "children": null
+                },
+                "collapsed": false,
+                "completed": true,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "aa000006-0000-1111-2222-333344445556",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "authStore.ts: added loginFromSession() bridge method",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "checkbox",
+                  "children": null
+                },
+                "collapsed": false,
+                "completed": true,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "aa000007-0000-1111-2222-333344445556",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "Pages: SignupPage, LoginPage, VerifyOtpPage, ForgotPasswordPage, ResetPasswordPage",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "checkbox",
+                  "children": null
+                },
+                "collapsed": false,
+                "completed": true,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "aa000008-0000-1111-2222-333344445556",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "App.tsx: AppInner+App split, auth routes added outside auth guard, main.tsx GenesisRoot fixed",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "checkbox",
+                  "children": null
+                },
+                "collapsed": false,
+                "completed": true,
+                "children": []
+              }
+            ]
+          },
+          {
+            "type": "text",
+            "id": "daf8548b-505d-456e-a074-c898bdd23079",
+            "text": {
+              "ops": [
+                {
+                  "insert": "\n",
+                  "attributes": {
+                    "paragraph": true
+                  }
+                }
+              ]
+            },
+            "format": {
+              "node": "checkbox",
+              "children": null
+            },
+            "collapsed": false,
+            "completed": false,
+            "children": []
+          },
+          {
+            "type": "text",
+            "id": "bddd7c17-2478-4f22-b17b-74b4ce586384",
+            "text": {
+              "ops": [
+                {
+                  "insert": "\n",
+                  "attributes": {
+                    "paragraph": true
+                  }
+                }
+              ]
+            },
+            "format": {
+              "node": "checkbox",
+              "children": null
+            },
+            "collapsed": false,
+            "completed": false,
+            "children": []
+          },
+          {
+            "type": "text",
+            "id": "c03fec3e-6f47-46bf-82c8-f88ad6bbf6f9",
+            "text": {
+              "ops": [
+                {
+                  "insert": "\n",
+                  "attributes": {
+                    "paragraph": true
+                  }
+                }
+              ]
+            },
+            "format": {
+              "node": "checkbox",
+              "children": null
+            },
+            "collapsed": false,
+            "completed": false,
+            "children": []
+          }
+        ]
+      }
+    ]
+  },
+  "preferences": {
+    "defaultView": "list",
+    "avatar": {
+      "type": "emoji",
+      "value": "📓"
+    }
+  }
+}
