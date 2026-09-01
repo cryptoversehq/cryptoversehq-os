@@ -307,6 +307,56 @@ async function fulfillCompletedPayment(payment) {
   throw new Error('Unsupported payment product type');
 }
 
+app.get('/api/payments/catalog', async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('payment_settings')
+      .select('product_type,product_id,name,description,amount,currency,cp_amount')
+      .eq('active', true)
+      .order('product_type', { ascending: true })
+      .order('product_id', { ascending: true });
+    if (error) throw error;
+    res.setHeader('Cache-Control', 'no-store');
+    return res.json({ success: true, products: data || [], requestId: req.requestId });
+  } catch (error) {
+    console.error(JSON.stringify({ event: 'payment_catalog_failed', requestId: req.requestId, error: error?.message }));
+    return res.status(503).json({ error: 'CATALOG_UNAVAILABLE', message: 'Payment catalog is temporarily unavailable.', requestId: req.requestId });
+  }
+});
+
+app.get('/api/cp/balance', authenticate, async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('cp_ledger')
+      .select('amount')
+      .eq('user_id', req.user.id);
+    if (error) throw error;
+    const balance = (data || []).reduce((total, entry) => total + Number(entry.amount || 0), 0);
+    res.setHeader('Cache-Control', 'no-store');
+    return res.json({ success: true, balance, requestId: req.requestId });
+  } catch (error) {
+    console.error(JSON.stringify({ event: 'cp_balance_failed', requestId: req.requestId, userId: req.user.id, error: error?.message }));
+    return res.status(500).json({ error: 'SERVER_ERROR', message: 'Failed to fetch CP balance.', requestId: req.requestId });
+  }
+});
+
+app.get('/api/cp/ledger', authenticate, async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('cp_ledger')
+      .select('id,amount,entry_type,reference_key,payment_id,created_at')
+      .eq('user_id', req.user.id)
+      .order('created_at', { ascending: false })
+      .limit(100);
+    if (error) throw error;
+    res.setHeader('Cache-Control', 'no-store');
+    return res.json({ success: true, entries: data || [], requestId: req.requestId });
+  } catch (error) {
+    console.error(JSON.stringify({ event: 'cp_ledger_failed', requestId: req.requestId, userId: req.user.id, error: error?.message }));
+    return res.status(500).json({ error: 'SERVER_ERROR', message: 'Failed to fetch CP ledger.', requestId: req.requestId });
+  }
+});
+
 app.post('/api/payments/create', authenticate, async (req, res) => {
   const productType = req.body?.purchaseType === 'cp_purchase' ? 'cp_purchase' : req.body?.purchaseType === 'subscription' ? 'subscription' : '';
   const productId = typeof req.body?.productId === 'string' ? req.body.productId.trim() : '';
