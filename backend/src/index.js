@@ -26,15 +26,6 @@ const allowedOrigins = (process.env.CORS_ORIGINS || 'http://localhost:5173')
   .split(',')
   .map((origin) => origin.trim())
   .filter(Boolean);
-const paymentPlans = (() => {
-  try {
-    const plans = JSON.parse(process.env.PAYMENT_PLANS_JSON || '{}');
-    return plans && typeof plans === 'object' ? plans : {};
-  } catch {
-    throw new Error('PAYMENT_PLANS_JSON must be valid JSON');
-  }
-})();
-
 if (!Number.isInteger(sessionMaxAgeMs) || sessionMaxAgeMs < 5 * 60 * 1000 || sessionMaxAgeMs > 24 * 60 * 60 * 1000) {
   throw new Error('SESSION_MAX_AGE_MS must be between 5 minutes and 24 hours');
 }
@@ -245,20 +236,102 @@ function normalizeDecimal(value) {
   return /^\\d+(?:\\.\\d+)?$/.test(text) ? text.replace(/\\.?0+$/, '') : null;
 }
 
+const nowPaymentsBaseUrl = (process.env.NOWPAYMENTS_API_BASE_URL || 'https://api.nowpayments.io/v1').replace(/\/$/, '');
+const nowPaymentsCallbackUrl = process.env.NOWPAYMENTS_IPN_CALLBACK_URL
+  || `${process.env.PUBLIC_API_BASE_URL || ''}/api/webhooks/payment`;
+
+async function nowPaymentsRequest(path, payload) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10000);
+  try {
+    const response = await fetch(`${nowPaymentsBaseUrl}${path}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': process.env.NOWPAYMENTS_API_KEY,
+      },
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+    });
+    const text = await response.text();
+    let body;
+    try { body = text ? JSON.parse(text) : null; } catch { body = null; }
+    if (!response.ok) {
+      const providerError = body?.message || body?.error || 'NOWPayments request failed';
+      throw new Error(providerError);
+    }
+    return body;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function getPaymentProduct(productType, productId) {
+  const { data, error } = await supabase
+    .from('payment_settings')
+    .select('id,product_type,product_id,name,description,amount,currency,cp_amount')
+    .eq('product_type', productType)
+    .eq('product_id', productId)
+    .eq('active', true)
+    .maybeSingle();
+  if (error) throw error;
+  return data || null;
+}
+
+async function fulfillCompletedPayment(payment) {
+  if (payment.product_type === 'subscription') {
+    const startsAt = new Date().toISOString();
+    const endsAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+    const { error } = await supabase.from('subscription_entitlements').upsert({
+      user_id: payment.user_id,
+      plan_id: payment.plan_id,
+      payment_id: payment.id,
+      starts_at: startsAt,
+      ends_at: endsAt,
+      status: 'active',
+    }, { onConflict: 'payment_id', ignoreDuplicates: true });
+    if (error) throw error;
+    return;
+  }
+  if (payment.product_type === 'cp_purchase') {
+    const { error } = await supabase.from('cp_ledger').upsert({
+      user_id: payment.user_id,
+      payment_id: payment.id,
+      amount: payment.cp_amount,
+      entry_type: 'purchase',
+      reference_key: `payment:${payment.id}`,
+    }, { onConflict: 'payment_id', ignoreDuplicates: true });
+    if (error) throw error;
+    return;
+  }
+  throw new Error('Unsupported payment product type');
+}
+
 app.post('/api/payments/create', authenticate, async (req, res) => {
-  const planId = typeof req.body?.planId === 'string' ? req.body.planId.trim() : '';
+  const productType = req.body?.purchaseType === 'cp_purchase' ? 'cp_purchase' : req.body?.purchaseType === 'subscription' ? 'subscription' : '';
+  const productId = typeof req.body?.productId === 'string' ? req.body.productId.trim() : '';
+  const requestedPayCurrency = typeof req.body?.payCurrency === 'string' ? req.body.payCurrency.trim().toLowerCase() : '';
   const idempotencyKey = req.get('Idempotency-Key');
-  const plan = planId ? paymentPlans[planId] : null;
-  if (!plan || typeof plan !== 'object' || !normalizeDecimal(plan.amount) || typeof plan.currency !== 'string') {
-    return res.status(400).json({ error: 'VALIDATION_ERROR', message: 'Unknown payment plan.', requestId: req.requestId });
+  if (!productType || !productId) {
+    return res.status(400).json({ error: 'VALIDATION_ERROR', message: 'A valid purchase type and product are required.', requestId: req.requestId });
+  }
+  const allowedPayCurrencies = new Set(['usdttrc20', 'usdterc20', 'usdtbsc', 'btc', 'eth', 'bnbbsc']);
+  if (!allowedPayCurrencies.has(requestedPayCurrency)) {
+    return res.status(400).json({ error: 'VALIDATION_ERROR', message: 'Unsupported payment currency.', requestId: req.requestId });
   }
   if (!idempotencyKey || !/^[A-Za-z0-9._:-]{16,128}$/.test(idempotencyKey)) {
     return res.status(400).json({ error: 'VALIDATION_ERROR', message: 'A valid Idempotency-Key is required.', requestId: req.requestId });
   }
-  if (!process.env.NOWPAYMENTS_API_KEY || !process.env.NOWPAYMENTS_IPN_SECRET) {
+  if (!process.env.NOWPAYMENTS_API_KEY || !process.env.NOWPAYMENTS_IPN_SECRET || !process.env.NOWPAYMENTS_PAY_CURRENCY || !/^https:\/\//.test(nowPaymentsCallbackUrl)) {
     return res.status(503).json({ error: 'PAYMENT_NOT_CONFIGURED', message: 'Payments are not configured in this staging environment.', requestId: req.requestId });
   }
   try {
+    const plan = await getPaymentProduct(productType, productId);
+    const amount = plan && normalizeDecimal(plan.amount);
+    const currency = plan && typeof plan.currency === 'string' ? plan.currency.trim().toUpperCase() : null;
+    if (!plan || !amount || !currency || (productType === 'cp_purchase' && (!Number.isInteger(plan.cp_amount) || plan.cp_amount <= 0))) {
+      return res.status(400).json({ error: 'VALIDATION_ERROR', message: 'Unknown payment product.', requestId: req.requestId });
+    }
     const { data: existing, error: existingError } = await supabase
       .from('payments')
       .select('id,status,external_payment_id')
@@ -266,11 +339,60 @@ app.post('/api/payments/create', authenticate, async (req, res) => {
       .eq('idempotency_key', idempotencyKey)
       .maybeSingle();
     if (existingError) throw existingError;
-    if (existing) return res.json({ success: true, paymentId: existing.id, status: existing.status, requestId: req.requestId });
-    return res.status(501).json({ error: 'PAYMENT_NOT_IMPLEMENTED', message: 'Provider payment creation is gated until staging schema and provider contract are configured.', requestId: req.requestId });
+    if (existing) return res.json({ success: true, paymentId: existing.id, status: existing.status, providerPaymentId: existing.external_payment_id, requestId: req.requestId });
+
+    const paymentId = crypto.randomUUID();
+    const { error: insertError } = await supabase.from('payments').insert({
+      id: paymentId,
+      user_id: req.user.id,
+      amount,
+      currency,
+      plan_id: productId,
+      product_type: productType,
+      cp_amount: productType === 'cp_purchase' ? plan.cp_amount : null,
+      idempotency_key: idempotencyKey,
+      status: 'pending',
+    });
+    if (insertError) {
+      if (insertError.code === '23505') {
+        const { data: raced } = await supabase.from('payments').select('id,status,external_payment_id').eq('user_id', req.user.id).eq('idempotency_key', idempotencyKey).maybeSingle();
+        if (raced) return res.json({ success: true, paymentId: raced.id, status: raced.status, providerPaymentId: raced.external_payment_id, requestId: req.requestId });
+      }
+      throw insertError;
+    }
+
+    const payment = await nowPaymentsRequest('/payment', {
+      price_amount: Number(amount),
+      price_currency: currency,
+      pay_currency: requestedPayCurrency,
+      ipn_callback_url: nowPaymentsCallbackUrl,
+      order_id: paymentId,
+      order_description: plan.description || `CryptoVerse ${productId}`,
+      success_url: process.env.PAYMENT_SUCCESS_URL || undefined,
+      cancel_url: process.env.PAYMENT_CANCEL_URL || undefined,
+    });
+    const providerPaymentId = String(payment?.payment_id || '').trim();
+    if (!providerPaymentId) throw new Error('NOWPayments returned no payment identifier');
+    const { error: updateError } = await supabase.from('payments').update({
+      status: 'waiting',
+      external_payment_id: providerPaymentId,
+      updated_at: new Date().toISOString(),
+    }).eq('id', paymentId);
+    if (updateError) throw updateError;
+    return res.status(201).json({
+      success: true,
+      paymentId,
+      status: 'waiting',
+      providerPaymentId,
+      payAddress: payment.pay_address || null,
+      payAmount: payment.pay_amount || null,
+      payCurrency: payment.pay_currency || requestedPayCurrency,
+      checkoutUrl: payment.payment_url || null,
+      requestId: req.requestId,
+    });
   } catch (error) {
     console.error(JSON.stringify({ event: 'payment_create_failed', requestId: req.requestId, userId: req.user.id, error: error?.message }));
-    return res.status(500).json({ error: 'SERVER_ERROR', message: 'Failed to create payment.', requestId: req.requestId });
+    return res.status(502).json({ error: 'PAYMENT_PROVIDER_ERROR', message: 'Payment provider is temporarily unavailable.', requestId: req.requestId });
   }
 });
 
@@ -338,7 +460,7 @@ app.post('/api/webhooks/payment', async (req, res) => {
   try {
     const { data: payment, error: lookupError } = await supabase
       .from('payments')
-      .select('id,amount,currency,status,external_payment_id')
+      .select('id,user_id,amount,currency,status,external_payment_id,product_type,plan_id,cp_amount')
       .eq('id', orderId)
       .maybeSingle();
     if (lookupError) throw lookupError;
@@ -348,14 +470,23 @@ app.post('/api/webhooks/payment', async (req, res) => {
       return res.status(409).json({ error: 'PAYMENT_MISMATCH', message: 'Payment data does not match the order.', requestId: req.requestId });
     }
     const nextStatus = providerStatus === 'finished' ? 'completed' : providerStatus;
+    const statusRank = { pending: 0, waiting: 10, confirming: 20, partially_paid: 25, confirmed: 30, sending: 40, completed: 50, failed: 100, expired: 100, refunded: 100 };
+    const currentRank = statusRank[payment.status] ?? -1;
+    const nextRank = statusRank[nextStatus] ?? -1;
     if (payment.external_payment_id === providerPaymentId && payment.status === nextStatus) {
       return res.json({ accepted: true, duplicate: true, requestId: req.requestId });
+    }
+    if (['completed', 'failed', 'expired', 'refunded'].includes(payment.status) || nextRank < currentRank) {
+      return res.json({ accepted: true, ignored: true, status: payment.status, requestId: req.requestId });
+    }
+    if (nextStatus === 'completed') {
+      await fulfillCompletedPayment(payment);
     }
     const { error: updateError } = await supabase
       .from('payments')
       .update({ status: nextStatus, external_payment_id: providerPaymentId, updated_at: new Date().toISOString() })
       .eq('id', orderId)
-      .neq('status', 'completed');
+      .eq('status', payment.status);
     if (updateError) throw updateError;
     return res.json({ accepted: true, status: nextStatus, requestId: req.requestId });
   } catch (error) {
