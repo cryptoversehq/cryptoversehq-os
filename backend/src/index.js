@@ -154,11 +154,13 @@ async function authenticate(req, res, next) {
   }
 }
 
+// ==================== HEALTH ====================
 app.get('/api/health', (req, res) => {
   res.setHeader('Cache-Control', 'no-store');
   res.json({ status: 'OK', service: 'cryptoverse-api', requestId: req.requestId });
 });
 
+// ==================== AUTH ====================
 app.get('/api/auth/csrf', (req, res) => {
   const token = crypto.randomBytes(32).toString('base64url');
   res.cookie(csrfCookieName, token, csrfCookieOptions);
@@ -231,6 +233,7 @@ app.post('/api/auth/logout', (req, res) => {
   res.status(204).end();
 });
 
+// ==================== PAYMENTS ====================
 function normalizeDecimal(value) {
   const text = String(value ?? '').trim();
   return /^\\d+(?:\\.\\d+)?$/.test(text) ? text.replace(/\\.?0+$/, '') : null;
@@ -545,6 +548,243 @@ app.post('/api/webhooks/payment', async (req, res) => {
   }
 });
 
+// ==================== EXCHANGE ENDPOINTS ====================
+
+// 1. List connections (GET)
+app.get('/api/exchange/connections', authenticate, async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('exchange_connections')
+      .select('id, exchange, label, status, masked_key, created_at, updated_at')
+      .eq('user_id', req.user.id)
+      .order('created_at', { ascending: false });
+    
+    if (error) throw error;
+    res.json({ success: true, connections: data || [], requestId: req.requestId });
+  } catch (error) {
+    console.error(JSON.stringify({ event: 'exchange_list_failed', requestId: req.requestId, error: error?.message }));
+    res.status(500).json({ error: 'SERVER_ERROR', message: 'Failed to fetch connections.', requestId: req.requestId });
+  }
+});
+
+// 2. Connect exchange (POST)
+app.post('/api/exchange/connect', authenticate, async (req, res) => {
+  const { exchange, apiKey, apiSecret, label, isDemo = false } = req.body;
+  
+  // Validation
+  if (!exchange || typeof exchange !== 'string' || exchange.trim().length < 2) {
+    return res.status(400).json({ error: 'VALIDATION_ERROR', message: 'Valid exchange is required.', requestId: req.requestId });
+  }
+  
+  if (!isDemo) {
+    if (!apiKey || typeof apiKey !== 'string' || apiKey.trim().length < 8) {
+      return res.status(400).json({ error: 'VALIDATION_ERROR', message: 'Valid API key is required for live connections.', requestId: req.requestId });
+    }
+    if (!apiSecret || typeof apiSecret !== 'string' || apiSecret.trim().length < 8) {
+      return res.status(400).json({ error: 'VALIDATION_ERROR', message: 'Valid API secret is required for live connections.', requestId: req.requestId });
+    }
+  }
+  
+  // Allowlist exchanges
+  const allowedExchanges = ['binance', 'coinbase', 'kraken', 'bybit', 'okx', 'gateio', 'kucoin'];
+  if (!allowedExchanges.includes(exchange.trim().toLowerCase())) {
+    return res.status(400).json({ error: 'VALIDATION_ERROR', message: 'Unsupported exchange.', requestId: req.requestId });
+  }
+  
+  try {
+    const maskedKey = isDemo ? 'demo' : `${apiKey.slice(0, 4)}...${apiKey.slice(-4)}`;
+    
+    const { data, error } = await supabase
+      .from('exchange_connections')
+      .insert({
+        user_id: req.user.id,
+        exchange: exchange.trim().toLowerCase(),
+        label: label || `${exchange} Account`,
+        api_key: isDemo ? 'demo' : apiKey,
+        api_secret: isDemo ? 'demo' : apiSecret,
+        status: isDemo ? 'demo' : 'connected',
+        masked_key: maskedKey,
+        is_demo: isDemo || false,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .select()
+      .single();
+    
+    if (error) throw error;
+    res.json({ success: true, connection: data, requestId: req.requestId });
+  } catch (error) {
+    console.error(JSON.stringify({ event: 'exchange_connect_failed', requestId: req.requestId, error: error?.message }));
+    res.status(500).json({ error: 'SERVER_ERROR', message: 'Failed to connect exchange.', requestId: req.requestId });
+  }
+});
+
+// 3. Disconnect (DELETE)
+app.delete('/api/exchange/connections/:id', authenticate, async (req, res) => {
+  const { id } = req.params;
+  
+  try {
+    const { error } = await supabase
+      .from('exchange_connections')
+      .delete()
+      .eq('id', id)
+      .eq('user_id', req.user.id);
+    
+    if (error) throw error;
+    res.json({ success: true, requestId: req.requestId });
+  } catch (error) {
+    console.error(JSON.stringify({ event: 'exchange_disconnect_failed', requestId: req.requestId, error: error?.message }));
+    res.status(500).json({ error: 'SERVER_ERROR', message: 'Failed to disconnect.', requestId: req.requestId });
+  }
+});
+
+// 4. Get balance (GET)
+app.get('/api/exchange/balance/:id', authenticate, async (req, res) => {
+  const { id } = req.params;
+  
+  try {
+    // First verify the connection belongs to this user
+    const { data: connection, error: connError } = await supabase
+      .from('exchange_connections')
+      .select('exchange, api_key, is_demo')
+      .eq('id', id)
+      .eq('user_id', req.user.id)
+      .single();
+    
+    if (connError || !connection) {
+      return res.status(404).json({ error: 'NOT_FOUND', message: 'Connection not found.', requestId: req.requestId });
+    }
+    
+    // For demo connections, return mock data
+    if (connection.is_demo) {
+      return res.json({
+        success: true,
+        connectionId: id,
+        balances: [
+          { asset: 'BTC', free: 0.5, locked: 0.1, total: 0.6, usdValue: 36000 },
+          { asset: 'ETH', free: 5.0, locked: 0.5, total: 5.5, usdValue: 13750 },
+          { asset: 'USDT', free: 10000, locked: 0, total: 10000, usdValue: 10000 },
+        ],
+        totalUsdValue: 59750,
+        updatedAt: new Date().toISOString(),
+        requestId: req.requestId
+      });
+    }
+    
+    // For live connections, fetch from exchange API
+    // TODO: Implement actual exchange API integration
+    
+    res.json({
+      success: true,
+      connectionId: id,
+      balances: [],
+      totalUsdValue: 0,
+      updatedAt: new Date().toISOString(),
+      requestId: req.requestId,
+      message: 'Live balance fetch not yet implemented'
+    });
+  } catch (error) {
+    console.error(JSON.stringify({ event: 'exchange_balance_failed', requestId: req.requestId, error: error?.message }));
+    res.status(500).json({ error: 'SERVER_ERROR', message: 'Failed to fetch balance.', requestId: req.requestId });
+  }
+});
+
+// 5. Sync portfolio (POST)
+app.post('/api/exchange/sync/:id', authenticate, async (req, res) => {
+  const { id } = req.params;
+  
+  try {
+    const { data: connection, error: connError } = await supabase
+      .from('exchange_connections')
+      .select('exchange, is_demo')
+      .eq('id', id)
+      .eq('user_id', req.user.id)
+      .single();
+    
+    if (connError || !connection) {
+      return res.status(404).json({ error: 'NOT_FOUND', message: 'Connection not found.', requestId: req.requestId });
+    }
+    
+    // For demo connections, return success
+    if (connection.is_demo) {
+      return res.json({
+        success: true,
+        syncedAt: new Date().toISOString(),
+        requestId: req.requestId,
+        message: 'Demo sync completed'
+      });
+    }
+    
+    // For live connections, sync with exchange API
+    // TODO: Implement actual exchange API integration
+    
+    res.json({
+      success: true,
+      syncedAt: new Date().toISOString(),
+      requestId: req.requestId,
+      message: 'Sync initiated (live implementation pending)'
+    });
+  } catch (error) {
+    console.error(JSON.stringify({ event: 'exchange_sync_failed', requestId: req.requestId, error: error?.message }));
+    res.status(500).json({ error: 'SERVER_ERROR', message: 'Failed to sync.', requestId: req.requestId });
+  }
+});
+
+// 6. Execute order (POST)
+app.post('/api/exchange/order', authenticate, async (req, res) => {
+  const { connectionId, symbol, side, quantity, orderType = 'market', price } = req.body;
+  
+  if (!connectionId || !symbol || !side || !quantity) {
+    return res.status(400).json({ error: 'VALIDATION_ERROR', message: 'Missing required fields: connectionId, symbol, side, quantity.', requestId: req.requestId });
+  }
+  
+  if (!['buy', 'sell'].includes(side.toLowerCase())) {
+    return res.status(400).json({ error: 'VALIDATION_ERROR', message: 'Side must be buy or sell.', requestId: req.requestId });
+  }
+  
+  try {
+    const { data: connection, error: connError } = await supabase
+      .from('exchange_connections')
+      .select('exchange, is_demo')
+      .eq('id', connectionId)
+      .eq('user_id', req.user.id)
+      .single();
+    
+    if (connError || !connection) {
+      return res.status(404).json({ error: 'NOT_FOUND', message: 'Connection not found.', requestId: req.requestId });
+    }
+    
+    // For demo connections, return mock order
+    if (connection.is_demo) {
+      return res.json({
+        success: true,
+        orderId: `demo-${Date.now()}`,
+        status: 'filled',
+        symbol,
+        side,
+        quantity,
+        price: price || (side === 'buy' ? 100 : 110),
+        filledAt: new Date().toISOString(),
+        requestId: req.requestId,
+        message: 'Demo order executed'
+      });
+    }
+    
+    // For live connections, execute via exchange API
+    // TODO: Implement actual exchange API integration
+    
+    res.status(501).json({
+      error: 'NOT_IMPLEMENTED',
+      message: 'Live order execution not yet implemented.',
+      requestId: req.requestId
+    });
+  } catch (error) {
+    console.error(JSON.stringify({ event: 'exchange_order_failed', requestId: req.requestId, error: error?.message }));
+    res.status(500).json({ error: 'SERVER_ERROR', message: 'Failed to execute order.', requestId: req.requestId });
+  }
+});
+
+// ==================== ERROR HANDLING ====================
 app.use((err, req, res, next) => {
   console.error(JSON.stringify({ event: 'request_failed', requestId: req.requestId, error: err?.message }));
   if (res.headersSent) return next(err);
