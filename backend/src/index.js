@@ -784,6 +784,116 @@ app.post('/api/exchange/order', authenticate, async (req, res) => {
   }
 });
 
+// ==================== DAILY TRADE LIMIT ====================
+
+// 1. Get daily trade limit (GET)
+app.get('/api/trading/daily-limit', authenticate, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+    
+    // Get or create today's limit record
+    const { data, error } = await supabase
+      .from('daily_trade_limits')
+      .select('trades_used, max_trades')
+      .eq('user_id', userId)
+      .eq('trade_date', today)
+      .maybeSingle();
+    
+    if (error) throw error;
+    
+    let tradesUsed = 0;
+    let maxTrades = 10;
+    
+    if (data) {
+      tradesUsed = data.trades_used;
+      maxTrades = data.max_trades;
+    }
+    
+    const remaining = Math.max(0, maxTrades - tradesUsed);
+    
+    res.json({
+      success: true,
+      limit: maxTrades,
+      used: tradesUsed,
+      remaining: remaining,
+      resetAt: new Date(today + 'T00:00:00Z').toISOString(),
+      requestId: req.requestId
+    });
+  } catch (error) {
+    console.error(JSON.stringify({ event: 'daily_limit_failed', requestId: req.requestId, error: error?.message }));
+    res.status(500).json({ error: 'SERVER_ERROR', message: 'Failed to fetch daily limit.', requestId: req.requestId });
+  }
+});
+
+// 2. Consume a trade (POST)
+app.post('/api/trading/daily-limit/consume', authenticate, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const today = new Date().toISOString().split('T')[0];
+    
+    // Get current record
+    const { data: current, error: fetchError } = await supabase
+      .from('daily_trade_limits')
+      .select('trades_used, max_trades')
+      .eq('user_id', userId)
+      .eq('trade_date', today)
+      .maybeSingle();
+    
+    if (fetchError) throw fetchError;
+    
+    let tradesUsed = 0;
+    let maxTrades = 10;
+    
+    if (current) {
+      tradesUsed = current.trades_used;
+      maxTrades = current.max_trades;
+    }
+    
+    // Check if limit is reached
+    if (tradesUsed >= maxTrades) {
+      return res.status(429).json({
+        error: 'LIMIT_REACHED',
+        message: 'Daily trade limit reached.',
+        limit: maxTrades,
+        used: tradesUsed,
+        remaining: 0,
+        resetAt: new Date(today + 'T00:00:00Z').toISOString(),
+        requestId: req.requestId
+      });
+    }
+    
+    // Increment trades_used
+    const newTradesUsed = tradesUsed + 1;
+    
+    // Upsert the record
+    const { data, error } = await supabase
+      .from('daily_trade_limits')
+      .upsert({
+        user_id: userId,
+        trade_date: today,
+        trades_used: newTradesUsed,
+        max_trades: maxTrades,
+        updated_at: new Date().toISOString()
+      })
+      .select()
+      .single();
+    
+    if (error) throw error;
+    
+    res.json({
+      success: true,
+      limit: maxTrades,
+      used: newTradesUsed,
+      remaining: Math.max(0, maxTrades - newTradesUsed),
+      resetAt: new Date(today + 'T00:00:00Z').toISOString(),
+      requestId: req.requestId
+    });
+  } catch (error) {
+    console.error(JSON.stringify({ event: 'daily_limit_consume_failed', requestId: req.requestId, error: error?.message }));
+    res.status(500).json({ error: 'SERVER_ERROR', message: 'Failed to consume trade.', requestId: req.requestId });
+  }
+});
 // ==================== ERROR HANDLING ====================
 app.use((err, req, res, next) => {
   console.error(JSON.stringify({ event: 'request_failed', requestId: req.requestId, error: err?.message }));
