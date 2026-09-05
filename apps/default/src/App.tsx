@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import './api/index';
 import { motion, AnimatePresence } from 'framer-motion';
 import { BrowserRouter as Router, Routes, Route, Link, useLocation, useNavigate } from 'react-router-dom';
 import {

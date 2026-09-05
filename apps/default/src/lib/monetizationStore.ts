@@ -4,6 +4,8 @@
  * analytics pro subscription, bot deployment 500 CP, API access.
  */
 import { create } from 'zustand';
+import { useSyncExternalStore } from 'react';
+
 import { cloudRecordStore } from './cloudData';
 import { useCpCoinsStore } from './cpCoinsStore';
 import { generateId } from './strategyUtils';
@@ -118,6 +120,35 @@ export function getSubscriptionHistory(userId: string): SubscriptionHistoryEntry
   return loadSubHistory().filter(e => e.userId === userId);
 }
 
+interface ServerPaymentProduct { product_type: 'subscription' | 'cp_purchase'; product_id: string; amount: string | number; cp_amount?: number | null; }
+let serverPaymentCatalog: ServerPaymentProduct[] = [];
+let serverPaymentCatalogRequested = false;
+const serverCatalogListeners = new Set<() => void>();
+function subscribeServerCatalog(listener: () => void) { serverCatalogListeners.add(listener); return () => serverCatalogListeners.delete(listener); }
+function getServerCatalogSnapshot() { return serverPaymentCatalog; }
+function requestServerCatalog() {
+  if (serverPaymentCatalogRequested || typeof fetch === 'undefined') return;
+  serverPaymentCatalogRequested = true;
+  fetch('https://cryptoversehq-os.onrender.com/api/payments/catalog', { credentials: 'include', headers: { Accept: 'application/json' } })
+    .then((response) => response.ok ? response.json() : null)
+    .then((body) => {
+      const products = Array.isArray(body?.products) ? body.products : [];
+      serverPaymentCatalog = products.filter((product: ServerPaymentProduct) => product && typeof product.product_id === 'string' && Number(product.amount) >= 0);
+      serverCatalogListeners.forEach((listener) => listener());
+    })
+    .catch(() => { /* Keep the existing local display catalog on network failure. */ });
+}
+function getServerCpAmount(productId: string, fallback: number) {
+  const product = serverPaymentCatalog.find((item) => item.product_type === 'cp_purchase' && item.product_id === productId);
+  const amount = product?.cp_amount == null ? fallback : Number(product.cp_amount);
+  return Number.isInteger(amount) && amount > 0 ? amount : fallback;
+}
+function getServerAmount(productType: ServerPaymentProduct['product_type'], productId: string, fallback: number) {
+  const product = serverPaymentCatalog.find((item) => item.product_type === productType && item.product_id === productId);
+  const amount = product ? Number(product.amount) : fallback;
+  return Number.isFinite(amount) && amount >= 0 ? amount : fallback;
+}
+
 // ── Live pricing (admin-overridable) ───────────────────────────────────────────
 /**
  * Effective USD price for a plan right now - reads the Super Admin override
@@ -126,7 +157,7 @@ export function getSubscriptionHistory(userId: string): SubscriptionHistoryEntry
  * Safe to call outside React (plain function, not a hook).
  */
 export function getEffectivePriceUSD(planId: PlanId): number {
-  if (isEditablePlan(planId)) return useAdminPricingStore.getState().getPrice(planId);
+  if (isEditablePlan(planId)) return getServerAmount('subscription', planId, useAdminPricingStore.getState().getPrice(planId));
   return SUBSCRIPTION_PLANS[planId]?.priceUSD ?? 0;
 }
 
@@ -135,11 +166,14 @@ export function getEffectivePriceUSD(planId: PlanId): number {
  * Use this anywhere a plan's priceUSD is displayed or charged.
  */
 export function useLiveSubscriptionPlans(): SubscriptionPlan[] {
+  useSyncExternalStore(subscribeServerCatalog, getServerCatalogSnapshot, getServerCatalogSnapshot);
+  requestServerCatalog();
   const overrides = useAdminPricingStore(s => s.overrides);
   return Object.values(SUBSCRIPTION_PLANS).map(p =>
-    isEditablePlan(p.id) ? { ...p, priceUSD: overrides[p.id] ?? p.priceUSD } : p,
+    isEditablePlan(p.id) ? { ...p, priceUSD: getServerAmount('subscription', p.id, overrides[p.id] ?? p.priceUSD) } : p,
   );
 }
+
 
 // ── CP Packages ───────────────────────────────────────────────────────────────
 /**
@@ -149,11 +183,18 @@ export function useLiveSubscriptionPlans(): SubscriptionPlan[] {
  * (Issue #10: CP Package Pricing section) actually show up.
  */
 export function useLiveCpPackages(): CpPackage[] {
+  useSyncExternalStore(subscribeServerCatalog, getServerCatalogSnapshot, getServerCatalogSnapshot);
+  requestServerCatalog();
   const overrides = useAdminPricingStore(s => s.cpOverrides);
   return CP_PACKAGES.map(p =>
-    isEditableCpPackage(p.id) ? { ...p, priceUSD: overrides[p.id] ?? p.priceUSD } : p,
+    isEditableCpPackage(p.id) ? {
+      ...p,
+      priceUSD: getServerAmount('cp_purchase', p.id, overrides[p.id] ?? p.priceUSD),
+      cpAmount: getServerCpAmount(p.id, p.cpAmount),
+    } : p,
   );
 }
+
 
 export interface CpPackage { id:string; name:string; cpAmount:number; priceUSD:number; savePct:number; emoji:string; popular?:boolean; }
 export const CP_PACKAGES: CpPackage[] = [

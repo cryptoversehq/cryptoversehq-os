@@ -175,7 +175,7 @@ class LiveKnowledge {
   getOrchestratorContract(): EngineContract {
     return {
       name: 'liveKnowledge', priority: 17,
-      dependencies: ['contextEngine', 'realDataConnector', 'businessAnalyst', 'healthMonitor', 'digitalTwin', 'securityCenter', 'economyManager', 'contentManager'],
+      dependencies: ['contextEngine', 'businessAnalyst', 'healthMonitor', 'digitalTwin', 'securityCenter', 'economyManager', 'contentManager'],
       initialize: async () => { this.registered = true; this.updateAll(); },
       execute: (ctx) => this.execute(ctx),
       shutdown: async () => { this.registered = false; },

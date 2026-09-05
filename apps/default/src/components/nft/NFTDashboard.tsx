@@ -35,7 +35,7 @@ function MarketplaceCard({ mkt, status }: {
   mkt: typeof MARKETPLACE_CONFIG[0];
   status: NFTProviderStatus | null;
 }) {
-  const isOnline = status?.status === 'connected' || status == null;
+  const isOnline = status?.status === 'connected';
   const latency  = status?.latencyMs;
 
   return (
@@ -226,7 +226,9 @@ function TrendingMintCard({ mint, onViewCollection, onSimulateMint }: {
 // ── Main Dashboard ────────────────────────────────────────────────────────────
 
 export function NFTDashboard() {
-  const { getCollections, getGlobalStats } = useNftStore();
+  const { getCollections, getGlobalStats, syncFromMarketplaces } = useNftStore();
+  const [isSyncing, setIsSyncing] = useState(false); 
+  const [syncMessage, setSyncMessage] = useState('');
   const navigate = useNavigate();
 
   const [providerStatuses, setProviderStatuses] = useState<NFTProviderStatus[]>([]);
@@ -260,14 +262,38 @@ export function NFTDashboard() {
     return providerStatuses.find(p => p.name === name) ?? null;
   }
 
+  async function handleSync() {
+    setIsSyncing(true);
+    setSyncMessage('');
+    try {
+      const result = await syncFromMarketplaces();
+      setStats(getGlobalStats());
+      setSyncMessage(result.updated > 0 ? `${result.updated} collections refreshed` : 'No provider updates available');
+    } catch {
+      setSyncMessage('Marketplace sync unavailable');
+    } finally {
+      setIsSyncing(false);
+    }
+  }
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-8">
 
       {/* ── A) Marketplace Selector ── */}
       <section>
-        <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-3">
-          Marketplace Selector
-        </p>
+        <div className="flex items-center justify-between mb-3 gap-3">
+          <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+            Marketplace Selector
+          </p>
+          <div className="flex items-center gap-2">
+            {syncMessage && <span className="text-[10px] text-muted-foreground">{syncMessage}</span>}
+            <button onClick={handleSync} disabled={isSyncing}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-white/10 px-3 py-1.5 text-[11px] font-bold text-muted-foreground transition-colors hover:border-primary/30 hover:text-primary disabled:cursor-wait disabled:opacity-60">
+              <RefreshCw className={cn('h-3.5 w-3.5', isSyncing && 'animate-spin')} />
+              {isSyncing ? 'Syncing' : 'Sync market data'}
+            </button>
+          </div>
+        </div>
         <div className="flex gap-3 overflow-x-auto pb-1 scrollbar-hide">
           {MARKETPLACE_CONFIG.map(mkt => (
             <MarketplaceCard key={mkt.name} mkt={mkt} status={getProviderStatus(mkt.name)} />
