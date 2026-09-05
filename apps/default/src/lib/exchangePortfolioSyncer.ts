@@ -14,6 +14,7 @@
  */
 
 import { ExchangeId, ExchangeConnection, PortfolioAsset, RealPortfolioSnapshot } from './exchangeTypes';
+import { cloudRecordStore } from './cloudData';
 
 // ── Price oracle (simulated live prices) ──────────────────────────────────────
 
@@ -246,23 +247,15 @@ export class ExchangePortfolioSyncer {
   // ── Private helpers ────────────────────────────────────────────────────────
 
   private loadCostBasis(connectionId: string): Record<string, number> {
-    try {
-      const raw = localStorage.getItem(`cv_cost_basis_${connectionId}`);
-      return raw ? JSON.parse(raw) : {};
-    } catch { return {}; }
+    return cloudRecordStore.get<Record<string, number>>('exchange_portfolio', `cost_basis_${connectionId}`, {});
   }
 
   private loadPreviousSnapshot(connectionId: string): RealPortfolioSnapshot | null {
-    try {
-      const raw = localStorage.getItem(`cv_prev_snapshot_${connectionId}`);
-      return raw ? JSON.parse(raw) : null;
-    } catch { return null; }
+    return cloudRecordStore.get<RealPortfolioSnapshot | null>('exchange_portfolio', `previous_snapshot_${connectionId}`, null);
   }
 
   private saveSnapshot(connectionId: string, snapshot: RealPortfolioSnapshot): void {
-    try {
-      localStorage.setItem(`cv_prev_snapshot_${connectionId}`, JSON.stringify(snapshot));
-    } catch {}
+    cloudRecordStore.set('exchange_portfolio', `previous_snapshot_${connectionId}`, snapshot);
   }
 }
 

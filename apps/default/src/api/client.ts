@@ -27,20 +27,50 @@
  *   In production, logging is a no-op.
  */
 
-import type { ApiAuthContext, ApiError, ApiResponse, ApiSuccess, HttpMethod } from './types';
+import type { ApiAuthContext, ApiError, ApiResponse, HttpMethod } from './types';
 import { useAuthStore } from '../lib/authStore';
-import { cloudDataLayer } from '../lib/cloudData';
+import { platformTransport } from '../lib/platformTransport';
+
+// The token is held only in memory and is never included in logs or persisted state.
 
 // ─── DEV LOGGING ──────────────────────────────────────────────────────────────
 
 const IS_DEV = import.meta.env.DEV;
+
+type ApiErrorCategory = 'network' | 'auth' | 'server' | 'client';
+type ApiAuthRefresh = () => Promise<string>;
+
+let refreshPromise: Promise<string> | null = null;
+let authRefresh: ApiAuthRefresh | null = null;
+let activeAccessToken: string | null = null;
+
+export function configureApiAuthRefresh(refresh: ApiAuthRefresh | null): void {
+  authRefresh = refresh;
+}
+
+export async function getValidToken(): Promise<string> {
+  if (!authRefresh) throw ApiErrors.unauthorized('Authentication refresh is unavailable.');
+  if (refreshPromise) return refreshPromise;
+  refreshPromise = authRefresh();
+  try {
+    const token = await refreshPromise;
+    activeAccessToken = token;
+    return token;
+  } finally {
+    refreshPromise = null;
+  }
+}
+
+function safePath(path: string): string {
+  return path.split('?')[0];
+}
 
 function devLog(method: HttpMethod, path: string, durationMs: number, ok: boolean) {
   if (!IS_DEV) return;
   const color = ok ? '#22c55e' : '#ef4444';
   const badge = ok ? '✓' : '✗';
   console.log(
-    `%c ${badge} ${method} ${path} (${durationMs}ms)`,
+    `%c ${badge} ${method} ${safePath(path)} (${durationMs}ms)`,
     `color: ${color}; font-weight: bold; font-family: monospace`,
   );
 }
@@ -109,68 +139,94 @@ export async function dispatch<TRes = unknown>(
   path:    string,
   body?:   unknown,
 ): Promise<ApiResponse<TRes>> {
-  const requestId = nextRequestId();
-  const t0        = performance.now();
-  const auth      = resolveAuthContext();
-
-  // Find matching route
   const route = _routes.find(r => r.method === method && r.pattern.test(path));
 
   if (!route) {
+    const requestId = nextRequestId();
     const err: ApiError = {
-      ok:      false,
-      error:   'NOT_FOUND',
-      message: `No handler registered for ${method} ${path}`,
+      ok: false,
+      error: 'NOT_FOUND',
+      message: `No handler registered for ${method} ${safePath(path)}`,
+      details: { errorClass: ['client'] },
       requestId,
     };
-    devLog(method, path, performance.now() - t0, false);
+    devLog(method, path, 0, false);
     return err;
   }
 
-  // Extract path parameters
-  const match = path.match(route.pattern);
-  const pathParams: Record<string, string> = {};
-  if (match) {
-    route.paramNames.forEach((name, i) => { pathParams[name] = match[i + 1]; });
-  }
+  let didRefresh = false;
 
-  try {
-    const result = await route.handler(body ?? {}, auth, pathParams);
-    const durationMs = Math.round(performance.now() - t0);
-    devLog(method, path, durationMs, true);
-    return {
-      ok:   true,
-      data: result as TRes,
-      meta: { requestId, durationMs, version: '1.0' },
-    };
-  } catch (err) {
-    const durationMs = Math.round(performance.now() - t0);
-    devLog(method, path, durationMs, false);
+  while (true) {
+    const requestId = nextRequestId();
+    const t0 = performance.now();
+    const auth = resolveAuthContext();
+    const match = path.match(route.pattern);
+    const pathParams: Record<string, string> = {};
+    if (match) route.paramNames.forEach((name, i) => { pathParams[name] = match[i + 1]; });
 
-    if (err instanceof ApiClientError) {
-      return { ok: false, error: err.code, message: err.message, details: err.details, requestId };
+    try {
+      const result = await Promise.resolve(route.handler(body ?? {}, auth, pathParams));
+      const durationMs = Math.round(performance.now() - t0);
+      devLog(method, path, durationMs, true);
+      return { ok: true, data: result as TRes, meta: { requestId, durationMs, version: '1.0' } };
+    } catch (err) {
+      const durationMs = Math.round(performance.now() - t0);
+      devLog(method, path, durationMs, false);
+      const normalized = normalizeApiError(err);
+
+      if (method === 'GET' && normalized.code === 'UNAUTHORIZED' && !didRefresh && authRefresh) {
+        didRefresh = true;
+        try {
+          await getValidToken();
+          continue;
+        } catch {
+          // Return a sanitized authorization error without exposing token data.
+        }
+      }
+
+      return {
+        ok: false,
+        error: normalized.code,
+        message: normalized.message,
+        details: { ...(normalized.details ?? {}), errorClass: [normalized.category] },
+        requestId,
+      };
     }
-
-    console.error(`[API] Unhandled error on ${method} ${path}:`, err);
-    return {
-      ok:      false,
-      error:   'SERVER_ERROR',
-      message: err instanceof Error ? err.message : 'An unexpected error occurred.',
-      requestId,
-    };
   }
+}
+
+function classifyError(code: ApiError['error']): ApiErrorCategory {
+  if (code === 'UNAUTHORIZED' || code === 'FORBIDDEN') return 'auth';
+  if (code === 'SERVER_ERROR' || code === 'STORE_ERROR' || code === 'RATE_LIMITED') return 'server';
+  return 'client';
+}
+
+function normalizeApiError(error: unknown): ApiClientError {
+  if (error instanceof ApiClientError) return error;
+  const rawMessage = error instanceof Error ? error.message : 'An unexpected error occurred.';
+  const isNetwork = /network|fetch|timeout|abort|offline/i.test(rawMessage);
+  return new ApiClientError(
+    'SERVER_ERROR',
+    isNetwork ? 'Network request failed.' : rawMessage,
+    undefined,
+    isNetwork ? 'network' : 'server',
+  );
 }
 
 // ─── ERROR CLASS ──────────────────────────────────────────────────────────────
 
 export class ApiClientError extends Error {
+  public readonly category: ApiErrorCategory;
+
   constructor(
     public readonly code:    ApiError['error'],
     message:                 string,
     public readonly details?: Record<string, string[]>,
+    category?: ApiErrorCategory,
   ) {
     super(message);
     this.name = 'ApiClientError';
+    this.category = category ?? classifyError(code);
   }
 }
 
@@ -196,6 +252,17 @@ export const apiPost = <T>(path: string, body: unknown) => dispatch<T>('POST',  
 export const apiPut  = <T>(path: string, body: unknown) => dispatch<T>('PUT',    path, body);
 export const apiDel  = <T>(path: string) => dispatch<T>('DELETE', path);
 
+/** Real Render API request seam for server-authoritative domains. */
+export async function request<T>(method: HttpMethod, path: string, body?: unknown): Promise<T> {
+  const headers: Record<string, string> = {};
+  if (activeAccessToken) headers.Authorization = `Bearer ${activeAccessToken}`;
+  return platformTransport.request<T>(path, {
+    method,
+    headers,
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+}
+
 // ─── REAL HTTP CLIENT (for Taskade webhooks) ───────────────────────────────────
 
 export interface TaskadeWebhookRequest {
@@ -211,13 +278,29 @@ export async function callTaskadeWebhook(
   const requestId = nextRequestId();
   const t0        = performance.now();
 
+  const requestPath = `/api/taskade/webhooks/${flowId}/run`;
+  const requestOptions = (): RequestInit => ({
+    method: 'POST',
+    credentials: 'include',
+    headers: activeAccessToken ? { Authorization: `Bearer ${activeAccessToken}` } : undefined,
+    body: JSON.stringify(payload),
+  });
+
   try {
-    const json = await cloudDataLayer.invokeWebhook(flowId, payload);
+    const json = await platformTransport.request<Record<string, unknown>>(requestPath, requestOptions());
     const durationMs = Math.round(performance.now() - t0);
-    devLog('POST', `/webhooks/${flowId}/run`, durationMs, true);
+    devLog('POST', requestPath, durationMs, true);
     return { ok: true, data: json, meta: { requestId, durationMs } };
   } catch (err) {
-    return { ok: false, error: 'SERVER_ERROR', message: err instanceof Error ? err.message : 'Network error.', requestId };
+    const normalized = normalizeApiError(err);
+    devLog('POST', requestPath, Math.round(performance.now() - t0), false);
+    return {
+      ok: false,
+      error: normalized.code,
+      message: normalized.message,
+      details: { ...(normalized.details ?? {}), errorClass: [normalized.category] },
+      requestId,
+    };
   }
 }
 

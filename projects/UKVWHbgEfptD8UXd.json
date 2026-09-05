@@ -1,0 +1,3522 @@
+{
+  "root": {
+    "type": "root",
+    "children": [
+      {
+        "type": "text",
+        "id": "41000000-0000-4000-8000-000000000000",
+        "text": {
+          "ops": [
+            {
+              "insert": "55 Retain Files - Migration Plan"
+            },
+            {
+              "insert": "\n",
+              "attributes": {
+                "paragraph": true
+              }
+            }
+          ]
+        },
+        "format": null,
+        "collapsed": false,
+        "completed": false,
+        "children": [
+          {
+            "type": "text",
+            "id": "41000000-0000-4000-8000-000000000001",
+            "text": {
+              "ops": [
+                {
+                  "insert": "Wave 1 - Payments and payment boundaries",
+                  "attributes": {}
+                },
+                {
+                  "insert": "\n",
+                  "attributes": {
+                    "paragraph": true
+                  }
+                }
+              ]
+            },
+            "format": {
+              "node": "text",
+              "children": null
+            },
+            "collapsed": false,
+            "completed": false,
+            "children": [
+              {
+                "type": "text",
+                "id": "41000000-0000-4000-8000-000000000011",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/lib/useAiPaymentVerification.ts - server-backed verification; test approved, rejected, timeout, and replay.",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "checkbox",
+                  "children": null
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "41000000-0000-4000-8000-000000000012",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/components/payment/PaymentSuccessPage.tsx - canonical payment reads; test confirmed, pending, duplicate, and missing states.",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "checkbox",
+                  "children": null
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "41000000-0000-4000-8000-000000000013",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/components/payment/DemoCheckoutPage.tsx - isolate demo from live state; test no-network completion and live rejection.",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "checkbox",
+                  "children": null
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "41000000-0000-4000-8000-000000000014",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/components/payment/PaymentsHistoryWidget.tsx - project-backed payment history; test empty, failed, duplicate, and paginated records.",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "checkbox",
+                  "children": null
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "41000000-0000-4000-8000-000000000015",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/components/payment/PaymentCancelPage.tsx - canonical cancellation state; test cancel, retry, stale session, and provider failure.",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "checkbox",
+                  "children": null
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              }
+            ]
+          },
+          {
+            "type": "text",
+            "id": "41000000-0000-4000-8000-000000000002",
+            "text": {
+              "ops": [
+                {
+                  "insert": "Wave 2 - Exchange, transport, and contracts",
+                  "attributes": {}
+                },
+                {
+                  "insert": "\n",
+                  "attributes": {
+                    "paragraph": true
+                  }
+                }
+              ]
+            },
+            "format": {
+              "node": "text",
+              "children": null
+            },
+            "collapsed": false,
+            "completed": false,
+            "children": [
+              {
+                "type": "text",
+                "id": "41000000-0000-4000-8000-000000000021",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/api/exchange.ts | Status: "
+                    },
+                    {
+                      "insert": "security-hardened, server ",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "migrat"
+                    },
+                    {
+                      "insert": "ion p",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "e"
+                    },
+                    {
+                      "insert": "n",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "d"
+                    },
+                    {
+                      "insert": "ing",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": " - only live exchange boundary; raw credentials are transient and only masked metadata is returned or persisted; canonical exchange ID validation, demo/live separation, permission checks, and fail-closed balance sync are enforc"
+                    },
+                    {
+                      "insert": "ed. The underlying manager remains a client-side simulation until a real server endpoint is connect",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "ed."
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "checkbox",
+                  "children": null
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "41000000-0000-4000-8000-000000000022",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/lib/exchangeSimulator.ts "
+                    },
+                    {
+                      "insert": "| Status:",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": " security-fixed"
+                    },
+                    {
+                      "insert": " -",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": " "
+                    },
+                    {
+                      "insert": "de",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "m"
+                    },
+                    {
+                      "insert": "o ",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "g"
+                    },
+                    {
+                      "insert": "ene",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "rat"
+                    },
+                    {
+                      "insert": "ors, s",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "i"
+                    },
+                    {
+                      "insert": "mulated ",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "o"
+                    },
+                    {
+                      "insert": "rders,",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": " p"
+                    },
+                    {
+                      "insert": "ortfolios, a",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "nd"
+                    },
+                    {
+                      "insert": " sync ",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "n"
+                    },
+                    {
+                      "insert": "ow",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": " "
+                    },
+                    {
+                      "insert": "reje",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "ct"
+                    },
+                    {
+                      "insert": " l",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "i"
+                    },
+                    {
+                      "insert": "ve c",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "on"
+                    },
+                    {
+                      "insert": "nections;",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": " "
+                    },
+                    {
+                      "insert": "th",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "e "
+                    },
+                    {
+                      "insert": "mo",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "d"
+                    },
+                    {
+                      "insert": "ul",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "e "
+                    },
+                    {
+                      "insert": "re",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "mains"
+                    },
+                    {
+                      "insert": " pur",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "e"
+                    },
+                    {
+                      "insert": ",",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": " "
+                    },
+                    {
+                      "insert": "per",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "fo"
+                    },
+                    {
+                      "insert": "r",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "m"
+                    },
+                    {
+                      "insert": "s",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": " "
+                    },
+                    {
+                      "insert": "no r",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "e"
+                    },
+                    {
+                      "insert": "quests, stores no",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": " credentials"
+                    },
+                    {
+                      "insert": ",",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": " and e"
+                    },
+                    {
+                      "insert": "m",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "i"
+                    },
+                    {
+                      "insert": "t",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "s "
+                    },
+                    {
+                      "insert": "n",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "o sensitive log"
+                    },
+                    {
+                      "insert": "s.",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": " "
+                    },
+                    {
+                      "insert": "R",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "e"
+                    },
+                    {
+                      "insert": "a",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "l se"
+                    },
+                    {
+                      "insert": "rv",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "e"
+                    },
+                    {
+                      "insert": "r-ba",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "c"
+                    },
+                    {
+                      "insert": "k",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "e"
+                    },
+                    {
+                      "insert": "d",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": " exchange "
+                    },
+                    {
+                      "insert": "exe",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "c"
+                    },
+                    {
+                      "insert": "ut",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "i"
+                    },
+                    {
+                      "insert": "o",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "n rem"
+                    },
+                    {
+                      "insert": "a",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "ins"
+                    },
+                    {
+                      "insert": " ou",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "t"
+                    },
+                    {
+                      "insert": "s",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "ide"
+                    },
+                    {
+                      "insert": " thi",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "s s"
+                    },
+                    {
+                      "insert": "imu",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "la"
+                    },
+                    {
+                      "insert": "t",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "or."
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "checkbox",
+                  "children": null
+                },
+                "collapsed": false,
+                "completed": true,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "41000000-0000-4000-8000-000000000023",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/components/exchange/ConnectExchangeModal.tsx "
+                    },
+                    {
+                      "insert": "|",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": " "
+                    },
+                    {
+                      "insert": "Statu",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "s"
+                    },
+                    {
+                      "insert": ": r",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "e"
+                    },
+                    {
+                      "insert": "tained, not mig",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "r"
+                    },
+                    {
+                      "insert": "at",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "e"
+                    },
+                    {
+                      "insert": "d. Acti",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "o"
+                    },
+                    {
+                      "insert": "n: se",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "nd connection "
+                    },
+                    {
+                      "insert": "setup thr",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "o"
+                    },
+                    {
+                      "insert": "ugh",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": " t"
+                    },
+                    {
+                      "insert": "h",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "e"
+                    },
+                    {
+                      "insert": " ",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "s"
+                    },
+                    {
+                      "insert": "erver",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": " "
+                    },
+                    {
+                      "insert": "bou",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "n"
+                    },
+                    {
+                      "insert": "d",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "a"
+                    },
+                    {
+                      "insert": "ry an",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "d "
+                    },
+                    {
+                      "insert": "d",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "i"
+                    },
+                    {
+                      "insert": "s",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "p"
+                    },
+                    {
+                      "insert": "lay",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": " masked confirmation"
+                    },
+                    {
+                      "insert": " only. Dependencies:",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": " "
+                    },
+                    {
+                      "insert": "api/ex",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "c"
+                    },
+                    {
+                      "insert": "h",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "an"
+                    },
+                    {
+                      "insert": "g",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "e"
+                    },
+                    {
+                      "insert": ".ts, api/c",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "l"
+                    },
+                    {
+                      "insert": "ient.ts",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": ", a"
+                    },
+                    {
+                      "insert": "uth/sessio",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "n"
+                    },
+                    {
+                      "insert": " boundary. Test: invali",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "d "
+                    },
+                    {
+                      "insert": "input, cancel, ",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "retry"
+                    },
+                    {
+                      "insert": ", masked success",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "."
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "checkbox",
+                  "children": null
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "41000000-0000-4000-8000-000000000024",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/components/exchange/ExchangeDashboard.tsx "
+                    },
+                    {
+                      "insert": "| Status:",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": " "
+                    },
+                    {
+                      "insert": "ret",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "a"
+                    },
+                    {
+                      "insert": "i",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "n"
+                    },
+                    {
+                      "insert": "ed, ",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "n"
+                    },
+                    {
+                      "insert": "ot m",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "i"
+                    },
+                    {
+                      "insert": "grated. A",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "c"
+                    },
+                    {
+                      "insert": "tion: re",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "a"
+                    },
+                    {
+                      "insert": "d",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": " portfolio"
+                    },
+                    {
+                      "insert": ",",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": " "
+                    },
+                    {
+                      "insert": "connections, and t",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "r"
+                    },
+                    {
+                      "insert": "ad",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "e"
+                    },
+                    {
+                      "insert": "s from c",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "a"
+                    },
+                    {
+                      "insert": "nonical server-backe",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "d"
+                    },
+                    {
+                      "insert": " data, never brow",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "s"
+                    },
+                    {
+                      "insert": "er authorities. Dependencies: exchangeStore,",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": " "
+                    },
+                    {
+                      "insert": "api/exchange.",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "t"
+                    },
+                    {
+                      "insert": "s, api/client.ts. T",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "est"
+                    },
+                    {
+                      "insert": ":",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": " loading, unauthorized, empty, stale, populated."
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "checkbox",
+                  "children": null
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "41000000-0000-4000-8000-000000000025",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/components/exchange/DeployStrategyModal.tsx "
+                    },
+                    {
+                      "insert": "| Status: retained, not migrated. Action: move deployment writes behind",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": " authenticated s"
+                    },
+                    {
+                      "insert": "erver valida",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "t"
+                    },
+                    {
+                      "insert": "ion and p",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "r"
+                    },
+                    {
+                      "insert": "event duplic",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "ate"
+                    },
+                    {
+                      "insert": " deplo",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "y"
+                    },
+                    {
+                      "insert": "ment.",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": " "
+                    },
+                    {
+                      "insert": "Dependencies: api/st",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "r"
+                    },
+                    {
+                      "insert": "ateg",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "i"
+                    },
+                    {
+                      "insert": "es.",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "t"
+                    },
+                    {
+                      "insert": "s, api/cli",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "e"
+                    },
+                    {
+                      "insert": "nt.t",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "s"
+                    },
+                    {
+                      "insert": ",",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": " "
+                    },
+                    {
+                      "insert": "au",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "t"
+                    },
+                    {
+                      "insert": "h/session boundary. T",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "est"
+                    },
+                    {
+                      "insert": ":",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": " preview, confirm, reject, duplicate."
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "checkbox",
+                  "children": null
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "41000000-0000-4000-8000-000000000026",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/components/exchange/RiskControlsPanel.tsx "
+                    },
+                    {
+                      "insert": "|",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": " "
+                    },
+                    {
+                      "insert": "Stat",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "u"
+                    },
+                    {
+                      "insert": "s: retaine",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "d"
+                    },
+                    {
+                      "insert": ", not migr",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "a"
+                    },
+                    {
+                      "insert": "t",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "ed"
+                    },
+                    {
+                      "insert": ". Action: persist",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": " risk limits"
+                    },
+                    {
+                      "insert": " through",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": " t"
+                    },
+                    {
+                      "insert": "h",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "e"
+                    },
+                    {
+                      "insert": " canonical user-scoped ",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "st"
+                    },
+                    {
+                      "insert": "ore and validate",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": " bounds "
+                    },
+                    {
+                      "insert": "se",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "r"
+                    },
+                    {
+                      "insert": "v",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "e"
+                    },
+                    {
+                      "insert": "r-",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "s"
+                    },
+                    {
+                      "insert": "ide. Dependencies: exchang",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "e"
+                    },
+                    {
+                      "insert": "S",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "t"
+                    },
+                    {
+                      "insert": "ore",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": ", a"
+                    },
+                    {
+                      "insert": "pi/excha",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "n"
+                    },
+                    {
+                      "insert": "ge.ts, Clou",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "d"
+                    },
+                    {
+                      "insert": "DataLayer. Test: boundary values, reset,",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": " rejected write"
+                    },
+                    {
+                      "insert": ", account ",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "s"
+                    },
+                    {
+                      "insert": "witch",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "."
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "checkbox",
+                  "children": null
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "41000000-0000-4000-8000-000000000027",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/components/exchange/RealTradeHistory.tsx "
+                    },
+                    {
+                      "insert": "| Status: retained, not migrated. Action: render",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": " server-confirmed trade "
+                    },
+                    {
+                      "insert": "r",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "e"
+                    },
+                    {
+                      "insert": "cord",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "s"
+                    },
+                    {
+                      "insert": " only, wi",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "t"
+                    },
+                    {
+                      "insert": "h",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": " e"
+                    },
+                    {
+                      "insert": "x",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "p"
+                    },
+                    {
+                      "insert": "lici",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "t partial"
+                    },
+                    {
+                      "insert": " and",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": " failed "
+                    },
+                    {
+                      "insert": "st",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "a"
+                    },
+                    {
+                      "insert": "tes. Depe",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "nd"
+                    },
+                    {
+                      "insert": "encies:",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": " "
+                    },
+                    {
+                      "insert": "a",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "p"
+                    },
+                    {
+                      "insert": "i/exch",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "a"
+                    },
+                    {
+                      "insert": "n",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "g"
+                    },
+                    {
+                      "insert": "e.ts, ap",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "i"
+                    },
+                    {
+                      "insert": "/clie",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "n"
+                    },
+                    {
+                      "insert": "t.ts, exch",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "a"
+                    },
+                    {
+                      "insert": "ngeS",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "t"
+                    },
+                    {
+                      "insert": "or",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "e"
+                    },
+                    {
+                      "insert": ".",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": " "
+                    },
+                    {
+                      "insert": "Te",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "st"
+                    },
+                    {
+                      "insert": ": empty, pa",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "r"
+                    },
+                    {
+                      "insert": "t",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "i"
+                    },
+                    {
+                      "insert": "al, fail",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "e"
+                    },
+                    {
+                      "insert": "d, paginated",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "."
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "checkbox",
+                  "children": null
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "41000000-0000-4000-8000-000000000028",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/components/exchange/ExchangeGuide.tsx "
+                    },
+                    {
+                      "insert": "|",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": " "
+                    },
+                    {
+                      "insert": "Stat",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "u"
+                    },
+                    {
+                      "insert": "s: ",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "r"
+                    },
+                    {
+                      "insert": "etained, p",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "r"
+                    },
+                    {
+                      "insert": "es",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "ent"
+                    },
+                    {
+                      "insert": "ation-only migration. Action: align instructions with the",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": " secure connection "
+                    },
+                    {
+                      "insert": "path a",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "n"
+                    },
+                    {
+                      "insert": "d remove ",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "st"
+                    },
+                    {
+                      "insert": "ale local-sto",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "r"
+                    },
+                    {
+                      "insert": "age ass",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "u"
+                    },
+                    {
+                      "insert": "mp",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "tions"
+                    },
+                    {
+                      "insert": ". Dependencies: ConnectExchangeModal, current",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": " "
+                    },
+                    {
+                      "insert": "au",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "t"
+                    },
+                    {
+                      "insert": "h/session flow. T",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "est"
+                    },
+                    {
+                      "insert": ":",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": " mode labels, links, "
+                    },
+                    {
+                      "insert": "resp",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "o"
+                    },
+                    {
+                      "insert": "ns",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "i"
+                    },
+                    {
+                      "insert": "v",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "e layout."
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "checkbox",
+                  "children": null
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "41000000-0000-4000-8000-000000000029",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/api/types.ts "
+                    },
+                    {
+                      "insert": "| Status: retained contract dependency. Action:",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": " formalize "
+                    },
+                    {
+                      "insert": "server-author",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "i"
+                    },
+                    {
+                      "insert": "tative exchan",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "g"
+                    },
+                    {
+                      "insert": "e, st",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "rate"
+                    },
+                    {
+                      "insert": "gy,",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": " e"
+                    },
+                    {
+                      "insert": "rr",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "or"
+                    },
+                    {
+                      "insert": ",",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": " and "
+                    },
+                    {
+                      "insert": "mask",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "e"
+                    },
+                    {
+                      "insert": "d-c",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "r"
+                    },
+                    {
+                      "insert": "edential shapes bef",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "or"
+                    },
+                    {
+                      "insert": "e",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": " "
+                    },
+                    {
+                      "insert": "d",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "o"
+                    },
+                    {
+                      "insert": "w",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "n"
+                    },
+                    {
+                      "insert": "s",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "tr"
+                    },
+                    {
+                      "insert": "e",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "a"
+                    },
+                    {
+                      "insert": "m edits. Dependen",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "c"
+                    },
+                    {
+                      "insert": "ies: api/client.",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "ts"
+                    },
+                    {
+                      "insert": ", api/index.ts, exchange",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": " "
+                    },
+                    {
+                      "insert": "rou",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "te"
+                    },
+                    {
+                      "insert": ". Te",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "st"
+                    },
+                    {
+                      "insert": ":",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": " runtime validation and compile coverage."
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "checkbox",
+                  "children": null
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "41000000-0000-4000-8000-000000000030",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/api/index.ts | Status: "
+                    },
+                    {
+                      "insert": "mig",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "ra"
+                    },
+                    {
+                      "insert": "t",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "ed "
+                    },
+                    {
+                      "insert": "-",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": " e"
+                    },
+                    {
+                      "insert": "xcha",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "n"
+                    },
+                    {
+                      "insert": "g",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "e i"
+                    },
+                    {
+                      "insert": "s",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": " register"
+                    },
+                    {
+                      "insert": "ed",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": " on"
+                    },
+                    {
+                      "insert": "ce through th",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "e exchange "
+                    },
+                    {
+                      "insert": "r",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "ou"
+                    },
+                    {
+                      "insert": "te",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": " module"
+                    },
+                    {
+                      "insert": ";",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": " e"
+                    },
+                    {
+                      "insert": "xis",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "t"
+                    },
+                    {
+                      "insert": "i",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "n"
+                    },
+                    {
+                      "insert": "g",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": " request paths "
+                    },
+                    {
+                      "insert": "r",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "e"
+                    },
+                    {
+                      "insert": "m",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "ai"
+                    },
+                    {
+                      "insert": "n com",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "p"
+                    },
+                    {
+                      "insert": "a",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "ti"
+                    },
+                    {
+                      "insert": "b",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "le"
+                    },
+                    {
+                      "insert": ";",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": " exchange "
+                    },
+                    {
+                      "insert": "endp",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "o"
+                    },
+                    {
+                      "insert": "in",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "t "
+                    },
+                    {
+                      "insert": "w",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "r"
+                    },
+                    {
+                      "insert": "app",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "er"
+                    },
+                    {
+                      "insert": "s n",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "o"
+                    },
+                    {
+                      "insert": "w",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": " "
+                    },
+                    {
+                      "insert": "use api/typ",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "es"
+                    },
+                    {
+                      "insert": ".",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "t"
+                    },
+                    {
+                      "insert": "s",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": " r"
+                    },
+                    {
+                      "insert": "esp",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "o"
+                    },
+                    {
+                      "insert": "ns",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "e co"
+                    },
+                    {
+                      "insert": "nt",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "r"
+                    },
+                    {
+                      "insert": "acts",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": " a"
+                    },
+                    {
+                      "insert": "nd ",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "the"
+                    },
+                    {
+                      "insert": " ",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "hard"
+                    },
+                    {
+                      "insert": "ened a",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "pi"
+                    },
+                    {
+                      "insert": "/",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "c"
+                    },
+                    {
+                      "insert": "l",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "i"
+                    },
+                    {
+                      "insert": "en",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "t"
+                    },
+                    {
+                      "insert": ".",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "ts."
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "checkbox",
+                  "children": null
+                },
+                "collapsed": false,
+                "completed": true,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "41000000-0000-4000-8000-000000000031",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/api/client.ts "
+                    },
+                    {
+                      "insert": "|",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": " "
+                    },
+                    {
+                      "insert": "Statu",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "s"
+                    },
+                    {
+                      "insert": ": mig",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "ra"
+                    },
+                    {
+                      "insert": "t",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "ed "
+                    },
+                    {
+                      "insert": "- vi",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "r"
+                    },
+                    {
+                      "insert": "tu",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "a"
+                    },
+                    {
+                      "insert": "l di",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "sp"
+                    },
+                    {
+                      "insert": "a",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "t"
+                    },
+                    {
+                      "insert": "ch",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": " de"
+                    },
+                    {
+                      "insert": "l",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "e"
+                    },
+                    {
+                      "insert": "gat",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "e"
+                    },
+                    {
+                      "insert": "s",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": " t"
+                    },
+                    {
+                      "insert": "r",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "a"
+                    },
+                    {
+                      "insert": "n",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "s"
+                    },
+                    {
+                      "insert": "p",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "o"
+                    },
+                    {
+                      "insert": "r",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "t retry and ti"
+                    },
+                    {
+                      "insert": "m",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "eout poli"
+                    },
+                    {
+                      "insert": "cy to",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": " platformTransport"
+                    },
+                    {
+                      "insert": ";",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": " "
+                    },
+                    {
+                      "insert": "GET-",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "on"
+                    },
+                    {
+                      "insert": "ly",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": " r"
+                    },
+                    {
+                      "insert": "efre",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "s"
+                    },
+                    {
+                      "insert": "h rec",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "o"
+                    },
+                    {
+                      "insert": "ve",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "r"
+                    },
+                    {
+                      "insert": "y",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": " is s"
+                    },
+                    {
+                      "insert": "ingl",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "e"
+                    },
+                    {
+                      "insert": "-",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "f"
+                    },
+                    {
+                      "insert": "lig",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "h"
+                    },
+                    {
+                      "insert": "t; POST",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": ", "
+                    },
+                    {
+                      "insert": "PUT, and DELETE ex",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "e"
+                    },
+                    {
+                      "insert": "c",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "ut"
+                    },
+                    {
+                      "insert": "e",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": " "
+                    },
+                    {
+                      "insert": "once; e",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "r"
+                    },
+                    {
+                      "insert": "ro",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "r"
+                    },
+                    {
+                      "insert": "s",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": " a"
+                    },
+                    {
+                      "insert": "re",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": " "
+                    },
+                    {
+                      "insert": "norm",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "a"
+                    },
+                    {
+                      "insert": "l",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "i"
+                    },
+                    {
+                      "insert": "z",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "e"
+                    },
+                    {
+                      "insert": "d",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": " "
+                    },
+                    {
+                      "insert": "a",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "n"
+                    },
+                    {
+                      "insert": "d l",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "o"
+                    },
+                    {
+                      "insert": "gs are",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": " secret"
+                    },
+                    {
+                      "insert": "-safe",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "."
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "checkbox",
+                  "children": null
+                },
+                "collapsed": false,
+                "completed": true,
+                "children": []
+              }
+            ]
+          },
+          {
+            "type": "text",
+            "id": "41000000-0000-4000-8000-000000000003",
+            "text": {
+              "ops": [
+                {
+                  "insert": "Wave 3 - Trading, bots, NFT, and recommendations",
+                  "attributes": {}
+                },
+                {
+                  "insert": "\n",
+                  "attributes": {
+                    "paragraph": true
+                  }
+                }
+              ]
+            },
+            "format": {
+              "node": "text",
+              "children": null
+            },
+            "collapsed": false,
+            "completed": false,
+            "children": [
+              {
+                "type": "text",
+                "id": "41000000-0000-4000-8000-000000000032",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/api/strategies.ts - cloud strategy authority; test ownership, validation, and conflicts.",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "checkbox",
+                  "children": null
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "41000000-0000-4000-8000-000000000033",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/api/backtest.ts - durable backtest inputs/results; test repeatability, invalid parameters, and large results.",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "checkbox",
+                  "children": null
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "41000000-0000-4000-8000-000000000034",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/api/bots.ts - cloud bot configuration and execution state; test ownership, pause, resume, and recovery.",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "checkbox",
+                  "children": null
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "41000000-0000-4000-8000-000000000035",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/api/copyTrading.ts - durable copy-trading state; test opt-in, opt-out, duplicates, and account scoping.",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "checkbox",
+                  "children": null
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "41000000-0000-4000-8000-000000000036",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/api/nft.ts - stable NFT data and cache policy; test missing collection, malformed data, and retry.",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "checkbox",
+                  "children": null
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "41000000-0000-4000-8000-000000000037",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/api/onchain.ts - shared on-chain boundary; test network failure, chain mismatch, and stale cache.",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "checkbox",
+                  "children": null
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "41000000-0000-4000-8000-000000000038",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/api/recommendations.ts - durable user-scoped recommendations; test cold start, empty history, and repeated feedback.",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "checkbox",
+                  "children": null
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "41000000-0000-4000-8000-000000000039",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/lib/tradingExpertGen2.ts - durable advisory state separate from execution; test empty portfolio, stale data, and rejected actions.",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "checkbox",
+                  "children": null
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "41000000-0000-4000-8000-000000000040",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/lib/watchlistStore.ts - cloud-backed watchlists; test add, remove, reorder, account switch, and offline retry.",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "checkbox",
+                  "children": null
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "41000000-0000-4000-8000-000000000041",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/lib/nftDataEngine.ts - canonical NFT data and metadata; test malformed metadata, cache expiry, and empty collection.",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "checkbox",
+                  "children": null
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "41000000-0000-4000-8000-000000000042",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/lib/nftRarityCalculator.ts - deterministic rarity over canonical inputs; test missing traits and repeatability.",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "checkbox",
+                  "children": null
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "41000000-0000-4000-8000-000000000043",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/lib/useNFTEngine.ts - hook lifecycle over migrated NFT data; test loading, account switch, and cleanup.",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "checkbox",
+                  "children": null
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "41000000-0000-4000-8000-000000000044",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/components/trading/WatchlistPanel.tsx - migrated watchlist UI; test add, remove, reorder, account switch, and empty state.",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "checkbox",
+                  "children": null
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "41000000-0000-4000-8000-000000000045",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/components/trading/AITradeAnalysisModal.tsx - advisory-only analysis; test loading, stale portfolio, rejection, and close.",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "checkbox",
+                  "children": null
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "41000000-0000-4000-8000-000000000046",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/components/trading/OrderBookHeatmap.tsx - shared market data boundary; test empty book, delayed updates, and mobile overflow.",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "checkbox",
+                  "children": null
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              }
+            ]
+          },
+          {
+            "type": "text",
+            "id": "41000000-0000-4000-8000-000000000004",
+            "text": {
+              "ops": [
+                {
+                  "insert": "Wave 4 - Sentiment, events, and analytics",
+                  "attributes": {}
+                },
+                {
+                  "insert": "\n",
+                  "attributes": {
+                    "paragraph": true
+                  }
+                }
+              ]
+            },
+            "format": {
+              "node": "text",
+              "children": null
+            },
+            "collapsed": false,
+            "completed": false,
+            "children": [
+              {
+                "type": "text",
+                "id": "41000000-0000-4000-8000-000000000047",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/api/sentiment.ts - shared sentiment transport and cache; test empty input, provider failure, and fallback.",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "checkbox",
+                  "children": null
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "41000000-0000-4000-8000-000000000048",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/lib/sentimentAnalyzer.ts - canonical sentiment inputs/results; test empty text, provider failure, and fallback classification.",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "checkbox",
+                  "children": null
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "41000000-0000-4000-8000-000000000049",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/components/sentiment/SentimentReport.tsx - migrated report states; test empty report and provider failure.",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "checkbox",
+                  "children": null
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "41000000-0000-4000-8000-000000000050",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/components/sentiment/SentimentChecklist.tsx - durable checklist state; test partial completion, reset, and reload.",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "checkbox",
+                  "children": null
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "41000000-0000-4000-8000-000000000051",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/components/sentiment/SentimentSources.tsx - durable source metadata; test missing source, duplicates, and safe rendering.",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "checkbox",
+                  "children": null
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "41000000-0000-4000-8000-000000000052",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/components/sentiment/SentimentWidget.tsx - canonical compact sentiment surface; test loading, empty, and error branches.",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "checkbox",
+                  "children": null
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "41000000-0000-4000-8000-000000000053",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/components/sentiment/SentimentChart.tsx - typed numeric sentiment mapping; test zero series, missing dates, and tooltip readability.",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "checkbox",
+                  "children": null
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "41000000-0000-4000-8000-000000000054",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/components/sentiment/SentimentHeatmap.tsx - typed heatmap records; test empty matrix, zero values, and mobile overflow.",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "checkbox",
+                  "children": null
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "41000000-0000-4000-8000-000000000055",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/components/events/LiveWebinarPage.tsx - durable registration and attendance; test join, leave, duplicate join, and reconnect.",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "checkbox",
+                  "children": null
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "41000000-0000-4000-8000-000000000056",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/components/events/EventLeaderboardPage.tsx - canonical leaderboard records; test ties, empty results, and refresh.",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "checkbox",
+                  "children": null
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "41000000-0000-4000-8000-000000000057",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/components/events/TeamBattlePage.tsx - durable team and score state; test creation, duplicate score, and reconnect.",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "checkbox",
+                  "children": null
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "41000000-0000-4000-8000-000000000058",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/components/events/EventsHub.tsx - one event boundary for discovery and registration; test filters, empty state, and unauthorized write.",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "checkbox",
+                  "children": null
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              }
+            ]
+          },
+          {
+            "type": "text",
+            "id": "41000000-0000-4000-8000-000000000005",
+            "text": {
+              "ops": [
+                {
+                  "insert": "Wave 5 - Persistence, localization, realtime, and executive surfaces",
+                  "attributes": {}
+                },
+                {
+                  "insert": "\n",
+                  "attributes": {
+                    "paragraph": true
+                  }
+                }
+              ]
+            },
+            "format": {
+              "node": "text",
+              "children": null
+            },
+            "collapsed": false,
+            "completed": false,
+            "children": [
+              {
+                "type": "text",
+                "id": "41000000-0000-4000-8000-000000000059",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/lib/storeAdapters.ts - adapter registration; test hydration ordering, pending writes, and account isolation.",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "checkbox",
+                  "children": null
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "41000000-0000-4000-8000-000000000060",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/lib/storeIndex.ts - single migration registry; test duplicate keys, missing adapters, and startup ordering.",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "checkbox",
+                  "children": null
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "41000000-0000-4000-8000-000000000061",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/lib/CloudDataLayer.ts - reconcile legacy facade with cloudData; test read, write, queue, retry, conflict, and logout.",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "checkbox",
+                  "children": null
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "41000000-0000-4000-8000-000000000062",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/lib/autoTranslate.ts - shared transport and cache; test quota failure, language switch, and stale translation.",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "checkbox",
+                  "children": null
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "41000000-0000-4000-8000-000000000063",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/lib/theme-bridge.ts - UI-only theme synchronization; test light, dark, and reload behavior.",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "checkbox",
+                  "children": null
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "41000000-0000-4000-8000-000000000064",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/lib/websocketService.ts - shared realtime boundary; test reconnect, duplicate events, disconnect, and cleanup.",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "checkbox",
+                  "children": null
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "41000000-0000-4000-8000-000000000065",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/lib/executiveIntelligence.ts - durable explainable insights; test empty inputs, stale inputs, and permissions.",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "checkbox",
+                  "children": null
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "41000000-0000-4000-8000-000000000066",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/lib/realTimeTruthEngine.ts - canonical status over conflicting updates; test delayed and conflicting events.",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "checkbox",
+                  "children": null
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "41000000-0000-4000-8000-000000000067",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/components/landing/LandingWhy.tsx - retain as presentation-only surface; test theme, responsive layout, and no data writes.",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "checkbox",
+                  "children": null
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "41000000-0000-4000-8000-000000000068",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/components/TranslationAdmin.tsx - migrate admin translation edits to canonical records; test role boundary, save failure, and reload.",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "checkbox",
+                  "children": null
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "41000000-0000-4000-8000-000000000069",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/components/FirstTradeGuide.tsx - keep guidance separate from execution state; test onboarding completion and account switch.",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "checkbox",
+                  "children": null
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "41000000-0000-4000-8000-000000000070",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/components/ChatButton.tsx - preserve real agent entry point; test authenticated, unauthenticated, mobile, and failure fallback.",
+                      "attributes": {}
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "checkbox",
+                  "children": null
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              }
+            ]
+          },
+          {
+            "type": "text",
+            "id": "41000000-0000-4000-8000-000000000071",
+            "text": {
+              "ops": [
+                {
+                  "insert": "Plan status: reconstructed from the 180-file inventory because the original 55-file classification list was not saved. Validate each candidate against current imports before editing or deleting.",
+                  "attributes": {}
+                },
+                {
+                  "insert": "\n",
+                  "attributes": {
+                    "paragraph": true
+                  }
+                }
+              ]
+            },
+            "format": {
+              "node": "text",
+              "children": null
+            },
+            "collapsed": false,
+            "completed": false,
+            "children": []
+          }
+        ]
+      }
+    ]
+  },
+  "preferences": {
+    "defaultView": "list",
+    "avatar": {
+      "type": "emoji",
+      "value": "📄"
+    }
+  }
+}
