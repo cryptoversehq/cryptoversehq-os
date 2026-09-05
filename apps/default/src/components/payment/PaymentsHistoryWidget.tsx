@@ -2,10 +2,10 @@
  * PaymentsHistoryWidget.tsx
  * Shows a user's payment history inline via NOWPayments.
  */
-import React from 'react';
+import React, { useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { CreditCard, CheckCircle2, Clock, XCircle, ExternalLink } from 'lucide-react';
-import { useIronixPayStore } from '@/lib/ironixPayStore';
+import { useNowPaymentsStore } from '@/lib/nowPaymentsStore';
 import { useAuthStore } from '@/lib/authStore';
 import { cn } from '@/lib/utils';
 
@@ -33,9 +33,14 @@ const STATUS_COLOR: Record<string, string> = {
 };
 
 export function PaymentsHistoryWidget() {
-  const { user }            = useAuthStore();
-  const { getPaymentsByUser } = useIronixPayStore();
-  const payments            = getPaymentsByUser(user?.id ?? 'demo_user');
+  const { user } = useAuthStore();
+  const userId = user?.id ?? '';
+  const payments = useNowPaymentsStore((state) => state.getPaymentsByUser(userId));
+  const refreshHistory = useNowPaymentsStore((state) => state.refreshHistory);
+
+  useEffect(() => {
+    if (userId) void refreshHistory(userId);
+  }, [refreshHistory, userId]);
 
   if (payments.length === 0) return null;
 
@@ -52,8 +57,8 @@ export function PaymentsHistoryWidget() {
               {STATUS_ICON[p.status]} {p.status}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-xs font-semibold text-white/70 truncate capitalize">{p.planId} Plan</p>
-              <p className="text-[10px] text-white/30 font-mono truncate">{p.clientReferenceId}</p>
+              <p className="text-xs font-semibold text-white/70 truncate capitalize">{p.itemId} Plan</p>
+              <p className="text-[10px] text-white/30 font-mono truncate">{p.orderId}</p>
             </div>
             <div className="text-right shrink-0">
               <p className="text-xs font-bold text-white">${p.amountUSD.toFixed(2)}</p>

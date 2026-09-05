@@ -87,47 +87,79 @@ export async function getNodesIfChanged(
   return { changed: true, etag: result.etag, nodes: result.body.payload?.nodes ?? [] };
 }
 
+/** What a write reports back: the row's id and any keys the project had no field for. */
+export type WriteResult = {
+  /** The written row's id, or null when the gateway did not report one. */
+  id: string | null;
+  /** Request keys that matched no field and were NOT written. Empty means every key landed. */
+  ignoredKeys: string[];
+};
+
+/** The `payload` of a create/update response. Every member is optional: an older gateway sends none. */
+type WritePayload = { node?: { id?: string }; ignoredKeys?: string[] };
+
+function readWriteResult(data: GatewayResponse<WritePayload> | undefined): WriteResult {
+  const id = data?.payload?.node?.id;
+  const ignoredKeys = data?.payload?.ignoredKeys;
+  return {
+    id: typeof id === 'string' && id !== '' ? id : null,
+    // Element-wise guard: a malformed payload such as [null, 1] must not
+    // escape typed as string[] - keep only the string entries.
+    ignoredKeys: Array.isArray(ignoredKeys)
+      ? ignoredKeys.filter((key): key is string => typeof key === 'string')
+      : [],
+  };
+}
+
 /**
- * Creates a new row in a project.
+ * Creates a new row in a project. Resolves once the row is saved; the result
+ * carries the new row's id and any keys the project had no field for. A
+ * resolved promise IS the success signal - do not treat a missing id as a
+ * failed save.
  *
  * @example
  * ```typescript
- * await createNode('project-123', { Name: 'Maria', Email: 'maria@acme.com', Status: 'New' });
+ * const { id, ignoredKeys } = await createNode('project-123', { Name: 'Maria', Status: 'New' });
  * ```
  */
 export async function createNode(
   projectId: string,
   fields: NewNodeFields,
   options?: ClientOptions,
-): Promise<void> {
+): Promise<WriteResult> {
   if (isEmptyString(projectId)) {
     throw new Error('Project ID cannot be empty');
   }
-  await gatewayRequest(
+  const data = await gatewayRequest<GatewayResponse<WritePayload>>(
     `/projects/${encodeURIComponent(projectId)}/nodes`,
     { method: 'POST', body: JSON.stringify(fields) },
     options,
   );
+  return readWriteResult(data);
 }
 
 /**
  * Updates field values on an existing row. Only the provided fields are changed.
- * Each value's type must match its field type, same contract as `createNode`.
+ * Each value's type must match its field type, same contract as `createNode`, and
+ * the result carries the same `{ id, ignoredKeys }` shape: a resolved promise is
+ * the success signal, and a non-empty `ignoredKeys` names the keys that were not
+ * written.
  */
 export async function updateNode(
   projectId: string,
   nodeId: string,
   fields: Record<string, string | number | boolean>,
   options?: ClientOptions,
-): Promise<void> {
+): Promise<WriteResult> {
   if (isEmptyString(projectId) || isEmptyString(nodeId)) {
     throw new Error('Project ID and node ID cannot be empty');
   }
-  await gatewayRequest(
+  const data = await gatewayRequest<GatewayResponse<WritePayload>>(
     `/projects/${encodeURIComponent(projectId)}/nodes/${encodeURIComponent(nodeId)}`,
     { method: 'PATCH', body: JSON.stringify(fields) },
     options,
   );
+  return readWriteResult(data);
 }
 
 /**

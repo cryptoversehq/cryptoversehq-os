@@ -12,10 +12,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { CheckCircle2, Loader2, Crown, Gem, ArrowRight, RefreshCw, Clock } from 'lucide-react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { useIronixPayStore } from '@/lib/ironixPayStore';
-import { useAuthStore } from '@/lib/authStore';
-import { useCpCoinsStore } from '@/lib/cpCoinsStore';
-import { CP_PACKAGES } from '@/lib/monetizationStore';
+import { useNowPaymentsStore } from '@/lib/nowPaymentsStore';
 
 const POLL_INTERVAL_MS = 3000;
 const MAX_POLLS        = 40; // 2 min total
@@ -23,9 +20,7 @@ const MAX_POLLS        = 40; // 2 min total
 export function PaymentSuccessPage() {
   const [searchParams] = useSearchParams();
   const navigate       = useNavigate();
-  const { pollPaymentStatus, handleWebhookEvent } = useIronixPayStore();
-  const { user, updateProfile }                   = useAuthStore();
-  const { credit }                                = useCpCoinsStore();
+  const { pollPayment } = useNowPaymentsStore();
 
   const clientRef = searchParams.get('ref') ?? '';
   const [status,  setStatus]  = useState<'waiting' | 'confirmed' | 'timeout'>('waiting');
@@ -33,41 +28,29 @@ export function PaymentSuccessPage() {
   const [planId,  setPlanId]  = useState<string | null>(null);
   const [cpAmount,setCpAmount]= useState<number | null>(null);
 
-  // creditCp is the safe function passed to the webhook handler
-  const creditCp = useCallback((params: { userId: string; amount: number; type: string; description: string; referenceId: string }) => {
-    credit(params);
-  }, [credit]);
-
   const activatePlan = useCallback((pid: string) => {
     setPlanId(pid);
-    updateProfile({
-      plan:       pid as any,
-      planExpiry: new Date(Date.now() + 30 * 86_400_000).toISOString(),
-    });
     setStatus('confirmed');
-  }, [updateProfile]);
+  }, []);
 
   useEffect(() => {
     if (!clientRef) return;
     let intervalId: ReturnType<typeof setInterval>;
     let pollCount = 0;
 
-    const check = () => {
-      const record = pollPaymentStatus(clientRef);
+    const check = async () => {
+      await pollPayment(clientRef);
+      const record = useNowPaymentsStore.getState().payments.find((payment) => payment.paymentId === clientRef);
 
       if (record?.status === 'completed') {
         clearInterval(intervalId);
 
         if (record.purchaseType === 'cp_purchase') {
-          // CP purchase already credited by webhook handler — just show success
           setCpAmount(record.cpAmount ?? 0);
           setPlanId(null);
           setStatus('confirmed');
         } else {
-          // Subscription — extract planId and activate
-          const parts = clientRef.split('_');
-          const pid   = parts[1] ?? 'silver';
-          activatePlan(pid);
+          activatePlan(record.itemId);
         }
         return;
       }
@@ -80,69 +63,22 @@ export function PaymentSuccessPage() {
       }
     };
 
-    check();
-    intervalId = setInterval(check, POLL_INTERVAL_MS);
+    void check();
+    intervalId = setInterval(() => void check(), POLL_INTERVAL_MS);
     return () => clearInterval(intervalId);
-  }, [clientRef, pollPaymentStatus, activatePlan]);
+  }, [clientRef, pollPayment, activatePlan]);
 
-  // Simulate webhook for demo/sandbox
   async function simulateWebhook() {
-    const record = pollPaymentStatus(clientRef);
-    const now    = Math.floor(Date.now() / 1000);
+    return;
+    const record = null as never;
 
-    if (record?.purchaseType === 'cp_purchase') {
-      const body = JSON.stringify({
-        id: `evt_${Date.now()}`,
-        event_type: 'session.completed',
-        data: {
-          session_id:          `sim_${Date.now()}`,
-          amount_received:     Math.round((record.amountUSD ?? 0) * 1_000_000),
-          currency:            'USDT',
-          client_reference_id: clientRef,
-          status:              'complete',
-          completed_at:        now,
-        },
-        created: now,
-      });
-      await handleWebhookEvent({
-        rawBody:     body,
-        signature:   'sim_skip_verify',
-        timestamp:   String(now),
-        activatePlan,
-        creditCp,
-      });
-      // The handler updates the store; the polling will pick it up next tick
-      // Force immediate re-check
-      const updated = pollPaymentStatus(clientRef);
-      if (updated?.status === 'completed') {
-        setCpAmount(updated.cpAmount ?? 0);
-        setStatus('confirmed');
-      }
+    /* Local webhook simulation removed; server verification is authoritative.
+    if (false) {
+      setCpAmount(0);
+      setPlanId(null);
+      setStatus('confirmed');
     } else {
-      // Subscription simulation
-      const parts  = clientRef.split('_');
-      const pid    = parts[1] ?? 'silver';
-      const body   = JSON.stringify({
-        id:         `evt_${Date.now()}`,
-        event_type: 'session.completed',
-        data: {
-          session_id:          `sim_session_${Date.now()}`,
-          amount_received:     999000,
-          currency:            'USDT',
-          client_reference_id: clientRef,
-          status:              'complete',
-          completed_at:        now,
-        },
-        created: now,
-      });
-      await handleWebhookEvent({
-        rawBody:     body,
-        signature:   'sim_skip_verify',
-        timestamp:   String(now),
-        activatePlan,
-        creditCp,
-      });
-      activatePlan(pid);
+      activatePlan(record.itemId);
     }
   }
 

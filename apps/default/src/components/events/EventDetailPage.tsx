@@ -150,7 +150,7 @@ function RuleRow({ allowed, text }: { allowed: boolean; text: string }) {
 export function EventDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { getEvent, isJoined, joinEvent, leaveEvent } = useEventsStore();
+  const { getEvent, isJoined, registerWithServer, leaveEvent } = useEventsStore();
   const { user } = useAuthStore();
   const [joining, setJoining] = useState(false);
 
@@ -169,11 +169,12 @@ export function EventDetailPage() {
   const joined = isJoined(event.id);
 
   async function handleJoin() {
-    if (!user) return;
+    if (!user || !event) return;
     setJoining(true);
-    await new Promise(r => setTimeout(r, 700));
-    joinEvent(event!.id, user.id, user.displayName);
+    const result = await registerWithServer(event.id, user.id, user.displayName);
     setJoining(false);
+    if (result.ok) toast.success(result.message);
+    else toast.error(result.message);
   }
 
   function handleShare() {

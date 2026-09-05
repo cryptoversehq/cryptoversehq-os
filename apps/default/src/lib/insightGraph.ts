@@ -388,7 +388,7 @@ class LivingKnowledgeGraph {
     return {
       name: 'insightGraph',
       priority: 14,
-      dependencies: ['knowledgeGraph', 'universalMemory', 'selfEvolutionEngine', 'contextEngine'],
+      dependencies: ['universalMemory', 'selfEvolutionEngine', 'contextEngine'],
       initialize: async () => { this.registered = true; },
       execute: (ctx) => this.execute(ctx),
       shutdown: async () => { this.registered = false; },

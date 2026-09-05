@@ -28,14 +28,13 @@ async function writeUserToProject(profile: {
 }): Promise<void> {
   try {
     await cloudDataLayer.createProjectNode(USERS_PROJECT_ID, {
-      content: profile.email,
-      attributes: {
-        '@cv_email':    profile.email,
-        '@cv_phash':    profile.passwordHash,
-        '@cv_fname':    profile.displayName,
-        '@cv_role':     { type: 'Select', optionId: `role_${profile.role}` },
-        '@cv_verified': { type: 'Select', optionId: 'ev_false' },
-      },
+      '/text': profile.email,
+      Email: profile.email,
+      passwordHash: profile.passwordHash,
+      fullName: profile.displayName,
+      Role: profile.role,
+      emailVerified: 'false',
+      Status: 'active',
     });
   } catch {
     // Fire-and-forget — user is still saved locally even if API write fails
