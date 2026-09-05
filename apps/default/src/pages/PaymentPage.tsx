@@ -31,8 +31,8 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/lib/authStore';
-import { useMonetizationStore, useLiveSubscriptionPlans, useLiveCpPackages, PlanId } from '@/lib/monetizationStore';
 import { useCpCoinsStore } from '@/lib/cpCoinsStore';
+import { useMonetizationStore, useLiveSubscriptionPlans, useLiveCpPackages, PlanId } from '@/lib/monetizationStore';
 import { useNowPaymentsStore, LocalPaymentRecord, HARD_TIMEOUT_MINUTES } from '@/lib/nowPaymentsStore';
 import { NOWPAYMENTS_PAY_CURRENCIES, getPayCurrencyMeta, fmtPayAmount } from '@/lib/nowPaymentsClient';
 import { PaymentQR, PaymentCountdown } from '@/components/payment/PaymentQR';
@@ -101,8 +101,9 @@ export function PaymentPage() {
   const navigate       = useNavigate();
   const [searchParams] = useSearchParams();
   const { user }       = useAuthStore();
-  const { upgradePlan, getUserPlan } = useMonetizationStore();
-  const { credit: creditCp } = useCpCoinsStore();
+  const { refreshFromServer: refreshCpFromServer } = useCpCoinsStore();
+  const { getUserPlan } = useMonetizationStore();
+  
   const {
     initiateCheckout, initiateCpCheckout, pollPayment, markFailed, cancelPayment, reconcileStalePayments,
     getPendingPayment, getPaymentsByUser, checkoutStatus,
@@ -248,20 +249,13 @@ export function PaymentPage() {
     setChecking(false);
 
     if (status === 'completed') {
-      if (item.kind === 'subscription') {
-        upgradePlan(userId, item.id as PlanId, true, 'crypto'); // paid in USD — activate without CP debit
-        setTimeout(() => window.location.reload(), 1000);
-      } else {
-        creditCp({
-          userId,
-          amount:      item.cpAmount ?? 0,
-          type:        'cp_purchase',
-          description: `${item.name} — ${(item.cpAmount ?? 0).toLocaleString()} CP`,
-          referenceId: active.paymentId,
-        });
+      // Server webhook performs entitlement/CP fulfillment. The browser only
+      // displays the confirmed state and never mutates plan or CP balance.
+      if (isCpRequest) {
+        await refreshCpFromServer(userId).catch(() => undefined);
       }
       setCompleted(true);
-      toast.success(item.kind === 'subscription' ? `Payment confirmed — welcome to ${item.name}!` : `Payment confirmed — ${(item.cpAmount ?? 0).toLocaleString()} CP credited!`);
+      toast.success('Payment confirmed. Your account will refresh with the server-fulfilled entitlement shortly.');
     } else if (status === 'expired') {
       setExpired(true);
       toast.error('This payment expired. Please generate a new address.');

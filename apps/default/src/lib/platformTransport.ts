@@ -18,6 +18,51 @@ const DEFAULT_RETRIES = 2;
 const BASE_BACKOFF_MS = 1_000;
 const MAX_BACKOFF_MS = 4_000;
 
+/**
+ * Bridge-safe HTTP transport. The Taskade preview bridge serializes fetch
+ * arguments through postMessage, where native Headers/Request objects are not
+ * structured-cloneable. XHR receives only primitive values and plain header
+ * records, then the response is reconstructed as a standard Response so the
+ * existing parsing and retry contracts remain unchanged.
+ */
+function bridgeSafeFetch(input: RequestInfo | URL, init: RequestInit = {}): Promise<Response> {
+  const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
+  const method = String(init.method || 'GET');
+  const headers: Record<string, string> = {};
+  if (init.headers instanceof Headers) {
+    init.headers.forEach((value, key) => { headers[key] = value; });
+  } else if (Array.isArray(init.headers)) {
+    init.headers.forEach(([key, value]) => { headers[String(key)] = String(value); });
+  } else if (init.headers) {
+    Object.entries(init.headers).forEach(([key, value]) => { headers[key] = String(value); });
+  }
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    let settled = false;
+    const fail = (error: Error) => { if (!settled) { settled = true; reject(error); } };
+    xhr.open(method, url, true);
+    xhr.withCredentials = true;
+    Object.entries(headers).forEach(([key, value]) => xhr.setRequestHeader(key, value));
+    const signal = init.signal;
+    const abort = () => { xhr.abort(); fail(new DOMException('The operation was aborted.', 'AbortError')); };
+    if (signal?.aborted) return abort();
+    signal?.addEventListener('abort', abort, { once: true });
+    xhr.onload = () => {
+      if (settled) return;
+      settled = true;
+      const responseHeaders = new Headers();
+      xhr.getAllResponseHeaders().trim().split(/\r?\n/).forEach(line => {
+        const separator = line.indexOf(':');
+        if (separator > 0) responseHeaders.set(line.slice(0, separator).trim(), line.slice(separator + 1).trim());
+      });
+      resolve(new Response(xhr.responseText, { status: xhr.status, statusText: xhr.statusText, headers: responseHeaders }));
+    };
+    xhr.onerror = () => fail(new Error('Network request failed.'));
+    xhr.ontimeout = () => fail(new Error('Network request timed out.'));
+    xhr.send(init.body ?? null);
+  });
+}
+
 function wait(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
@@ -96,7 +141,7 @@ async function request<T>(path: string, options: PlatformRequestOptions = {}): P
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
-      const response = await fetch(path, {
+      const response = await bridgeSafeFetch(path, {
         ...init,
         credentials: init.credentials ?? 'include',
         headers: {
@@ -146,7 +191,7 @@ async function request<T>(path: string, options: PlatformRequestOptions = {}): P
 export const platformTransport: PlatformTransport = {
   request,
   fetch(input, init) {
-    return fetch(input, { ...init, credentials: init?.credentials ?? 'include' });
+    return bridgeSafeFetch(input, { ...init, credentials: init?.credentials ?? 'include' });
   },
   stream(path) {
     return new EventSource(path);
@@ -155,11 +200,11 @@ export const platformTransport: PlatformTransport = {
     return request(path, { ...options, method: options.method ?? 'POST', body });
   },
   download(path, options = {}) {
-    return fetch(path, { ...options, credentials: options.credentials ?? 'include' });
+    return bridgeSafeFetch(path, { ...options, credentials: options.credentials ?? 'include' });
   },
   telemetry(path, payload) {
     try {
-      void fetch(path, {
+      void bridgeSafeFetch(path, {
         method: 'POST',
         credentials: 'include',
         keepalive: true,

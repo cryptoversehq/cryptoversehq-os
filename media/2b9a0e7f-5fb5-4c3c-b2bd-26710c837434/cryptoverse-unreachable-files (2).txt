@@ -1,0 +1,257 @@
+CryptoVerse HQ - unreachable source files
+App commit 01KZWVTHWPPFAY9KF5SVKZAHAH   |   generated 180 entries
+
+180 .ts/.tsx files, 1.27 MB.
+Nothing in the running app imports these, directly or indirectly,
+tracing every import from src/main.tsx (including side-effect and dynamic imports).
+
+This is a starting point for review, not a delete list. Check any file before
+removing it:    grep -rn "TheFileName" src/
+
+==================================================================
+
+src/lib/   -   34 files, 282 KB
+       51,836 B   schemaRegistry.ts
+       28,794 B   storeAdapters.ts
+       19,762 B   storeIndex.ts
+       18,781 B   CloudDataLayer.ts
+       16,888 B   exchangeSimulator.ts
+       15,982 B   tradingExpertGen2.ts
+       13,847 B   useAiPaymentVerification.ts
+       13,764 B   adminBacktestStore.ts
+       12,559 B   adminBotStore.ts
+       12,296 B   nftDataEngine.ts
+        9,436 B   nftRarityCalculator.ts
+        7,969 B   genesis-gateway.ts
+        7,418 B   useNFTEngine.ts
+        6,532 B   emailVerification.ts
+        6,202 B   stressTestEngine.ts
+        5,582 B   theme-bridge.ts
+        5,553 B   gateway-auth.tsx
+        5,352 B   syncCertifier.ts
+        4,900 B   watchlistStore.ts
+        4,823 B   autoReportEngine.ts
+        3,659 B   autoTranslate.ts
+        2,909 B   sentimentAnalyzer.ts
+        2,472 B   createPersistentStore.ts
+        2,405 B   useSectionAccess.ts
+        1,809 B   useXPSystem.ts
+        1,554 B   translationCache.ts
+        1,418 B   genesis-auth.tsx
+        1,060 B   platformIntelligenceLayer.ts
+          691 B   websocketService.ts
+          625 B   ironixPayStore.ts
+          602 B   executiveIntelligence.ts
+          494 B   icons.ts
+          487 B   ironixPayClient.ts
+          456 B   realTimeTruthEngine.ts
+
+src/components/   -   6 files, 157 KB
+       87,136 B   AuthPage.tsx
+       36,813 B   LandingPage.tsx
+       29,068 B   TranslationAdmin.tsx
+        5,611 B   FirstTradeGuide.tsx
+        2,016 B   ChatButton.tsx
+          172 B   IronixPayButton.tsx
+
+src/components/ui/   -   37 files, 129 KB
+       21,633 B   sidebar.tsx
+       10,069 B   chart.tsx
+        8,380 B   menubar.tsx
+        8,274 B   context-menu.tsx
+        7,660 B   calendar.tsx
+        6,664 B   navigation-menu.tsx
+        6,032 B   field.tsx
+        5,542 B   carousel.tsx
+        4,494 B   item.tsx
+        4,255 B   drawer.tsx
+        4,076 B   sheet.tsx
+        3,850 B   alert-dialog.tsx
+        3,759 B   form.tsx
+        2,712 B   pagination.tsx
+        2,663 B   input-otp.tsx
+        2,434 B   table.tsx
+        2,396 B   empty.tsx
+        2,357 B   breadcrumb.tsx
+        2,039 B   accordion.tsx
+        2,014 B   resizable.tsx
+        1,996 B   slider.tsx
+        1,969 B   tabs.tsx
+        1,911 B   toggle-group.tsx
+        1,635 B   popover.tsx
+        1,631 B   badge.tsx
+        1,614 B   alert.tsx
+        1,556 B   toggle.tsx
+        1,466 B   radio-group.tsx
+        1,226 B   checkbox.tsx
+        1,163 B   switch.tsx
+        1,083 B   avatar.tsx
+          862 B   kbd.tsx
+          786 B   collapsible.tsx
+          726 B   progress.tsx
+          611 B   label.tsx
+          550 B   sonner.tsx
+          280 B   aspect-ratio.tsx
+
+src/components/exchange/   -   6 files, 93 KB
+       28,364 B   ConnectExchangeModal.tsx
+       24,546 B   ExchangeDashboard.tsx
+       14,191 B   DeployStrategyModal.tsx
+       12,583 B   RiskControlsPanel.tsx
+       10,163 B   RealTradeHistory.tsx
+        5,122 B   ExchangeGuide.tsx
+
+src/components/sentiment/   -   6 files, 88 KB
+       27,130 B   SentimentReport.tsx
+       23,852 B   SentimentChecklist.tsx
+       13,227 B   SentimentSources.tsx
+       10,873 B   SentimentWidget.tsx
+        7,766 B   SentimentChart.tsx
+        6,862 B   SentimentHeatmap.tsx
+
+src/api/   -   13 files, 81 KB
+       19,094 B   types.ts
+        9,780 B   index.ts
+        9,219 B   strategies.ts
+        8,890 B   client.ts
+        5,783 B   backtest.ts
+        5,313 B   bots.ts
+        4,052 B   nft.ts
+        4,015 B   onchain.ts
+        3,946 B   copyTrading.ts
+        3,851 B   events.ts
+        3,655 B   exchange.ts
+        2,953 B   sentiment.ts
+        2,555 B   recommendations.ts
+
+src/components/ai-elements/   -   11 files, 67 KB
+       13,195 B   code-block.tsx
+       11,436 B   test-results.tsx
+       11,375 B   attachments.tsx
+        6,695 B   inline-citation.tsx
+        6,267 B   reasoning.tsx
+        6,225 B   chain-of-thought.tsx
+        5,034 B   tool.tsx
+        3,877 B   confirmation.tsx
+        2,118 B   shimmer.tsx
+        1,858 B   sources.tsx
+          493 B   image.tsx
+
+src/components/events/   -   4 files, 38 KB
+       12,689 B   LiveWebinarPage.tsx
+       10,058 B   EventLeaderboardPage.tsx
+        9,850 B   TeamBattlePage.tsx
+        6,632 B   EventsHub.tsx
+
+src/components/blocks/lead-capture/   -   3 files, 38 KB
+       24,378 B   LeadCaptureForm.tsx
+       13,472 B   scoreLead.ts
+        1,258 B   fromNodes.ts
+
+src/components/trading/   -   7 files, 37 KB
+       21,432 B   WatchlistPanel.tsx
+        8,449 B   AITradeAnalysisModal.tsx
+        4,380 B   OrderBookHeatmap.tsx
+        3,401 B   Sparkline.tsx
+          196 B   LWChart.tsx
+          185 B   BottomPanel.tsx
+          184 B   TradePanel.tsx
+
+src/components/blocks/records/   -   2 files, 26 KB
+       20,662 B   RecordsTable.tsx
+        5,515 B   fromNodes.ts
+
+src/components/nft/   -   1 files, 24 KB
+       24,654 B   CollectionsPage.tsx
+
+src/components/payment/   -   4 files, 24 KB
+       10,834 B   PaymentSuccessPage.tsx
+        7,169 B   DemoCheckoutPage.tsx
+        3,473 B   PaymentsHistoryWidget.tsx
+        3,021 B   PaymentCancelPage.tsx
+
+src/components/blocks/pipeline/   -   2 files, 17 KB
+       15,453 B   PipelineBoard.tsx
+        2,312 B   fromNodes.ts
+
+src/components/blocks/status/   -   2 files, 17 KB
+       12,534 B   StatusTracker.tsx
+        4,412 B   fromNodes.ts
+
+src/components/blocks/invoice/   -   2 files, 15 KB
+       10,307 B   InvoiceCard.tsx
+        5,153 B   fromNodes.ts
+
+src/hooks/   -   10 files, 13 KB
+        2,852 B   use-toast.ts
+        2,001 B   useTranslation.ts
+        1,587 B   useUserBehavior.ts
+        1,447 B   useDailyTradeLimit.ts
+        1,368 B   useRTL.ts
+        1,193 B   useSectionAccess.ts
+          925 B   use-theme.ts
+          867 B   useLynxBrain.ts
+          679 B   useLynxMemory.ts
+          501 B   use-mobile.ts
+
+src/components/blocks/metrics/   -   4 files, 13 KB
+        6,633 B   MetricsDashboard.tsx
+        2,817 B   fromNodes.ts
+        2,089 B   MetricCard.tsx
+        1,536 B   GoalBar.tsx
+
+src/components/mobileTrading/   -   4 files, 10 KB
+        5,369 B   MobileRiskPanel.tsx
+        2,619 B   MobileWatchlist.tsx
+        2,086 B   MobileFloatingButtons.tsx
+          571 B   MobileSymbolSearch.tsx
+
+src/components/features/   -   4 files, 10 KB
+        4,428 B   PreTradeRiskCheck.tsx
+        3,014 B   SmartStopLoss.tsx
+        1,840 B   FeatureRating.tsx
+          984 B   index.ts
+
+src/lib/genesis-data/   -   3 files, 9 KB
+        4,214 B   client.ts
+        3,603 B   fields.ts
+        1,197 B   index.ts
+
+src/components/blocks/portal/   -   1 files, 9 KB
+        8,760 B   PortalShell.tsx
+
+src/lib/security/   -   3 files, 9 KB
+        4,584 B   jwtVerifier.ts
+        3,474 B   cookieSessionTransport.ts
+          698 B   index.ts
+
+src/components/portfolio/   -   1 files, 7 KB
+        7,452 B   ShareCard.tsx
+
+src/lib/genesis-flows/   -   2 files, 6 KB
+        4,712 B   client.ts
+          927 B   index.ts
+
+src/components/bots/   -   1 files, 4 KB
+        4,114 B   BotGuide.tsx
+
+src/components/blocks/   -   1 files, 4 KB
+        3,693 B   index.ts
+
+src/lib/performance/   -   1 files, 3 KB
+        3,542 B   webVitalsHarness.ts
+
+src/components/landing/   -   1 files, 2 KB
+        2,393 B   LandingWhy.tsx
+
+src/features/   -   1 files, 2 KB
+        1,871 B   index.ts
+
+src/components/competitions/   -   1 files, 2 KB
+        1,734 B   CompetitionRules.tsx
+
+src/pages/   -   1 files, 2 KB
+        1,536 B   HomePage.tsx
+
+src/types/   -   1 files, 0 KB
+            0 B   genesis-client.d.ts

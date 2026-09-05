@@ -1,221 +1,181 @@
 /**
- * nowPaymentsClient.ts — CryptoVerse HQ
- *
- * NOWPayments integration via Taskade Automation Webhook proxy.
- * The NOWPAYMENTS_API_KEY never enters the browser bundle — it stays
- * encrypted inside the automation flow.
- *
- * Architecture:
- *   [Browser] → fetch(webhook) → [Taskade Flow] → NOWPayments API
- *
- * Read-only status & min-amount queries still use GenesisClient.proxy()
- * for efficient lookups. Payment creation routes through the webhook.
- *
- * IPN callbacks are handled by Automation Workflow 01KVFCBKC478XG5D4XKNSSS024
+/**
+ * NOWPayments client — server-authoritative Render API adapter.
+ * No provider secret, bearer token, amount, or fulfillment authority enters the browser.
  */
 
-import { GenesisClient } from '@taskade/genesis-client';
-import { isApiEnabled, markApiUsed } from './apiStatusService';
+const API_BASE = (import.meta.env.VITE_API_BASE_URL || 'https://cryptoversehq-os.onrender.com').replace(/\/$/, '');
 
-const SPACE_ID = 'rdem1z86swzzv7vq';
-const APP_BASE_URL = 'https://cryptoversehq.com';
-
-/** IPN callback — the Taskade webhook that NOWPayments calls on payment updates */
-const IPN_CALLBACK_URL = `${APP_BASE_URL}/api/taskade/webhooks/01KVFCBKC478XG5D4XKNSSS024/run`;
-
-let _client: GenesisClient | null = null;
-function client(): GenesisClient {
-  if (!_client) _client = new GenesisClient({ spaceId: SPACE_ID });
-  return _client;
-}
-
-// ─── Types ────────────────────────────────────────────────────────────────────
+export type PurchaseType = 'subscription' | 'cp_purchase';
+export type PaymentStatus = 'waiting' | 'confirming' | 'confirmed' | 'sending' | 'partially_paid' | 'finished' | 'failed' | 'refunded' | 'expired' | 'pending' | 'completed';
 
 export interface NowPaymentRequest {
-  price_amount:   number;
-  price_currency: string;
-  pay_currency:   string;
-  order_id:       string;
-  order_description?: string;
-  success_url?:     string;
-  cancel_url?:      string;
+  purchaseType: PurchaseType;
+  productId: string;
+  payCurrency: string;
+  idempotencyKey: string;
 }
 
 export interface NowPaymentResponse {
-  payment_id:        string;
-  payment_status:    'waiting' | 'confirming' | 'confirmed' | 'sending' | 'partially_paid' | 'finished' | 'failed' | 'refunded' | 'expired';
-  pay_address:       string;
-  price_amount:      number;
-  price_currency:    string;
-  pay_amount:        number;
-  pay_currency:      string;
-  order_id:          string;
-  order_description: string;
-  created_at:        string;
-  updated_at:        string;
-  purchase_id:       string;
-  payin_extra_id?:   string;
-  network?:          string;
+  success: boolean;
+  paymentId: string;
+  status: PaymentStatus;
+  providerPaymentId?: string | null;
+  payAddress?: string | null;
+  payAmount?: number | null;
+  payCurrency?: string | null;
+  checkoutUrl?: string | null;
+  requestId?: string;
 }
 
 export interface NowPaymentStatusResponse {
-  payment_id:     string;
-  payment_status: string;
-  price_amount:   number;
-  price_currency: string;
-  pay_amount:     number;
-  pay_currency:   string;
-  order_id:       string;
-  created_at:     string;
-  updated_at:     string;
+  verified: boolean;
+  status: PaymentStatus;
+  requestId?: string;
 }
 
-// ─── Create Payment ───────────────────────────────────────────────────────────
+export interface PaymentHistoryRecord {
+  id: string;
+  amount: string | number;
+  currency: string;
+  status: PaymentStatus;
+  created_at: string;
+  plan_id: string;
+}
+
+let csrfToken: string | null = null;
+
+function makeRequestId(): string {
+  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) return crypto.randomUUID();
+  return `cv_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+}
+
+function makeIdempotencyKey(): string {
+  return `${makeRequestId()}-${Date.now()}`;
+}
+
+function xhrFetch(url: string, init: { method?: string; headers?: Record<string, string>; body?: string } = {}): Promise<{ ok: boolean; status: number; json: () => Promise<Record<string, unknown>> }> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open(init.method || 'GET', url, true);
+    xhr.withCredentials = true;
+    xhr.timeout = 15000;
+    Object.entries(init.headers || {}).forEach(([key, value]) => xhr.setRequestHeader(key, value));
+    xhr.onload = () => {
+      let parsed: Record<string, unknown> = {};
+      try { parsed = xhr.responseText ? JSON.parse(xhr.responseText) : {}; } catch { parsed = {}; }
+      resolve({ ok: xhr.status >= 200 && xhr.status < 300, status: xhr.status, json: async () => parsed });
+    };
+    xhr.onerror = () => reject(new Error('Network request failed.'));
+    xhr.ontimeout = () => reject(new Error('Network request timed out.'));
+    xhr.send(init.body || null);
+  });
+}
+
+async function ensureCsrf(): Promise<string> {
+  if (csrfToken) return csrfToken;
+  const response = await xhrFetch(`${API_BASE}/api/auth/csrf`, {
+    method: 'GET',
+    headers: { 'X-Request-ID': makeRequestId(), Accept: 'application/json' },
+  });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok || typeof body.csrfToken !== 'string') {
+    throw new Error('Unable to initialize secure payment session.');
+  }
+  csrfToken = body.csrfToken;
+  return csrfToken;
+}
+
+type CloneSafeRequestInit = { method?: string; headers?: Record<string, string>; body?: string };
+
+async function request<T>(path: string, init: CloneSafeRequestInit = {}, csrf = false): Promise<T> {
+  const headers: Record<string, string> = {};
+  if (init.headers) {
+    Object.entries(init.headers).forEach(([key, value]) => { headers[key] = String(value); });
+  }
+  headers.Accept = 'application/json';
+  headers['X-Request-ID'] = makeRequestId();
+  if (init.body && !headers['Content-Type']) headers['Content-Type'] = 'application/json';
+  if (csrf) {
+    headers['X-CSRF-Token'] = await ensureCsrf();
+    headers['Idempotency-Key'] = headers['Idempotency-Key'] || makeIdempotencyKey();
+  }
+  const plainHeaders = { ...headers };
+  const response = await xhrFetch(`${API_BASE}${path}`, {
+    method: String(init.method || 'GET'),
+    headers: plainHeaders,
+    body: typeof init.body === 'string' ? init.body : undefined,
+  });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    if (response.status === 401) csrfToken = null;
+    const message = typeof body.message === 'string' ? body.message : 'Payment request failed.';
+    throw new Error(message);
+  }
+  return body as T;
+}
 
 export async function createNowPayment(params: NowPaymentRequest): Promise<NowPaymentResponse> {
-  // Admin kill switch — payment flows fail loudly, never silently.
-  if (!isApiEnabled('nowpayments')) {
-    throw new Error('Crypto payments are temporarily disabled by the administrator. Please try again later.');
-  }
-  markApiUsed('nowpayments');
-
-  const orderId     = params.order_id;
-  const successUrl  = params.success_url ?? `${APP_BASE_URL}/payment/success?order=${orderId}`;
-  const cancelUrl   = params.cancel_url  ?? `${APP_BASE_URL}/payment/cancel?order=${orderId}`;
-
-  const res = await client().proxy({
-    secretAlias: 'nowpayments',
-    url: 'https://api.nowpayments.io/v1/payment',
+  if (!params.productId || !params.purchaseType || !params.payCurrency) throw new Error('Invalid payment selection.');
+  return request<NowPaymentResponse>('/api/payments/create', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-api-key': '{{secret}}' },
-    body: {
-      price_amount:      params.price_amount,
-      price_currency:    params.price_currency,
-      pay_currency:      params.pay_currency,
-      order_id:          orderId,
-      order_description: params.order_description ?? 'CryptoVerse HQ Purchase',
-      ipn_callback_url:  IPN_CALLBACK_URL,
-      success_url:       successUrl,
-      cancel_url:        cancelUrl,
-    },
-  });
-
-  if (!res.ok) {
-    let errText = '';
-    try { errText = await res.text(); } catch { errText = res.statusText; }
-    if (/minimal|min(imum)?[\\s_-]?amount/i.test(errText)) {
-      throw new Error('This amount is below the minimum NOWPayments accepts for the selected currency right now. Please try a different payment currency (e.g. switch from BTC to USDT).');
-    }
-    throw new Error(`NOWPayments error ${res.status}: ${errText}`);
-  }
-
-  const data = await res.json() as Record<string, unknown>;
-
-  return {
-    payment_id:        String(data.payment_id ?? ''),
-    payment_status:    (data.payment_status as NowPaymentResponse['payment_status']) ?? 'waiting',
-    pay_address:       String(data.pay_address ?? ''),
-    price_amount:      Number(data.price_amount ?? 0),
-    price_currency:    String(data.price_currency ?? 'usd'),
-    pay_amount:        Number(data.pay_amount ?? 0),
-    pay_currency:      String(data.pay_currency ?? ''),
-    order_id:          String(data.order_id ?? ''),
-    order_description: String(data.order_description ?? ''),
-    created_at:        String(data.created_at ?? ''),
-    updated_at:        String(data.created_at ?? ''),
-    purchase_id:       String(data.purchase_id ?? ''),
-  };
+    headers: { 'Idempotency-Key': params.idempotencyKey || makeIdempotencyKey() },
+    body: JSON.stringify({
+      purchaseType: params.purchaseType,
+      productId: params.productId,
+      payCurrency: params.payCurrency,
+    }),
+  }, true);
 }
 
-// ─── Get Minimum Payment Amount ────────────────────────────────────────────────
-/**
- * NOWPayments enforces a minimum order size per pay_currency (it must cover
- * the network fee + their service fee). That minimum moves with market price
- * and gas fees, so a fixed low-dollar plan (e.g. Silver at $10) can silently
- * fall under it for some currencies while a higher-dollar plan (Gold $20,
- * Platinum $40) comfortably clears it — which reproduces exactly the "Silver
- * gives an error, Gold/Platinum work" symptom without any Silver-specific
- * bug in our own pricing code. We call this before creating a payment so we
- * can surface a clear, actionable error instead of a raw NOWPayments 400.
- *
- * fiat_equivalent=usd + is_fiat_equivalent=true asks NOWPayments to return
- * the minimum expressed in USD, so it can be compared directly against our
- * USD plan/package price.
- */
-export async function getMinPaymentAmountUSD(payCurrency: string): Promise<number | null> {
-  if (!isApiEnabled('nowpayments')) return null;
-  try {
-    const res = await client().proxy({
-      secretAlias: 'nowpayments',
-      url: `https://api.nowpayments.io/v1/min-amount?currency_from=usd&currency_to=${payCurrency}&fiat_equivalent=usd`,
-      method: 'GET',
-      headers: { 'x-api-key': '{{secret}}' },
-    });
-    if (!res.ok) return null;
-    const data = await res.json() as { min_amount?: number; fiat_equivalent?: number };
-    const min = data.fiat_equivalent ?? data.min_amount;
-    return typeof min === 'number' && Number.isFinite(min) && min > 0 ? min : null;
-  } catch {
-    // Never let this check block a legitimate payment — if it fails, fall
-    // through and let the real payment-creation call succeed or fail on its own.
-    return null;
-  }
+export async function verifyPayment(paymentId: string): Promise<NowPaymentStatusResponse> {
+  if (!paymentId) throw new Error('Missing payment identifier.');
+  return request<NowPaymentStatusResponse>(`/api/payments/verify/${encodeURIComponent(paymentId)}`);
 }
 
-// ─── Get Payment Status ───────────────────────────────────────────────────────
-
+/** Compatibility name: verification is server-side; provider status is never queried from the browser. */
 export async function getPaymentStatus(paymentId: string): Promise<NowPaymentStatusResponse> {
-  if (!isApiEnabled('nowpayments')) {
-    throw new Error('Crypto payments are temporarily disabled by the administrator.');
-  }
-  markApiUsed('nowpayments');
-  const res = await client().proxy({
-    secretAlias: 'nowpayments',
-    url: `https://api.nowpayments.io/v1/payment/${paymentId}`,
-    method: 'GET',
-    headers: { 'x-api-key': '{{secret}}' },
-  });
-
-  if (!res.ok) {
-    const errText = await res.text().catch(() => res.statusText);
-    throw new Error(`NOWPayments status error ${res.status}: ${errText}`);
-  }
-
-  return res.json() as Promise<NowPaymentStatusResponse>;
+  return verifyPayment(paymentId);
 }
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+export async function getPaymentHistory(): Promise<PaymentHistoryRecord[]> {
+  const body = await request<{ payments?: PaymentHistoryRecord[] }>('/api/payments/history');
+  return Array.isArray(body.payments) ? body.payments : [];
+}
 
-export function makeOrderId(userId: string, itemId: string): string {
-  return `cv_${userId}_${itemId}_${Date.now()}`;
+/** Retained for non-payment callers; the server now performs the actual minimum validation. */
+export async function getMinPaymentAmountUSD(_payCurrency: string): Promise<number | null> {
+  return null;
+}
+
+export function makeOrderId(_userId: string, _itemId: string): string {
+  return makeIdempotencyKey();
 }
 
 export interface PayCurrencyMeta {
-  value:    string;  // NOWPayments pay_currency code
-  label:    string;  // Human-readable label
-  symbol:   string;  // Ticker shown next to the amount
-  network:  string;  // Network name shown prominently on the payment page
-  decimals: number;  // Display decimals for the exact amount
-  emoji:    string;
+  value: string;
+  label: string;
+  symbol: string;
+  network: string;
+  decimals: number;
+  emoji: string;
 }
 
 export const NOWPAYMENTS_PAY_CURRENCIES: PayCurrencyMeta[] = [
-  { value: 'usdttrc20', label: 'USDT (TRC20)', symbol: 'USDT', network: 'TRC20 · Tron',       decimals: 2, emoji: '💵' },
-  { value: 'usdterc20', label: 'USDT (ERC20)', symbol: 'USDT', network: 'ERC20 · Ethereum',   decimals: 2, emoji: '💵' },
-  { value: 'usdtbep20', label: 'USDT (BEP20)', symbol: 'USDT', network: 'BEP20 · BNB Chain',  decimals: 2, emoji: '💵' },
-  { value: 'btc',       label: 'Bitcoin',      symbol: 'BTC',  network: 'Bitcoin',            decimals: 8, emoji: '₿'  },
-  { value: 'eth',       label: 'Ethereum',     symbol: 'ETH',  network: 'ERC20 · Ethereum',   decimals: 6, emoji: '⟠'  },
-  { value: 'bnbbsc',    label: 'BNB',          symbol: 'BNB',  network: 'BEP20 · BNB Chain',  decimals: 6, emoji: '🔶' },
+  { value: 'usdttrc20', label: 'USDT (TRC20)', symbol: 'USDT', network: 'TRC20 · Tron', decimals: 2, emoji: '💵' },
+  { value: 'usdterc20', label: 'USDT (ERC20)', symbol: 'USDT', network: 'ERC20 · Ethereum', decimals: 2, emoji: '💵' },
+  { value: 'usdtbsc', label: 'USDT (BEP20)', symbol: 'USDT', network: 'BEP20 · BNB Chain', decimals: 2, emoji: '💵' },
+  { value: 'btc', label: 'Bitcoin', symbol: 'BTC', network: 'Bitcoin', decimals: 8, emoji: '₿' },
+  { value: 'eth', label: 'Ethereum', symbol: 'ETH', network: 'ERC20 · Ethereum', decimals: 6, emoji: '⟠' },
+  { value: 'bnbbsc', label: 'BNB', symbol: 'BNB', network: 'BEP20 · BNB Chain', decimals: 6, emoji: '🔶' },
 ];
 
 export function getPayCurrencyMeta(code: string): PayCurrencyMeta {
-  return (
-    NOWPAYMENTS_PAY_CURRENCIES.find(c => c.value === code) ??
-    { value: code, label: code.toUpperCase(), symbol: code.toUpperCase(), network: '—', decimals: 6, emoji: '🪙' }
-  );
+  return NOWPAYMENTS_PAY_CURRENCIES.find((currency) => currency.value === code) ?? {
+    value: code, label: code.toUpperCase(), symbol: code.toUpperCase(), network: '—', decimals: 6, emoji: '🪙',
+  };
 }
 
-/** Format a crypto amount with the currency's display decimals (e.g. "20.00 USDT") */
 export function fmtPayAmount(amount: number, code: string): string {
   const meta = getPayCurrencyMeta(code);
   return `${amount.toFixed(meta.decimals)} ${meta.symbol}`;

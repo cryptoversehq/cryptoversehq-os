@@ -2,26 +2,21 @@
  * PaymentCancelPage.tsx — /payment/cancel
  * Shown when user cancels the NOWPayments checkout.
  */
-import React, { useEffect } from 'react';
+import React from 'react';
 import { motion } from 'framer-motion';
 import { XCircle, ArrowLeft, RefreshCw } from 'lucide-react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { useIronixPayStore } from '@/lib/ironixPayStore';
+import { useNowPaymentsStore } from '@/lib/nowPaymentsStore';
 
 export function PaymentCancelPage() {
   const [searchParams] = useSearchParams();
   const navigate       = useNavigate();
-  const { markFailed, pollPaymentStatus } = useIronixPayStore();
+  const { payments } = useNowPaymentsStore();
   const clientRef      = searchParams.get('ref');
+  const paymentRecord  = payments.find((payment) => payment.paymentId === clientRef);
 
-  // Mark the pending transaction as failed immediately
-  useEffect(() => {
-    if (!clientRef) return;
-    const record = pollPaymentStatus(clientRef);
-    if (record && record.status === 'pending') {
-      markFailed(clientRef, 'failed');
-    }
-  }, [clientRef]);
+
+  const isCpPurchase = paymentRecord?.purchaseType === 'cp_purchase';
 
   return (
     <div className="min-h-screen flex items-center justify-center p-6">
@@ -51,19 +46,12 @@ export function PaymentCancelPage() {
         )}
 
         <div className="space-y-2">
-          {(() => {
-            // Detect whether this was a CP purchase by inspecting the client ref
-            const record = clientRef ? pollPaymentStatus(clientRef) : null;
-            const isCp   = record?.purchaseType === 'cp_purchase';
-            return (
-              <button
-                onClick={() => navigate(isCp ? '/buy-cp' : '/subscription')}
-                className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl bg-primary text-primary-foreground font-bold text-sm hover:bg-primary/90 transition-all"
-              >
-                <RefreshCw className="h-4 w-4" /> Try Again
-              </button>
-            );
-          })()}
+          <button
+            onClick={() => navigate(isCpPurchase ? '/buy-cp' : '/subscription')}
+            className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl bg-primary text-primary-foreground font-bold text-sm hover:bg-primary/90 transition-all"
+          >
+            <RefreshCw className="h-4 w-4" /> Try Again
+          </button>
           <button onClick={() => navigate('/')}
             className="w-full flex items-center justify-center gap-2 py-2 text-xs text-white/40 hover:text-white/70 transition-colors">
             <ArrowLeft className="h-3 w-3" /> Back to Dashboard

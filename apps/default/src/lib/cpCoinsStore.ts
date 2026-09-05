@@ -73,6 +73,9 @@ export interface CpCoinsState {
   /** Returns only transactions of a specific type. */
   getHistoryByType: (userId: string, type: CpTransactionType) => CpTransaction[];
 
+  /** Refreshes this user wallet from the server-authoritative CP API. */
+  refreshFromServer: (userId: string) => Promise<void>;
+
   // ── Mutations ──────────────────────────────────────────────────────────────
 
   /**
@@ -224,6 +227,33 @@ export const useCpCoinsStore = create<CpCoinsState>((set, get) => {
 
     getHistoryByType: (userId, type) => {
       return (get().ledger[userId] ?? []).filter(t => t.type === type);
+    },
+
+    refreshFromServer: async (userId) => {
+      const [balanceResponse, ledgerResponse] = await Promise.all([
+        fetch('https://cryptoversehq-os.onrender.com/api/cp/balance', { credentials: 'include', headers: { Accept: 'application/json' } }),
+        fetch('https://cryptoversehq-os.onrender.com/api/cp/ledger', { credentials: 'include', headers: { Accept: 'application/json' } }),
+      ]);
+      if (!balanceResponse.ok || !ledgerResponse.ok) throw new Error('Unable to refresh CP wallet from server');
+      const balanceBody = await balanceResponse.json();
+      const ledgerBody = await ledgerResponse.json();
+      const serverEntries = Array.isArray(ledgerBody?.entries) ? ledgerBody.entries : [];
+      const transactions = serverEntries.map((entry: { id: string; amount: number | string; entry_type?: string; reference_key?: string | null; created_at: string }) => ({
+        id: entry.id,
+        userId,
+        type: (entry.entry_type || 'subscription_reward') as CpTransactionType,
+        direction: Number(entry.amount) >= 0 ? 'credit' : 'debit',
+        amount: Math.abs(Number(entry.amount) || 0),
+        balanceAfter: 0,
+        description: entry.entry_type || 'CP ledger entry',
+        referenceId: entry.reference_key ?? null,
+        createdAt: entry.created_at,
+      } satisfies CpTransaction));
+      const newLedger = { ...get().ledger, [userId]: transactions };
+      const newBalances = { ...get().balances, [userId]: Number(balanceBody?.balance) || 0 };
+      saveLedger(newLedger);
+      saveBalances(newBalances);
+      set({ ledger: newLedger, balances: newBalances });
     },
 
     // ── Mutations ─────────────────────────────────────────────────────────────
