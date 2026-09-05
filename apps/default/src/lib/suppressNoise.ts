@@ -3,15 +3,23 @@
 (function suppress() {
   const SILENCE = ['MetaMask', 'Failed to connect'];
   
-  window.addEventListener('unhandledrejection', (e) => {
+  const isWalletNoise = (reason: unknown) => {
     try {
-      const msg = String(e.reason?.message ?? e.reason ?? '');
-      if (SILENCE.some((s) => msg.includes(s))) {
-        e.preventDefault();
-        e.stopImmediatePropagation();
-      }
-    } catch (_) { /* ignore */ }
-  }, { capture: true, passive: false });
+      const msg = String((reason as { message?: unknown })?.message ?? reason ?? '');
+      return SILENCE.some((s) => msg.includes(s)) || msg.includes('wallet not available in preview');
+    } catch (_) {
+      return false;
+    }
+  };
+
+  const swallowRejection = (e: PromiseRejectionEvent) => {
+    if (!isWalletNoise(e.reason)) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+  };
+
+  window.addEventListener('unhandledrejection', swallowRejection, { capture: true, passive: false });
+  window.onunhandledrejection = swallowRejection;
 
   // Also suppress via error event for good measure
   window.addEventListener('error', (e) => {

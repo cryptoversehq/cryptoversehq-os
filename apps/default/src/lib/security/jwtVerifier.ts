@@ -38,6 +38,39 @@ function base64UrlToUint8Array(base64Url: string): Uint8Array {
   return bytes;
 }
 
+function pemToDer(publicKey: string): ArrayBuffer {
+  const body = publicKey
+    .replace(/-----BEGIN PUBLIC KEY-----/g, '')
+    .replace(/-----END PUBLIC KEY-----/g, '')
+    .replace(/\s+/g, '');
+  if (!body) throw new Error('RS256 public key is empty');
+  const bytes = base64UrlToUint8Array(body.replace(/\+/g, '-').replace(/\//g, '_'));
+  return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
+}
+
+async function importRs256PublicKey(publicKey: string): Promise<CryptoKey> {
+  const normalized = publicKey.trim();
+  if (!normalized) throw new Error('RS256 public key is required');
+
+  if (normalized.startsWith('{')) {
+    return crypto.subtle.importKey(
+      'jwk',
+      JSON.parse(normalized),
+      { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
+      false,
+      ['verify'],
+    );
+  }
+
+  return crypto.subtle.importKey(
+    'spki',
+    pemToDer(normalized),
+    { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
+    false,
+    ['verify'],
+  );
+}
+
 /**
  * Enterprise JWT verification algorithm.
  * Validates cryptographic signature (RS256 / HS256 via WebCrypto), iss, aud, exp, and nbf.
@@ -87,6 +120,10 @@ export async function verifyJwt<T = Record<string, unknown>>(
     const encoder = new TextEncoder();
     const dataToVerify = encoder.encode(`${parts[0]}.${parts[1]}`);
     const signatureBytes = base64UrlToUint8Array(parts[2]);
+    const signatureBuffer = signatureBytes.buffer.slice(
+      signatureBytes.byteOffset,
+      signatureBytes.byteOffset + signatureBytes.byteLength,
+    ) as ArrayBuffer;
 
     if (header.alg === 'HS256') {
       const keyBytes = encoder.encode(secretOrPublicKey);
@@ -100,17 +137,22 @@ export async function verifyJwt<T = Record<string, unknown>>(
       const isSignatureValid = await crypto.subtle.verify(
         'HMAC',
         cryptoKey,
-        signatureBytes,
+        signatureBuffer,
         dataToVerify,
       );
       if (!isSignatureValid) {
         return { valid: false, expired: false, header, payload, reason: 'Cryptographic HMAC signature verification failed' };
       }
     } else if (header.alg === 'RS256') {
-      // In production gateway mode, RS256 validates against imported public key
-      const isSignatureValid = signatureBytes.length > 0;
+      const cryptoKey = await importRs256PublicKey(secretOrPublicKey);
+      const isSignatureValid = await crypto.subtle.verify(
+        { name: 'RSASSA-PKCS1-v1_5' },
+        cryptoKey,
+        signatureBuffer,
+        dataToVerify,
+      );
       if (!isSignatureValid) {
-        return { valid: false, expired: false, header, payload, reason: 'Invalid RS256 signature' };
+        return { valid: false, expired: false, header, payload, reason: 'Cryptographic RSA signature verification failed' };
       }
     } else {
       return { valid: false, expired: false, header, payload, reason: `Unsupported JWT algorithm: ${header.alg}` };

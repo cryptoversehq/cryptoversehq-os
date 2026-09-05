@@ -4498,6 +4498,660 @@
                 ]
               }
             ]
+          },
+          {
+            "type": "text",
+            "id": "30bff73e-3d42-4ef8-bcca-c7c29a5f5e0e",
+            "text": {
+              "ops": [
+                {
+                  "insert": "🏆 Weekly CryptoVerse Competitive Digest"
+                },
+                {
+                  "insert": "\n",
+                  "attributes": {
+                    "paragraph": true
+                  }
+                }
+              ]
+            },
+            "format": {
+              "node": "checkbox",
+              "children": null
+            },
+            "collapsed": false,
+            "completed": false,
+            "children": [
+              {
+                "type": "text",
+                "id": "7622f345-fc08-4b83-bf27-79c6938fb10d",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "🔥 Weekly Highlights"
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "h2",
+                  "children": "text"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": [
+                  {
+                    "type": "text",
+                    "id": "a9d9d11e-813d-4e94-9cff-1c8781158731",
+                    "text": {
+                      "ops": [
+                        {
+                          "insert": "Top performer: Alpha Republic",
+                          "attributes": {
+                            "bold": true
+                          }
+                        },
+                        {
+                          "insert": "\n",
+                          "attributes": {
+                            "paragraph": true
+                          }
+                        }
+                      ]
+                    },
+                    "format": {
+                      "node": "text",
+                      "children": "text"
+                    },
+                    "collapsed": false,
+                    "completed": false,
+                    "children": []
+                  },
+                  {
+                    "type": "text",
+                    "id": "fe85fb55-6937-49de-8844-016b3f4f4e08",
+                    "text": {
+                      "ops": [
+                        {
+                          "insert": "Alpha Republic takes the crown this week with the strongest blend of "
+                        },
+                        {
+                          "insert": "win rate (78.4%)",
+                          "attributes": {
+                            "bold": true
+                          }
+                        },
+                        {
+                          "insert": " and "
+                        },
+                        {
+                          "insert": "PnL growth (+18.4%)",
+                          "attributes": {
+                            "bold": true
+                          }
+                        },
+                        {
+                          "insert": ". Its "
+                        },
+                        {
+                          "insert": "quant trading style",
+                          "attributes": {
+                            "bold": true
+                          }
+                        },
+                        {
+                          "insert": " is clearly converting signals into consistent edge, making it the most efficient nation in the field."
+                        },
+                        {
+                          "insert": "\n",
+                          "attributes": {
+                            "paragraph": true
+                          }
+                        }
+                      ]
+                    },
+                    "format": {
+                      "node": "text",
+                      "children": "text"
+                    },
+                    "collapsed": false,
+                    "completed": false,
+                    "children": []
+                  }
+                ]
+              },
+              {
+                "type": "text",
+                "id": "9b5d6343-6cdb-4455-884d-2293809616fd",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "🟥 Alpha Republic"
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "h2",
+                  "children": "text"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": [
+                  {
+                    "type": "text",
+                    "id": "6ac79a9a-031a-4e63-b8fe-753aeb881e66",
+                    "text": {
+                      "ops": [
+                        {
+                          "insert": "Rank #1 | Win rate: 78.4% | Weekly PnL: +18.4% | Members: 2,841 | Style: Quant Trading",
+                          "attributes": {
+                            "bold": true
+                          }
+                        },
+                        {
+                          "insert": "\n",
+                          "attributes": {
+                            "paragraph": true
+                          }
+                        }
+                      ]
+                    },
+                    "format": {
+                      "node": "text",
+                      "children": "text"
+                    },
+                    "collapsed": false,
+                    "completed": false,
+                    "children": []
+                  },
+                  {
+                    "type": "text",
+                    "id": "7c9ef85a-4acf-4c91-a562-f21e4e753290",
+                    "text": {
+                      "ops": [
+                        {
+                          "insert": "Alpha Republic is setting the pace with elite execution and disciplined model-driven decisions. High win rate plus the best weekly gain = championship form."
+                        },
+                        {
+                          "insert": "\n",
+                          "attributes": {
+                            "paragraph": true
+                          }
+                        }
+                      ]
+                    },
+                    "format": {
+                      "node": "text",
+                      "children": "text"
+                    },
+                    "collapsed": false,
+                    "completed": false,
+                    "children": []
+                  }
+                ]
+              },
+              {
+                "type": "text",
+                "id": "4fe1e77e-07d3-490b-ba98-f8cfee868b57",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "🟦 Bull Empire"
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "h2",
+                  "children": "text"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": [
+                  {
+                    "type": "text",
+                    "id": "84cf3a62-7a06-4fec-8b9a-4cfdf7332032",
+                    "text": {
+                      "ops": [
+                        {
+                          "insert": "Rank #2 | Win rate: 74.1% | Weekly PnL: +14.2% | Members: 3,102 | Style: Long-Only",
+                          "attributes": {
+                            "bold": true
+                          }
+                        },
+                        {
+                          "insert": "\n",
+                          "attributes": {
+                            "paragraph": true
+                          }
+                        }
+                      ]
+                    },
+                    "format": {
+                      "node": "text",
+                      "children": "text"
+                    },
+                    "collapsed": false,
+                    "completed": false,
+                    "children": []
+                  },
+                  {
+                    "type": "text",
+                    "id": "6b61d57c-66d6-429a-8584-487ef5f74a3d",
+                    "text": {
+                      "ops": [
+                        {
+                          "insert": "Bull Empire brings the largest roster and strong directional conviction. While it trails Alpha in efficiency, its scale gives it serious comeback potential."
+                        },
+                        {
+                          "insert": "\n",
+                          "attributes": {
+                            "paragraph": true
+                          }
+                        }
+                      ]
+                    },
+                    "format": {
+                      "node": "text",
+                      "children": "text"
+                    },
+                    "collapsed": false,
+                    "completed": false,
+                    "children": []
+                  }
+                ]
+              },
+              {
+                "type": "text",
+                "id": "342537fa-0ddd-4de5-96d5-ae8879db4c55",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "🟨 Sigma Order"
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "h2",
+                  "children": "text"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": [
+                  {
+                    "type": "text",
+                    "id": "43fc3baf-2e59-4ac7-a7f3-26b92295af79",
+                    "text": {
+                      "ops": [
+                        {
+                          "insert": "Rank #3 | Win rate: 70.8% | Weekly PnL: +9.7% | Members: 1,977 | Style: Arbitrage",
+                          "attributes": {
+                            "bold": true
+                          }
+                        },
+                        {
+                          "insert": "\n",
+                          "attributes": {
+                            "paragraph": true
+                          }
+                        }
+                      ]
+                    },
+                    "format": {
+                      "node": "text",
+                      "children": "text"
+                    },
+                    "collapsed": false,
+                    "completed": false,
+                    "children": []
+                  },
+                  {
+                    "type": "text",
+                    "id": "be1f138a-5e4f-43b8-9343-61ef0c629ae9",
+                    "text": {
+                      "ops": [
+                        {
+                          "insert": "Sigma Order is the stealth contender. Arbitrage keeps it stable and reliable, but it needs a bigger breakout to threaten the top two."
+                        },
+                        {
+                          "insert": "\n",
+                          "attributes": {
+                            "paragraph": true
+                          }
+                        }
+                      ]
+                    },
+                    "format": {
+                      "node": "text",
+                      "children": "text"
+                    },
+                    "collapsed": false,
+                    "completed": false,
+                    "children": []
+                  }
+                ]
+              },
+              {
+                "type": "text",
+                "id": "d4b1afbb-6612-4e53-a2c2-b1ab3e93f909",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "🟩 Bear Collective"
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "h2",
+                  "children": "text"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": [
+                  {
+                    "type": "text",
+                    "id": "1301bbc7-76dc-4fa2-8479-747998d9fd50",
+                    "text": {
+                      "ops": [
+                        {
+                          "insert": "Rank #4 | Win rate: 65.3% | Weekly PnL: -3.2% | Members: 1,430 | Style: Short-Selling",
+                          "attributes": {
+                            "bold": true
+                          }
+                        },
+                        {
+                          "insert": "\n",
+                          "attributes": {
+                            "paragraph": true
+                          }
+                        }
+                      ]
+                    },
+                    "format": {
+                      "node": "text",
+                      "children": "text"
+                    },
+                    "collapsed": false,
+                    "completed": false,
+                    "children": []
+                  },
+                  {
+                    "type": "text",
+                    "id": "5bc3dd15-6b2d-45ec-bbf9-5b37d3d0f88a",
+                    "text": {
+                      "ops": [
+                        {
+                          "insert": "Bear Collective is struggling to turn market volatility into gains. The short-book is under pressure, and the numbers show it."
+                        },
+                        {
+                          "insert": "\n",
+                          "attributes": {
+                            "paragraph": true
+                          }
+                        }
+                      ]
+                    },
+                    "format": {
+                      "node": "text",
+                      "children": "text"
+                    },
+                    "collapsed": false,
+                    "completed": false,
+                    "children": []
+                  }
+                ]
+              },
+              {
+                "type": "text",
+                "id": "2409646c-a3ff-4578-a3c9-7fedacb2667c",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "⚔️ Faction War Update"
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "h2",
+                  "children": "text"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": [
+                  {
+                    "type": "text",
+                    "id": "55dd19a8-e1a2-4a8e-9f33-b1321ddcf60e",
+                    "text": {
+                      "ops": [
+                        {
+                          "insert": "Season 4:",
+                          "attributes": {
+                            "bold": true
+                          }
+                        },
+                        {
+                          "insert": " Alpha Republic leads Bull Empire "
+                        },
+                        {
+                          "insert": "54.2% to 45.8%",
+                          "attributes": {
+                            "bold": true
+                          }
+                        },
+                        {
+                          "insert": "."
+                        },
+                        {
+                          "insert": "\n",
+                          "attributes": {
+                            "paragraph": true
+                          }
+                        }
+                      ]
+                    },
+                    "format": {
+                      "node": "text",
+                      "children": "text"
+                    },
+                    "collapsed": false,
+                    "completed": false,
+                    "children": []
+                  }
+                ]
+              },
+              {
+                "type": "text",
+                "id": "aff56245-6e24-49c4-acc4-ce9203862558",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "🔮 Nation Oracle Prediction"
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "h2",
+                  "children": "text"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": [
+                  {
+                    "type": "text",
+                    "id": "2e7f8fea-22ee-460d-9e1e-940d4713c9f3",
+                    "text": {
+                      "ops": [
+                        {
+                          "insert": "Winner: Alpha Republic",
+                          "attributes": {
+                            "bold": true
+                          }
+                        },
+                        {
+                          "insert": "\n",
+                          "attributes": {
+                            "paragraph": true
+                          }
+                        }
+                      ]
+                    },
+                    "format": {
+                      "node": "text",
+                      "children": "text"
+                    },
+                    "collapsed": false,
+                    "completed": false,
+                    "children": []
+                  },
+                  {
+                    "type": "text",
+                    "id": "203c1a63-9be5-4c81-a9e6-ad1f4e2c0471",
+                    "text": {
+                      "ops": [
+                        {
+                          "insert": "Why? Best win rate, best PnL, and the strongest tactical style for adapting across market conditions. Bull Empire has momentum, but Alpha’s efficiency edge makes it the favorite."
+                        },
+                        {
+                          "insert": "\n",
+                          "attributes": {
+                            "paragraph": true
+                          }
+                        }
+                      ]
+                    },
+                    "format": {
+                      "node": "text",
+                      "children": "text"
+                    },
+                    "collapsed": false,
+                    "completed": false,
+                    "children": []
+                  }
+                ]
+              },
+              {
+                "type": "text",
+                "id": "67edc906-dffe-4ea2-8554-7f1fe2cd6dc9",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "🎯 Trading Tip of the Week"
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "h2",
+                  "children": "text"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": [
+                  {
+                    "type": "text",
+                    "id": "10faa388-8d91-4b8c-b789-8d4d5d176958",
+                    "text": {
+                      "ops": [
+                        {
+                          "insert": "Prioritize consistency over size.",
+                          "attributes": {
+                            "bold": true
+                          }
+                        },
+                        {
+                          "insert": " A high win rate with controlled risk compounds faster than chasing oversized wins."
+                        },
+                        {
+                          "insert": "\n",
+                          "attributes": {
+                            "paragraph": true
+                          }
+                        }
+                      ]
+                    },
+                    "format": {
+                      "node": "text",
+                      "children": "text"
+                    },
+                    "collapsed": false,
+                    "completed": false,
+                    "children": []
+                  },
+                  {
+                    "type": "text",
+                    "id": "c1295fb4-b23f-4a7a-9cc4-256c061f02ea",
+                    "text": {
+                      "ops": [
+                        {
+                          "insert": "For the glory of your nation! ⚔️",
+                          "attributes": {
+                            "bold": true
+                          }
+                        },
+                        {
+                          "insert": "\n",
+                          "attributes": {
+                            "paragraph": true
+                          }
+                        }
+                      ]
+                    },
+                    "format": {
+                      "node": "text",
+                      "children": "text"
+                    },
+                    "collapsed": false,
+                    "completed": false,
+                    "children": []
+                  }
+                ]
+              }
+            ]
           }
         ]
       }

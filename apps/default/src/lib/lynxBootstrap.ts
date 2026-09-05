@@ -159,6 +159,9 @@ async function runBootstrap(): Promise<BootstrapResult> {
   }
 
   // ── Step 2: Register contract-bearing engines ──────────────────────────
+  const executiveIntelligenceContract = typeof (executiveEngine as any).getExecutiveIntelligenceContract === 'function'
+    ? (executiveEngine as any).getExecutiveIntelligenceContract()
+    : null;
   const contractEngines: { name: string; contract: EngineContract }[] = [
     { name: 'goalEngine', contract: goalEngine.getOrchestratorContract() },
     { name: 'missionEngine', contract: missionEngine.getOrchestratorContract() },
@@ -167,7 +170,7 @@ async function runBootstrap(): Promise<BootstrapResult> {
     { name: 'predictionEngine', contract: predictionEngine.getOrchestratorContract() },
     { name: 'autonomousEngine', contract: autonomousEngine.getOrchestratorContract() },
     { name: 'executiveEngine', contract: executiveEngine.getOrchestratorContract() },
-    { name: 'executiveIntelligence', contract: executiveEngine.getExecutiveIntelligenceContract() },
+    ...(executiveIntelligenceContract ? [{ name: 'executiveIntelligence', contract: executiveIntelligenceContract }] : []),
     { name: 'notificationBrain', contract: notificationBrain.getOrchestratorContract() },
     { name: 'aiCommandCenter', contract: aiCommandCenter.getOrchestratorContract() },
     { name: 'analyticsCenter', contract: analyticsCenter.getOrchestratorContract() },

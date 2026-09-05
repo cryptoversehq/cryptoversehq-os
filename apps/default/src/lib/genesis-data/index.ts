@@ -21,7 +21,7 @@
  * For screens people keep open, `useLiveNodes(projectId)` from `@/hooks/use-live-nodes`
  * keeps the rows current (re-checks on tab return and on a slow backstop, via ETag).
  */
-export type { GenesisNode, NewNodeFields, NodesIfChanged } from './client';
+export type { GenesisNode, NewNodeFields, NodesIfChanged, WriteResult } from './client';
 export { getNodes, getNodesIfChanged, createNode, updateNode, deleteNode } from './client';
 export type { LiveNodes, LiveNodesOptions, LiveNodesState } from './live';
 export { createLiveNodes } from './live';
