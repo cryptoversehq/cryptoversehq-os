@@ -58,62 +58,26 @@ function strHash(s: string): number {
 
 function r2(v: number) { return Math.round(v * 100) / 100; }
 function r6(v: number) { return Math.round(v * 1000000) / 1000000; }
-function clamp(v: number, lo: number, hi: number) { return Math.max(lo, Math.min(hi, v)); }
+
+function assertDemoConnection(connection: ExchangeConnection): void {
+  if (!connection.isDemoMode) {
+    throw new Error('Demo simulation is unavailable for live exchange connections.');
+  }
+}
 
 // ─── CLIENT-SIDE CREDENTIAL ENCRYPTION ───────────────────────────────────────
-
-/**
- * Derives a 256-bit AES-GCM key from a userId + a device-stable salt.
- * The salt is stored in localStorage (not a secret — only userId is the entropy source).
- */
-async function deriveKey(userId: string): Promise<CryptoKey> {
-  const saltKey = `cvai_enc_salt_${userId}`;
-  let salt = localStorage.getItem(saltKey);
-  if (!salt) {
-    const bytes = crypto.getRandomValues(new Uint8Array(16));
-    salt = btoa(String.fromCharCode(...bytes));
-    localStorage.setItem(saltKey, salt);
-  }
-
-  const keyMaterial = await crypto.subtle.importKey(
-    'raw',
-    new TextEncoder().encode(userId + salt),
-    { name: 'PBKDF2' },
-    false,
-    ['deriveKey'],
-  );
-
-  return crypto.subtle.deriveKey(
-    { name: 'PBKDF2', salt: new TextEncoder().encode(salt), iterations: 100_000, hash: 'SHA-256' },
-    keyMaterial,
-    { name: 'AES-GCM', length: 256 },
-    false,
-    ['encrypt', 'decrypt'],
-  );
-}
+// Browser encryption and decryption are intentionally disabled. Live exchange
+// secrets must be handled by the authenticated server boundary.
 
 /**
  * Encrypts a single plaintext string with AES-GCM-256.
  * SECURITY: The caller is responsible for zeroing `plaintext` after this call.
  */
 export async function encryptCredential(
-  plaintext: string,
-  userId:    string,
+  _plaintext: string,
+  _userId:    string,
 ): Promise<EncryptedCredential> {
-  const key = await deriveKey(userId);
-  const iv  = crypto.getRandomValues(new Uint8Array(12));
-  const enc = await crypto.subtle.encrypt(
-    { name: 'AES-GCM', iv },
-    key,
-    new TextEncoder().encode(plaintext),
-  );
-
-  return {
-    ciphertext: btoa(String.fromCharCode(...new Uint8Array(enc))),
-    iv:         btoa(String.fromCharCode(...iv)),
-    algorithm:  'AES-GCM-256',
-    encryptedAt: new Date().toISOString(),
-  };
+  throw new Error('Exchange credentials must be stored and encrypted server-side.');
 }
 
 /**
@@ -121,14 +85,10 @@ export async function encryptCredential(
  * ⚠️  LIVE USE ONLY — zero the result immediately after the API call.
  */
 export async function decryptCredential(
-  cred:   EncryptedCredential,
-  userId: string,
+  _cred:   EncryptedCredential,
+  _userId: string,
 ): Promise<string> {
-  const key = await deriveKey(userId);
-  const iv  = Uint8Array.from(atob(cred.iv),   c => c.charCodeAt(0));
-  const ct  = Uint8Array.from(atob(cred.ciphertext), c => c.charCodeAt(0));
-  const dec = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, ct);
-  return new TextDecoder().decode(dec);
+  throw new Error('Exchange credentials are never decrypted in the browser.');
 }
 
 /**
@@ -136,27 +96,14 @@ export async function decryptCredential(
  * Returns the encrypted pair + a masked display key.
  */
 export async function encryptRawCredentials(
-  raw:    RawCredentials,
-  userId: string,
+  _raw:    RawCredentials,
+  _userId: string,
 ): Promise<{
   apiKey:       EncryptedCredential;
   apiSecret:    EncryptedCredential;
   apiKeyMasked: string;
 }> {
-  const [apiKey, apiSecret] = await Promise.all([
-    encryptCredential(raw.apiKey,    userId),
-    encryptCredential(raw.apiSecret, userId),
-  ]);
-
-  const masked = maskApiKey(raw.apiKey);
-
-  // Zero the raw values from memory as best effort (JS strings are immutable,
-  // so this reassignment removes the reference — GC will clean the value).
-  (raw as { apiKey: string; apiSecret: string; passphrase?: string }).apiKey    = '';
-  (raw as { apiKey: string; apiSecret: string; passphrase?: string }).apiSecret = '';
-  if (raw.passphrase) raw.passphrase = '';
-
-  return { apiKey, apiSecret, apiKeyMasked: masked };
+  throw new Error('Raw exchange credentials must never be handled by browser crypto.');
 }
 
 /**
@@ -209,6 +156,7 @@ export function generateDemoTrades(
   count:      number = 20,
   days:       number = 30,
 ): RealTrade[] {
+  assertDemoConnection(connection);
   const rng      = seededRng(strHash(connection.id));
   const symbols  = DEMO_SYMBOLS[connection.exchange];
   const feeRate  = EXCHANGE_TAKER_FEE[connection.exchange];
@@ -299,6 +247,7 @@ export function simulateDemoOrder(params: {
   amount:        number;
 }): RealTrade {
   const { connection, symbol, side, orderType, price, amount } = params;
+  assertDemoConnection(connection);
   const rng        = seededRng(strHash(connection.id + symbol + Date.now()));
   const feeRate    = EXCHANGE_TAKER_FEE[connection.exchange];
   const feeCcy     = EXCHANGE_FEE_CURRENCY[connection.exchange];
@@ -353,6 +302,7 @@ export function buildDemoPortfolio(
   connection: ExchangeConnection,
   trades:     RealTrade[],
 ): ExchangePortfolio {
+  assertDemoConnection(connection);
   const rng     = seededRng(strHash(connection.id + 'portfolio'));
   const symbols = DEMO_SYMBOLS[connection.exchange];
 
@@ -410,6 +360,20 @@ export function buildDemoPortfolio(
 export function syncSimulation(
   connection: ExchangeConnection,
 ): { result: SyncResult; newTrades: RealTrade[] } {
+  if (!connection.isDemoMode) {
+    return {
+      result: {
+        connectionId: connection.id,
+        success: false,
+        newTradesFound: 0,
+        portfolioUpdated: false,
+        error: 'Demo simulation is unavailable for live exchange connections.',
+        timestamp: new Date().toISOString(),
+      },
+      newTrades: [],
+    };
+  }
+
   const rng = seededRng(strHash(connection.id + Date.now()));
 
   // 95% success rate
