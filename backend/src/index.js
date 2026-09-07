@@ -894,6 +894,62 @@ app.post('/api/trading/daily-limit/consume', authenticate, async (req, res) => {
     res.status(500).json({ error: 'SERVER_ERROR', message: 'Failed to consume trade.', requestId: req.requestId });
   }
 });
+// ==================== MARKET DATA PROXY ====================
+
+// CoinGecko Proxy
+app.get('/api/market/coingecko/*', async (req, res) => {
+  const path = req.params[0] || '';
+  const queryString = new URLSearchParams(req.query).toString();
+  const url = `https://api.coingecko.com/api/v3/${path}${queryString ? `?${queryString}` : ''}`;
+
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10000);
+
+    const response = await fetch(url, {
+      signal: controller.signal,
+      headers: {
+        'Accept': 'application/json',
+        'User-Agent': 'CryptoVerseHQ/1.0',
+      },
+    });
+
+    clearTimeout(timeout);
+
+    const data = await response.json();
+
+    // Forward rate limit headers
+    if (response.headers.get('x-ratelimit-remaining')) {
+      res.setHeader('X-RateLimit-Remaining', response.headers.get('x-ratelimit-remaining'));
+    }
+    if (response.headers.get('x-ratelimit-reset')) {
+      res.setHeader('X-RateLimit-Reset', response.headers.get('x-ratelimit-reset'));
+    }
+
+    res.status(response.status).json(data);
+  } catch (error) {
+    console.error(JSON.stringify({
+      event: 'coingecko_proxy_failed',
+      path,
+      error: error?.message,
+      requestId: req.requestId,
+    }));
+
+    if (error.name === 'AbortError') {
+      return res.status(504).json({
+        error: 'TIMEOUT',
+        message: 'CoinGecko request timed out',
+        requestId: req.requestId,
+      });
+    }
+
+    res.status(502).json({
+      error: 'PROXY_ERROR',
+      message: 'Failed to fetch from CoinGecko',
+      requestId: req.requestId,
+    });
+  }
+});
 // ==================== ERROR HANDLING ====================
 app.use((err, req, res, next) => {
   console.error(JSON.stringify({ event: 'request_failed', requestId: req.requestId, error: err?.message }));
