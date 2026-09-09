@@ -47,6 +47,7 @@ const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey, {
 app.disable('x-powered-by');
 app.set('trust proxy', 1);
 app.use(helmet({ contentSecurityPolicy: false }));
+
 app.use(cors({
   origin(origin, callback) {
     if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
@@ -54,9 +55,17 @@ app.use(cors({
   },
   credentials: true,
   methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'X-CSRF-Token', 'X-Request-ID'],
+  allowedHeaders: [
+    'Content-Type',
+    'Authorization',
+    'X-CSRF-Token',
+    'X-Request-ID',
+    'Idempotency-Key'  
+  ],
   maxAge: 600,
 }));
+// ============================================================
+
 app.use(cookieParser());
 app.use(express.json({
   limit: '100kb',
@@ -170,7 +179,7 @@ app.get('/api/auth/csrf', (req, res) => {
 
 app.post('/api/auth/send-otp', async (req, res) => {
   const email = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : '';
-  if (!/^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$/.test(email)) {
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
     return res.status(400).json({ error: 'VALIDATION_ERROR', message: 'A valid email is required.', requestId: req.requestId });
   }
   try {
@@ -186,7 +195,7 @@ app.post('/api/auth/send-otp', async (req, res) => {
 app.post('/api/auth/verify-otp', async (req, res) => {
   const email = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : '';
   const token = typeof req.body?.code === 'string' ? req.body.code.trim() : '';
-  if (!/^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$/.test(email) || !/^\\d{6}$/.test(token)) {
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) || !/^\d{6}$/.test(token)) {
     return res.status(400).json({ error: 'VALIDATION_ERROR', message: 'Invalid verification request.', requestId: req.requestId });
   }
   try {
@@ -236,7 +245,7 @@ app.post('/api/auth/logout', (req, res) => {
 // ==================== PAYMENTS ====================
 function normalizeDecimal(value) {
   const text = String(value ?? '').trim();
-  return /^\\d+(?:\\.\\d+)?$/.test(text) ? text.replace(/\\.?0+$/, '') : null;
+  return /^\d+(?:\.\d+)?$/.test(text) ? text.replace(/\.?0+$/, '') : null;
 }
 
 const nowPaymentsBaseUrl = (process.env.NOWPAYMENTS_API_BASE_URL || 'https://api.nowpayments.io/v1').replace(/\/$/, '');
