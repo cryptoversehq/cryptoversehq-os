@@ -358,6 +358,303 @@ app.post('/api/auth/taskade/exchange', async (req, res) => {
   }
 });
 
+// ==================== ADMIN AUTHORIZATION MIDDLEWARE ====================
+const ADMIN_READ_ROLES = new Set(['developer', 'subscription_admin', 'support_admin']);
+const ADMIN_WRITE_ROLES = new Set(['developer', 'subscription_admin']);
+
+function requireAdminRead(req, res, next) {
+  if (!req.user || !ADMIN_READ_ROLES.has(req.user.role)) {
+    return res.status(403).json({ error: 'FORBIDDEN', message: 'Admin access required.', requestId: req.requestId });
+  }
+  next();
+}
+
+function requireAdminWrite(req, res, next) {
+  if (!req.user || !ADMIN_WRITE_ROLES.has(req.user.role)) {
+    return res.status(403).json({ error: 'FORBIDDEN', message: 'Subscription admin access required.', requestId: req.requestId });
+  }
+  next();
+}
+
+async function writeAuditLog(entry) {
+  try {
+    await pgPool.query(
+      `insert into public.subscription_audit_log
+       (actor_id, actor_email, actor_role, target_user_id, plan_id, action, result, note, error, before_state, after_state, ip_address, user_agent, request_id, idempotency_key, entitlement_id)
+       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
+      [
+        entry.actor_id, entry.actor_email, entry.actor_role,
+        entry.target_user_id, entry.plan_id, entry.action,
+        entry.result, entry.note || null, entry.error || null,
+        entry.before_state ? JSON.stringify(entry.before_state) : null,
+        entry.after_state ? JSON.stringify(entry.after_state) : null,
+        entry.ip_address || null, entry.user_agent || null,
+        entry.request_id || null, entry.idempotency_key || null,
+        entry.entitlement_id || null,
+      ]
+    );
+  } catch (err) {
+    console.error(JSON.stringify({ event: 'audit_log_failed', error: err?.message }));
+  }
+}
+
+// ==================== ADMIN SUBSCRIPTION ENDPOINTS ====================
+
+// List users (read-only)
+app.get('/api/admin/users', authenticate, requireAdminRead, async (req, res) => {
+  try {
+    const limit = Math.min(Number(req.query.limit) || 50, 100);
+    const offset = Number(req.query.offset) || 0;
+    const result = await pgPool.query(
+      `select id, email, role, plan, created_at
+       from public.users
+       order by created_at desc
+       limit $1 offset $2`,
+      [limit, offset]
+    );
+    const { rows: countRows } = await pgPool.query('select count(*)::int as total from public.users');
+    return res.json({
+      success: true,
+      users: result.rows,
+      total: countRows[0].total,
+      limit,
+      offset,
+      requestId: req.requestId,
+    });
+  } catch (error) {
+    console.error(JSON.stringify({ event: 'admin_users_failed', requestId: req.requestId, error: error?.message }));
+    return res.status(500).json({ error: 'SERVER_ERROR', message: 'Failed to fetch users.', requestId: req.requestId });
+  }
+});
+
+// Grant subscription
+app.post('/api/admin/subscriptions/grant', authenticate, requireAdminWrite, async (req, res) => {
+  const { target_user_id, plan_id, duration_days, note } = req.body || {};
+  const idempotencyKey = req.get('Idempotency-Key');
+  const ipAddress = req.ip;
+  const userAgent = req.get('User-Agent');
+
+  // Validation
+  if (!target_user_id || !plan_id) {
+    return res.status(400).json({ error: 'VALIDATION_ERROR', message: 'target_user_id and plan_id required.', requestId: req.requestId });
+  }
+  if (!['pro', 'pro_plus'].includes(plan_id)) {
+    return res.status(400).json({ error: 'VALIDATION_ERROR', message: 'Invalid plan_id.', requestId: req.requestId });
+  }
+  const days = Number(duration_days) || 30;
+  if (!Number.isInteger(days) || days < 1 || days > 3650) {
+    return res.status(400).json({ error: 'VALIDATION_ERROR', message: 'duration_days must be 1-3650.', requestId: req.requestId });
+  }
+  if (!idempotencyKey || !/^[A-Za-z0-9._:-]{16,128}$/.test(idempotencyKey)) {
+    return res.status(400).json({ error: 'VALIDATION_ERROR', message: 'Valid Idempotency-Key required.', requestId: req.requestId });
+  }
+
+  try {
+    // Idempotency check
+    const { rows: existing } = await pgPool.query(
+      `select id from public.subscription_audit_log
+       where idempotency_key = $1 and action = 'grant' and result = 'success'
+       limit 1`,
+      [idempotencyKey]
+    );
+    if (existing.length > 0) {
+      return res.json({ success: true, duplicate: true, requestId: req.requestId });
+    }
+
+    // Verify target user exists
+    const { rows: targetRows } = await pgPool.query(
+      'select id, email, role, plan from public.users where id = $1',
+      [target_user_id]
+    );
+    if (targetRows.length === 0) {
+      return res.status(404).json({ error: 'NOT_FOUND', message: 'Target user not found.', requestId: req.requestId });
+    }
+    const targetUser = targetRows[0];
+    const beforeState = { plan: targetUser.plan };
+
+    // Check for existing active subscription
+    const { rows: activeSubs } = await pgPool.query(
+      `select id, ends_at from public.subscriptions
+       where user_id = $1 and status = 'active' and ends_at > now()
+       order by ends_at desc limit 1`,
+      [target_user_id]
+    );
+
+    let entitlementId;
+    if (activeSubs.length > 0) {
+      // Extend existing
+      const newEndsAt = new Date(new Date(activeSubs[0].ends_at).getTime() + days * 86400000);
+      await pgPool.query(
+        `update public.subscriptions set ends_at = $1, plan_id = $2, updated_at = now() where id = $3`,
+        [newEndsAt.toISOString(), plan_id, activeSubs[0].id]
+      );
+      entitlementId = activeSubs[0].id;
+    } else {
+      // Create new
+      const endsAt = new Date(Date.now() + days * 86400000).toISOString();
+      const { rows: inserted } = await pgPool.query(
+        `insert into public.subscriptions (user_id, plan_id, status, starts_at, ends_at, granted_by)
+         values ($1, $2, 'active', now(), $3, $4)
+         returning id`,
+        [target_user_id, plan_id, endsAt, req.user.id]
+      );
+      entitlementId = inserted[0].id;
+    }
+
+    // Update user's plan field
+    await pgPool.query('update public.users set plan = $1, updated_at = now() where id = $2', [plan_id, target_user_id]);
+
+    // Audit log
+    await writeAuditLog({
+      actor_id: req.user.id,
+      actor_email: req.user.email,
+      actor_role: req.user.role,
+      target_user_id,
+      plan_id,
+      action: 'grant',
+      result: 'success',
+      note: note || null,
+      before_state: beforeState,
+      after_state: { plan: plan_id, ends_at: new Date(Date.now() + days * 86400000).toISOString() },
+      ip_address: ipAddress,
+      user_agent: userAgent,
+      request_id: req.requestId,
+      idempotency_key: idempotencyKey,
+      entitlement_id: entitlementId,
+    });
+
+    return res.json({
+      success: true,
+      entitlement_id: entitlementId,
+      target_user_id,
+      plan_id,
+      duration_days: days,
+      requestId: req.requestId,
+    });
+  } catch (error) {
+    console.error(JSON.stringify({ event: 'grant_failed', requestId: req.requestId, error: error?.message }));
+    await writeAuditLog({
+      actor_id: req.user.id, actor_email: req.user.email, actor_role: req.user.role,
+      target_user_id: target_user_id || null, plan_id: plan_id || null,
+      action: 'grant', result: 'failure', error: error?.message,
+      ip_address: ipAddress, user_agent: userAgent, request_id: req.requestId,
+      idempotency_key: idempotencyKey,
+    });
+    return res.status(500).json({ error: 'SERVER_ERROR', message: 'Grant failed.', requestId: req.requestId });
+  }
+});
+
+// Revoke subscription
+app.post('/api/admin/subscriptions/revoke', authenticate, requireAdminWrite, async (req, res) => {
+  const { target_user_id, note } = req.body || {};
+  const idempotencyKey = req.get('Idempotency-Key');
+  const ipAddress = req.ip;
+  const userAgent = req.get('User-Agent');
+
+  if (!target_user_id) {
+    return res.status(400).json({ error: 'VALIDATION_ERROR', message: 'target_user_id required.', requestId: req.requestId });
+  }
+  if (!idempotencyKey || !/^[A-Za-z0-9._:-]{16,128}$/.test(idempotencyKey)) {
+    return res.status(400).json({ error: 'VALIDATION_ERROR', message: 'Valid Idempotency-Key required.', requestId: req.requestId });
+  }
+
+  try {
+    // Idempotency check
+    const { rows: existing } = await pgPool.query(
+      `select id from public.subscription_audit_log
+       where idempotency_key = $1 and action = 'revoke' and result = 'success' limit 1`,
+      [idempotencyKey]
+    );
+    if (existing.length > 0) {
+      return res.json({ success: true, duplicate: true, requestId: req.requestId });
+    }
+
+    // Find active subscription
+    const { rows: activeSubs } = await pgPool.query(
+      `select id, plan_id, ends_at from public.subscriptions
+       where user_id = $1 and status = 'active' and ends_at > now()
+       order by ends_at desc limit 1`,
+      [target_user_id]
+    );
+    if (activeSubs.length === 0) {
+      return res.status(404).json({ error: 'NOT_FOUND', message: 'No active subscription found.', requestId: req.requestId });
+    }
+
+    const sub = activeSubs[0];
+    await pgPool.query(
+      `update public.subscriptions set status = 'revoked', ends_at = now(), updated_at = now() where id = $1`,
+      [sub.id]
+    );
+    await pgPool.query('update public.users set plan = $1, updated_at = now() where id = $2', ['free', target_user_id]);
+
+    await writeAuditLog({
+      actor_id: req.user.id, actor_email: req.user.email, actor_role: req.user.role,
+      target_user_id, plan_id: sub.plan_id, action: 'revoke', result: 'success',
+      note: note || null,
+      before_state: { plan: sub.plan_id, ends_at: sub.ends_at },
+      after_state: { plan: 'free', ends_at: new Date().toISOString() },
+      ip_address: ipAddress, user_agent: userAgent,
+      request_id: req.requestId, idempotency_key: idempotencyKey,
+      entitlement_id: sub.id,
+    });
+
+    return res.json({ success: true, target_user_id, previous_plan: sub.plan_id, requestId: req.requestId });
+  } catch (error) {
+    console.error(JSON.stringify({ event: 'revoke_failed', requestId: req.requestId, error: error?.message }));
+    await writeAuditLog({
+      actor_id: req.user.id, actor_email: req.user.email, actor_role: req.user.role,
+      target_user_id: target_user_id || null, plan_id: null,
+      action: 'revoke', result: 'failure', error: error?.message,
+      ip_address: ipAddress, user_agent: userAgent, request_id: req.requestId,
+      idempotency_key: idempotencyKey,
+    });
+    return res.status(500).json({ error: 'SERVER_ERROR', message: 'Revoke failed.', requestId: req.requestId });
+  }
+});
+
+// Audit log list
+app.get('/api/admin/subscriptions/audit', authenticate, requireAdminRead, async (req, res) => {
+  try {
+    const limit = Math.min(Number(req.query.limit) || 50, 200);
+    const offset = Number(req.query.offset) || 0;
+    const result = await pgPool.query(
+      `select id, actor_id, actor_email, actor_role, target_user_id, plan_id, action, result, note, error, ip_address, created_at
+       from public.subscription_audit_log
+       order by created_at desc
+       limit $1 offset $2`,
+      [limit, offset]
+    );
+    return res.json({ success: true, entries: result.rows, limit, offset, requestId: req.requestId });
+  } catch (error) {
+    console.error(JSON.stringify({ event: 'audit_list_failed', requestId: req.requestId, error: error?.message }));
+    return res.status(500).json({ error: 'SERVER_ERROR', message: 'Failed to fetch audit log.', requestId: req.requestId });
+  }
+});
+
+// User's subscription status
+app.get('/api/admin/subscriptions/user/:userId', authenticate, requireAdminRead, async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { rows: userRows } = await pgPool.query(
+      'select id, email, role, plan, created_at from public.users where id = $1',
+      [userId]
+    );
+    if (userRows.length === 0) {
+      return res.status(404).json({ error: 'NOT_FOUND', message: 'User not found.', requestId: req.requestId });
+    }
+    const { rows: subs } = await pgPool.query(
+      `select id, plan_id, status, starts_at, ends_at, granted_by, created_at
+       from public.subscriptions where user_id = $1
+       order by created_at desc limit 20`,
+      [userId]
+    );
+    return res.json({ success: true, user: userRows[0], subscriptions: subs, requestId: req.requestId });
+  } catch (error) {
+    console.error(JSON.stringify({ event: 'user_sub_failed', requestId: req.requestId, error: error?.message }));
+    return res.status(500).json({ error: 'SERVER_ERROR', message: 'Failed to fetch user subscriptions.', requestId: req.requestId });
+  }
+});
+
 app.post('/api/auth/send-otp', async (req, res) => {
   const email = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : '';
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
