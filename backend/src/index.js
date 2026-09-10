@@ -8,6 +8,8 @@ const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const { createClient } = require('@supabase/supabase-js');
 const { Pool } = require('pg');
+const { createClient: createTursoClient } = require('@libsql/client'); // 🔥 NEW
+const { jwtVerify, createRemoteJWKSet } = require('jose'); // 🔥 NEW
 
 const app = express();
 const port = Number(process.env.PORT || 3000);
@@ -55,6 +57,32 @@ const pgPool = process.env.DATABASE_URL
       connectionTimeoutMillis: 10000,
     })
   : null;
+
+// 🔥 NEW ==================== TURSO LIBSQL CONNECTION ====================
+const tursoClient = (process.env.TURSO_DATABASE_URL && process.env.TURSO_AUTH_TOKEN)
+  ? createTursoClient({
+      url: process.env.TURSO_DATABASE_URL,
+      authToken: process.env.TURSO_AUTH_TOKEN,
+    })
+  : null;
+
+// 🔥 NEW ==================== TASKADE OIDC VERIFICATION ====================
+let jwks = null;
+if (process.env.TASKADE_OIDC_JWKS_URI) {
+  try {
+    jwks = createRemoteJWKSet(new URL(process.env.TASKADE_OIDC_JWKS_URI), {
+      cacheMaxAge: 600000,
+      timeoutDuration: 5000,
+    });
+  } catch (err) {
+    console.error(JSON.stringify({ event: 'jwks_init_failed', error: err?.message }));
+  }
+}
+
+// 🔥 NEW ==================== IN-MEMORY SESSION STORE ====================
+// NOTE: For production, move this to Neon. For staging, in-memory is acceptable.
+if (!global.__cvSessions) global.__cvSessions = new Map();
+
 app.disable('x-powered-by');
 app.set('trust proxy', 1);
 app.use(helmet({ contentSecurityPolicy: false }));
@@ -71,11 +99,10 @@ app.use(cors({
     'Authorization',
     'X-CSRF-Token',
     'X-Request-ID',
-    'Idempotency-Key'  
+    'Idempotency-Key'
   ],
   maxAge: 600,
 }));
-// ============================================================
 
 app.use(cookieParser());
 app.use(express.json({
@@ -146,6 +173,7 @@ function timingSafeEqualText(left, right) {
 function csrfProtection(req, res, next) {
   if (!['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) return next();
   if (req.path === '/api/webhooks/payment') return next();
+  if (req.path === '/api/auth/taskade/exchange') return next(); // 🔥 NEW: OIDC exchange uses Bearer, not CSRF
   const cookieToken = req.cookies[csrfCookieName];
   const headerToken = req.get('X-CSRF-Token');
   if (!timingSafeEqualText(cookieToken, headerToken)) {
@@ -155,11 +183,33 @@ function csrfProtection(req, res, next) {
 }
 app.use(csrfProtection);
 
+// 🔥 UPDATED ==================== AUTHENTICATE MIDDLEWARE ====================
+// Supports both legacy Supabase cookies AND new OIDC bridge sessions
 async function authenticate(req, res, next) {
   const token = req.cookies[sessionCookieName];
   if (!token) {
     return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Authentication required.', requestId: req.requestId });
   }
+
+  // First, check the new OIDC bridge session store
+  const bridgeSession = global.__cvSessions.get(token);
+  if (bridgeSession) {
+    const age = Date.now() - bridgeSession.issuedAt;
+    if (age > sessionMaxAgeMs) {
+      global.__cvSessions.delete(token);
+      res.clearCookie(sessionCookieName, { ...cookieOptions, maxAge: undefined });
+      return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Session expired.', requestId: req.requestId });
+    }
+    req.user = {
+      id: bridgeSession.userId,
+      email: bridgeSession.email,
+      role: bridgeSession.role,
+      provider: 'taskade_genesis',
+    };
+    return next();
+  }
+
+  // Fall back to legacy Supabase token
   try {
     const { data, error } = await supabase.auth.getUser(token);
     if (error || !data.user) {
@@ -182,37 +232,22 @@ app.get('/api/health', (req, res) => {
 
 app.get('/api/db-test', async (req, res) => {
   if (!pgPool) {
-    return res.status(503).json({ 
-      success: false, 
-      error: 'DATABASE_URL is not configured' 
-    });
+    return res.status(503).json({ success: false, error: 'DATABASE_URL is not configured' });
   }
   try {
     const client = await pgPool.connect();
     const result = await client.query('SELECT version()');
     client.release();
-    return res.json({ 
-      success: true, 
-      version: result.rows[0].version 
-    });
+    return res.json({ success: true, version: result.rows[0].version });
   } catch (error) {
-    console.error(JSON.stringify({ 
-      event: 'db_test_failed', 
-      requestId: req.requestId, 
-      error: error?.message 
-    }));
-    return res.status(500).json({ 
-      success: false, 
-      error: 'Database connection failed' 
-    });
+    console.error(JSON.stringify({ event: 'db_test_failed', requestId: req.requestId, error: error?.message }));
+    return res.status(500).json({ success: false, error: 'Database connection failed' });
   }
 });
+
 app.get('/api/db-tables', async (req, res) => {
   if (!pgPool) {
-    return res.status(503).json({ 
-      success: false, 
-      error: 'DATABASE_URL is not configured' 
-    });
+    return res.status(503).json({ success: false, error: 'DATABASE_URL is not configured' });
   }
   try {
     const result = await pgPool.query(`
@@ -221,20 +256,24 @@ app.get('/api/db-tables', async (req, res) => {
       where table_schema = 'public' 
       order by table_name
     `);
-    return res.json({ 
-      success: true, 
-      tables: result.rows.map(r => r.table_name)
-    });
+    return res.json({ success: true, tables: result.rows.map(r => r.table_name) });
   } catch (error) {
-    console.error(JSON.stringify({ 
-      event: 'db_tables_failed', 
-      requestId: req.requestId, 
-      error: error?.message 
-    }));
-    return res.status(500).json({ 
-      success: false, 
-      error: 'Failed to fetch tables' 
-    });
+    console.error(JSON.stringify({ event: 'db_tables_failed', requestId: req.requestId, error: error?.message }));
+    return res.status(500).json({ success: false, error: 'Failed to fetch tables' });
+  }
+});
+
+// 🔥 NEW ==================== TURSO TEST ====================
+app.get('/api/turso-test', async (req, res) => {
+  if (!tursoClient) {
+    return res.status(503).json({ success: false, error: 'Turso environment variables are not configured' });
+  }
+  try {
+    const result = await tursoClient.execute('SELECT sqlite_version() AS version');
+    return res.json({ success: true, version: result.rows[0].version });
+  } catch (error) {
+    console.error(JSON.stringify({ event: 'turso_test_failed', requestId: req.requestId, error: error?.message }));
+    return res.status(500).json({ success: false, error: 'Turso connection failed' });
   }
 });
 
@@ -244,6 +283,79 @@ app.get('/api/auth/csrf', (req, res) => {
   res.cookie(csrfCookieName, token, csrfCookieOptions);
   res.setHeader('Cache-Control', 'no-store');
   res.json({ csrfToken: token, requestId: req.requestId });
+});
+
+// 🔥 NEW ==================== OIDC EXCHANGE ENDPOINT ====================
+app.post('/api/auth/taskade/exchange', async (req, res) => {
+  const authHeader = req.get('Authorization');
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Bearer token required.', requestId: req.requestId });
+  }
+  const idToken = authHeader.slice(7).trim();
+
+  if (!jwks) {
+    return res.status(503).json({ error: 'OIDC_NOT_CONFIGURED', message: 'OIDC verification is not configured.', requestId: req.requestId });
+  }
+
+  try {
+    const { payload } = await jwtVerify(idToken, jwks, {
+      issuer: process.env.TASKADE_OIDC_ISSUER,
+      audience: process.env.TASKADE_OIDC_AUDIENCE,
+      algorithms: ['RS256'],
+      clockTolerance: 60,
+    });
+
+    const subject = payload.sub;
+    const email = payload.email;
+    if (!subject || !email) {
+      return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Token missing subject or email.', requestId: req.requestId });
+    }
+
+    // Map Taskade subject to a Neon user (create if first time)
+    let userRow;
+    const { rows: existing } = await pgPool.query(
+      'select id, email, role, plan from public.users where email = $1 limit 1',
+      [email]
+    );
+
+    if (existing.length > 0) {
+      userRow = existing[0];
+    } else {
+      const { rows: inserted } = await pgPool.query(
+        `insert into public.users (email, role, plan)
+         values ($1, 'user', 'free')
+         returning id, email, role, plan`,
+        [email]
+      );
+      userRow = inserted[0];
+    }
+
+    // Issue a server-signed session
+    const sessionToken = crypto.randomBytes(48).toString('base64url');
+    global.__cvSessions.set(sessionToken, {
+      userId: userRow.id,
+      email: userRow.email,
+      role: userRow.role,
+      provider: 'taskade_genesis',
+      subject: subject,
+      issuedAt: Date.now(),
+    });
+
+    res.cookie(sessionCookieName, sessionToken, cookieOptions);
+
+    // Also issue a CSRF token so subsequent state-changing requests work
+    const csrfToken = crypto.randomBytes(32).toString('base64url');
+    res.cookie(csrfCookieName, csrfToken, csrfCookieOptions);
+
+    return res.json({
+      user: { id: userRow.id, email: userRow.email, role: userRow.role, plan: userRow.plan },
+      csrfToken: csrfToken,
+      requestId: req.requestId,
+    });
+  } catch (error) {
+    console.error(JSON.stringify({ event: 'oidc_exchange_failed', requestId: req.requestId, error: error?.message }));
+    return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Invalid or expired token.', requestId: req.requestId });
+  }
 });
 
 app.post('/api/auth/send-otp', async (req, res) => {
@@ -301,10 +413,14 @@ app.post('/api/auth/refresh', async (req, res) => {
 
 app.get('/api/auth/me', authenticate, (req, res) => {
   res.setHeader('Cache-Control', 'no-store');
-  res.json({ user: safeUser(req.user), requestId: req.requestId });
+  res.json({ user: req.user, requestId: req.requestId });
 });
 
 app.post('/api/auth/logout', (req, res) => {
+  const token = req.cookies[sessionCookieName];
+  if (token && global.__cvSessions.has(token)) {
+    global.__cvSessions.delete(token);
+  }
   res.clearCookie(sessionCookieName, { ...cookieOptions, maxAge: undefined });
   res.clearCookie(refreshCookieName, { ...refreshCookieOptions, maxAge: undefined });
   res.clearCookie(csrfCookieName, { ...csrfCookieOptions, maxAge: undefined });
@@ -649,7 +765,6 @@ app.get('/api/exchange/connections', authenticate, async (req, res) => {
 app.post('/api/exchange/connect', authenticate, async (req, res) => {
   const { exchange, apiKey, apiSecret, label, isDemo = false } = req.body;
   
-  // Validation
   if (!exchange || typeof exchange !== 'string' || exchange.trim().length < 2) {
     return res.status(400).json({ error: 'VALIDATION_ERROR', message: 'Valid exchange is required.', requestId: req.requestId });
   }
@@ -663,7 +778,6 @@ app.post('/api/exchange/connect', authenticate, async (req, res) => {
     }
   }
   
-  // Allowlist exchanges
   const allowedExchanges = ['binance', 'coinbase', 'kraken', 'bybit', 'okx', 'gateio', 'kucoin'];
   if (!allowedExchanges.includes(exchange.trim().toLowerCase())) {
     return res.status(400).json({ error: 'VALIDATION_ERROR', message: 'Unsupported exchange.', requestId: req.requestId });
@@ -721,7 +835,6 @@ app.get('/api/exchange/balance/:id', authenticate, async (req, res) => {
   const { id } = req.params;
   
   try {
-    // First verify the connection belongs to this user
     const { data: connection, error: connError } = await supabase
       .from('exchange_connections')
       .select('exchange, api_key, is_demo')
@@ -733,7 +846,6 @@ app.get('/api/exchange/balance/:id', authenticate, async (req, res) => {
       return res.status(404).json({ error: 'NOT_FOUND', message: 'Connection not found.', requestId: req.requestId });
     }
     
-    // For demo connections, return mock data
     if (connection.is_demo) {
       return res.json({
         success: true,
@@ -748,9 +860,6 @@ app.get('/api/exchange/balance/:id', authenticate, async (req, res) => {
         requestId: req.requestId
       });
     }
-    
-    // For live connections, fetch from exchange API
-    // TODO: Implement actual exchange API integration
     
     res.json({
       success: true,
@@ -783,7 +892,6 @@ app.post('/api/exchange/sync/:id', authenticate, async (req, res) => {
       return res.status(404).json({ error: 'NOT_FOUND', message: 'Connection not found.', requestId: req.requestId });
     }
     
-    // For demo connections, return success
     if (connection.is_demo) {
       return res.json({
         success: true,
@@ -792,9 +900,6 @@ app.post('/api/exchange/sync/:id', authenticate, async (req, res) => {
         message: 'Demo sync completed'
       });
     }
-    
-    // For live connections, sync with exchange API
-    // TODO: Implement actual exchange API integration
     
     res.json({
       success: true,
@@ -832,7 +937,6 @@ app.post('/api/exchange/order', authenticate, async (req, res) => {
       return res.status(404).json({ error: 'NOT_FOUND', message: 'Connection not found.', requestId: req.requestId });
     }
     
-    // For demo connections, return mock order
     if (connection.is_demo) {
       return res.json({
         success: true,
@@ -847,9 +951,6 @@ app.post('/api/exchange/order', authenticate, async (req, res) => {
         message: 'Demo order executed'
       });
     }
-    
-    // For live connections, execute via exchange API
-    // TODO: Implement actual exchange API integration
     
     res.status(501).json({
       error: 'NOT_IMPLEMENTED',
@@ -868,9 +969,8 @@ app.post('/api/exchange/order', authenticate, async (req, res) => {
 app.get('/api/trading/daily-limit', authenticate, async (req, res) => {
   try {
     const userId = req.user.id;
-    const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+    const today = new Date().toISOString().split('T')[0];
     
-    // Get or create today's limit record
     const { data, error } = await supabase
       .from('daily_trade_limits')
       .select('trades_used, max_trades')
@@ -910,7 +1010,6 @@ app.post('/api/trading/daily-limit/consume', authenticate, async (req, res) => {
     const userId = req.user.id;
     const today = new Date().toISOString().split('T')[0];
     
-    // Get current record
     const { data: current, error: fetchError } = await supabase
       .from('daily_trade_limits')
       .select('trades_used, max_trades')
@@ -928,7 +1027,6 @@ app.post('/api/trading/daily-limit/consume', authenticate, async (req, res) => {
       maxTrades = current.max_trades;
     }
     
-    // Check if limit is reached
     if (tradesUsed >= maxTrades) {
       return res.status(429).json({
         error: 'LIMIT_REACHED',
@@ -941,10 +1039,8 @@ app.post('/api/trading/daily-limit/consume', authenticate, async (req, res) => {
       });
     }
     
-    // Increment trades_used
     const newTradesUsed = tradesUsed + 1;
     
-    // Upsert the record
     const { data, error } = await supabase
       .from('daily_trade_limits')
       .upsert({
@@ -972,9 +1068,9 @@ app.post('/api/trading/daily-limit/consume', authenticate, async (req, res) => {
     res.status(500).json({ error: 'SERVER_ERROR', message: 'Failed to consume trade.', requestId: req.requestId });
   }
 });
+
 // ==================== MARKET DATA PROXY ====================
 
-// CoinGecko Proxy
 app.get('/api/market/coingecko/*', async (req, res) => {
   const path = req.params[0] || '';
   const queryString = new URLSearchParams(req.query).toString();
@@ -996,7 +1092,6 @@ app.get('/api/market/coingecko/*', async (req, res) => {
 
     const data = await response.json();
 
-    // Forward rate limit headers
     if (response.headers.get('x-ratelimit-remaining')) {
       res.setHeader('X-RateLimit-Remaining', response.headers.get('x-ratelimit-remaining'));
     }
@@ -1028,6 +1123,7 @@ app.get('/api/market/coingecko/*', async (req, res) => {
     });
   }
 });
+
 // ==================== ERROR HANDLING ====================
 app.use((err, req, res, next) => {
   console.error(JSON.stringify({ event: 'request_failed', requestId: req.requestId, error: err?.message }));
