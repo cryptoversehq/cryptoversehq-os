@@ -183,6 +183,42 @@ function csrfProtection(req, res, next) {
 }
 app.use(csrfProtection);
 
+// ==================== NEON USER LOOKUP WITH CACHE ====================
+const neonUserCache = new Map();
+const NEON_USER_CACHE_TTL = 60 * 1000; // 60 seconds
+
+async function getOrCreateNeonUser(email) {
+  if (!email || !pgPool) return null;
+  const key = email.toLowerCase();
+  const cached = neonUserCache.get(key);
+  if (cached && Date.now() - cached.at < NEON_USER_CACHE_TTL) {
+    return cached.user;
+  }
+  try {
+    const { rows } = await pgPool.query(
+      'select id, email, role, plan from public.users where lower(email) = lower($1) limit 1',
+      [email]
+    );
+    let user;
+    if (rows.length > 0) {
+      user = rows[0];
+    } else {
+      const { rows: inserted } = await pgPool.query(
+        `insert into public.users (email, role, plan)
+         values ($1, 'user', 'free')
+         returning id, email, role, plan`,
+        [email]
+      );
+      user = inserted[0];
+    }
+    neonUserCache.set(key, { user, at: Date.now() });
+    return user;
+  } catch (err) {
+    console.error(JSON.stringify({ event: 'neon_user_lookup_failed', error: err?.message }));
+    return null;
+  }
+}
+
 // 🔥 UPDATED ==================== AUTHENTICATE MIDDLEWARE ====================
 // Supports both legacy Supabase cookies AND new OIDC bridge sessions
 async function authenticate(req, res, next) {
@@ -212,11 +248,24 @@ async function authenticate(req, res, next) {
   // Fall back to legacy Supabase token
   try {
     const { data, error } = await supabase.auth.getUser(token);
-    if (error || !data.user) {
+    if (error || !data.user || !data.user.email) {
       res.clearCookie(sessionCookieName, { ...cookieOptions, maxAge: undefined });
       return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Authentication required.', requestId: req.requestId });
     }
-    req.user = data.user;
+
+    // 🔥 NEW: Look up role from Neon by email
+    const neonUser = await getOrCreateNeonUser(data.user.email);
+    if (!neonUser) {
+      return res.status(401).json({ error: 'UNAUTHORIZED', message: 'User record unavailable.', requestId: req.requestId });
+    }
+
+    req.user = {
+      id: neonUser.id,
+      email: neonUser.email,
+      role: neonUser.role,
+      plan: neonUser.plan,
+      supabaseId: data.user.id,
+    };
     return next();
   } catch (error) {
     console.error(JSON.stringify({ event: 'auth_lookup_failed', requestId: req.requestId, error: error?.message }));
