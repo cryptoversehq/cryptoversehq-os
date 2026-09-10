@@ -207,6 +207,36 @@ app.get('/api/db-test', async (req, res) => {
     });
   }
 });
+app.get('/api/db-tables', async (req, res) => {
+  if (!pgPool) {
+    return res.status(503).json({ 
+      success: false, 
+      error: 'DATABASE_URL is not configured' 
+    });
+  }
+  try {
+    const result = await pgPool.query(`
+      select table_name 
+      from information_schema.tables 
+      where table_schema = 'public' 
+      order by table_name
+    `);
+    return res.json({ 
+      success: true, 
+      tables: result.rows.map(r => r.table_name)
+    });
+  } catch (error) {
+    console.error(JSON.stringify({ 
+      event: 'db_tables_failed', 
+      requestId: req.requestId, 
+      error: error?.message 
+    }));
+    return res.status(500).json({ 
+      success: false, 
+      error: 'Failed to fetch tables' 
+    });
+  }
+});
 
 // ==================== AUTH ====================
 app.get('/api/auth/csrf', (req, res) => {
