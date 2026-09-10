@@ -8,6 +8,7 @@
     "migrate": "node scripts/run-migrations.js"
   },
   "dependencies": {
+    "@libsql/client": "^0.14.0",
     "@supabase/supabase-js": "^2.45.0",
     "cookie-parser": "^1.4.6",
     "cors": "^2.8.5",
@@ -16,8 +17,5 @@
     "express-rate-limit": "^7.4.0",
     "helmet": "^8.1.0",
     "pg": "^8.13.0"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC"
+  }
 }
