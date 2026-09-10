@@ -7,6 +7,7 @@ const cookieParser = require('cookie-parser');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const { createClient } = require('@supabase/supabase-js');
+const { Pool } = require('pg');
 
 const app = express();
 const port = Number(process.env.PORT || 3000);
@@ -44,6 +45,16 @@ const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey, {
   auth: { autoRefreshToken: false, persistSession: false },
 });
 
+// ==================== NEON POSTGRES CONNECTION ====================
+const pgPool = process.env.DATABASE_URL
+  ? new Pool({
+      connectionString: process.env.DATABASE_URL,
+      ssl: { rejectUnauthorized: false },
+      max: 5,
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 10000,
+    })
+  : null;
 app.disable('x-powered-by');
 app.set('trust proxy', 1);
 app.use(helmet({ contentSecurityPolicy: false }));
@@ -167,6 +178,34 @@ async function authenticate(req, res, next) {
 app.get('/api/health', (req, res) => {
   res.setHeader('Cache-Control', 'no-store');
   res.json({ status: 'OK', service: 'cryptoverse-api', requestId: req.requestId });
+});
+
+app.get('/api/db-test', async (req, res) => {
+  if (!pgPool) {
+    return res.status(503).json({ 
+      success: false, 
+      error: 'DATABASE_URL is not configured' 
+    });
+  }
+  try {
+    const client = await pgPool.connect();
+    const result = await client.query('SELECT version()');
+    client.release();
+    return res.json({ 
+      success: true, 
+      version: result.rows[0].version 
+    });
+  } catch (error) {
+    console.error(JSON.stringify({ 
+      event: 'db_test_failed', 
+      requestId: req.requestId, 
+      error: error?.message 
+    }));
+    return res.status(500).json({ 
+      success: false, 
+      error: 'Database connection failed' 
+    });
+  }
 });
 
 // ==================== AUTH ====================
