@@ -726,7 +726,7 @@ app.post('/api/auth/verify-otp', async (req, res) => {
     return res.status(400).json({ error: 'VALIDATION_ERROR', message: 'Invalid verification request.', requestId: req.requestId });
   }
   try {
-    const { data, error } = await supabaseAuth.auth.verifyOtp({ email, token, type: 'email' });
+    let { data, error } = await supabaseAuth.auth.verifyOtp({ email, token, type: 'signup' });
     if (error || !data.session) {
       return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Invalid or expired verification code.', requestId: req.requestId });
     }
