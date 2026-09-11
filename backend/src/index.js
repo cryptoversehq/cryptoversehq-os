@@ -6,48 +6,24 @@ const cors = require('cors');
 const cookieParser = require('cookie-parser');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
-const { createClient } = require('@supabase/supabase-js');
 const { Pool } = require('pg');
-const { createClient: createTursoClient } = require('@libsql/client'); // 🔥 NEW
-const { jwtVerify, createRemoteJWKSet } = require('jose'); // 🔥 NEW
+const { createClient: createTursoClient } = require('@libsql/client');
+const { createClient } = require('@supabase/supabase-js');
+const { Resend } = require('resend');
+const { betterAuth } = require('better-auth');
+const { emailOTP } = require('better-auth/plugins');
+const { toNodeHandler } = require('better-auth/node');
 
 const app = express();
 const port = Number(process.env.PORT || 3000);
 const isProduction = process.env.NODE_ENV === 'production';
-const secureCookies = process.env.COOKIE_SECURE === undefined
-  ? isProduction
-  : process.env.COOKIE_SECURE === 'true';
-const sessionCookieName = process.env.SESSION_COOKIE_NAME || (secureCookies ? '__Host-cv_session' : 'cv_session');
-const csrfCookieName = process.env.CSRF_COOKIE_NAME || (secureCookies ? '__Host-cv_csrf' : 'cv_csrf');
-const refreshCookieName = process.env.REFRESH_COOKIE_NAME || (secureCookies ? '__Host-cv_refresh' : 'cv_refresh');
-const sessionMaxAgeMs = Number(process.env.SESSION_MAX_AGE_MS || 30 * 60 * 1000);
-const cookieSameSite = process.env.COOKIE_SAME_SITE || 'lax';
-if (!['lax', 'strict', 'none'].includes(cookieSameSite) || (cookieSameSite === 'none' && !secureCookies)) {
-  throw new Error('COOKIE_SAME_SITE must be lax, strict, or secure none');
-}
+
 const allowedOrigins = (process.env.CORS_ORIGINS || 'http://localhost:5173')
   .split(',')
   .map((origin) => origin.trim())
   .filter(Boolean);
-if (!Number.isInteger(sessionMaxAgeMs) || sessionMaxAgeMs < 5 * 60 * 1000 || sessionMaxAgeMs > 24 * 60 * 60 * 1000) {
-  throw new Error('SESSION_MAX_AGE_MS must be between 5 minutes and 24 hours');
-}
 
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
-if (!supabaseUrl || !supabaseKey || !supabaseAnonKey) {
-  throw new Error('Missing required Supabase server configuration');
-}
-
-const supabase = createClient(supabaseUrl, supabaseKey, {
-  auth: { autoRefreshToken: false, persistSession: false },
-});
-const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey, {
-  auth: { autoRefreshToken: false, persistSession: false },
-});
-
-// ==================== NEON POSTGRES CONNECTION ====================
+// ==================== NEON POSTGRES ====================
 const pgPool = process.env.DATABASE_URL
   ? new Pool({
       connectionString: process.env.DATABASE_URL,
@@ -58,7 +34,7 @@ const pgPool = process.env.DATABASE_URL
     })
   : null;
 
-// 🔥 NEW ==================== TURSO LIBSQL CONNECTION ====================
+// ==================== TURSO ====================
 const tursoClient = (process.env.TURSO_DATABASE_URL && process.env.TURSO_AUTH_TOKEN)
   ? createTursoClient({
       url: process.env.TURSO_DATABASE_URL,
@@ -66,23 +42,71 @@ const tursoClient = (process.env.TURSO_DATABASE_URL && process.env.TURSO_AUTH_TO
     })
   : null;
 
-// 🔥 NEW ==================== TASKADE OIDC VERIFICATION ====================
-let jwks = null;
-if (process.env.TASKADE_OIDC_JWKS_URI) {
-  try {
-    jwks = createRemoteJWKSet(new URL(process.env.TASKADE_OIDC_JWKS_URI), {
-      cacheMaxAge: 600000,
-      timeoutDuration: 5000,
-    });
-  } catch (err) {
-    console.error(JSON.stringify({ event: 'jwks_init_failed', error: err?.message }));
-  }
+// ==================== SUPABASE (payments/CP/exchange only) ====================
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+let supabase = null;
+if (supabaseUrl && supabaseKey) {
+  supabase = createClient(supabaseUrl, supabaseKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
 }
 
-// 🔥 NEW ==================== IN-MEMORY SESSION STORE ====================
-// NOTE: For production, move this to Neon. For staging, in-memory is acceptable.
-if (!global.__cvSessions) global.__cvSessions = new Map();
+// ==================== RESEND ====================
+const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 
+// ==================== BETTER AUTH ====================
+const auth = betterAuth({
+  secret: process.env.BETTER_AUTH_SECRET,
+  baseURL: process.env.BETTER_AUTH_URL || 'https://cryptoversehq-os.onrender.com',
+  database: pgPool,
+  emailAndPassword: { enabled: false },
+  session: {
+    expiresIn: 60 * 60 * 24 * 7, // 7 days
+    updateAge: 60 * 60 * 24,     // 1 day
+  },
+  advanced: {
+    useSecureCookies: true,
+    defaultCookieAttributes: {
+      sameSite: 'none',
+      secure: true,
+      httpOnly: true,
+    },
+  },
+  trustedOrigins: allowedOrigins,
+  plugins: [
+    emailOTP({
+      async sendVerificationOTP({ email, otp, type }) {
+        if (!resend) {
+          console.error(JSON.stringify({ event: 'resend_not_configured', email }));
+          throw new Error('Email service is not configured.');
+        }
+        try {
+          await resend.emails.send({
+            from: 'CryptoVerse HQ <noreply@cryptoversehq.com>',
+            to: email,
+            subject: 'Your CryptoVerse HQ Verification Code',
+            html: `
+              <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto; padding: 24px;">
+                <h2 style="color: #111;">CryptoVerse HQ</h2>
+                <p>Your one-time verification code is:</p>
+                <p style="font-size: 32px; font-weight: bold; letter-spacing: 6px; background: #f4f4f4; padding: 16px; border-radius: 8px; text-align: center; color: #111;">${otp}</p>
+                <p style="color: #666; font-size: 14px;">This code expires in 5 minutes. If you didn't request this, please ignore this email.</p>
+              </div>
+            `,
+          });
+        } catch (error) {
+          console.error(JSON.stringify({ event: 'otp_email_failed', email, error: error?.message }));
+          throw new Error('Failed to send verification email.');
+        }
+      },
+      otpLength: 6,
+      expiresIn: 300,
+    }),
+  ],
+});
+
+// ==================== APP CONFIG ====================
 app.disable('x-powered-by');
 app.set('trust proxy', 1);
 app.use(helmet({ contentSecurityPolicy: false }));
@@ -97,12 +121,14 @@ app.use(cors({
   allowedHeaders: [
     'Content-Type',
     'Authorization',
-    'X-CSRF-Token',
     'X-Request-ID',
     'Idempotency-Key'
   ],
   maxAge: 600,
 }));
+
+// ⚠️ CRITICAL: Better Auth MUST be mounted BEFORE express.json() and cookieParser()
+app.all('/api/auth/*', toNodeHandler(auth));
 
 app.use(cookieParser());
 app.use(express.json({
@@ -122,70 +148,9 @@ const requestId = (req, res, next) => {
 };
 app.use(requestId);
 
-const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  limit: 30,
-  standardHeaders: 'draft-8',
-  legacyHeaders: false,
-  message: { error: 'RATE_LIMITED', message: 'Too many authentication requests.' },
-});
-app.use('/api/auth', authLimiter);
-
-const cookieOptions = {
-  httpOnly: true,
-  secure: secureCookies,
-  sameSite: cookieSameSite,
-  path: '/',
-  maxAge: sessionMaxAgeMs,
-};
-
-const refreshCookieOptions = {
-  httpOnly: true,
-  secure: secureCookies,
-  sameSite: cookieSameSite,
-  path: '/',
-  maxAge: 30 * 24 * 60 * 60 * 1000,
-};
-
-const csrfCookieOptions = {
-  httpOnly: false,
-  secure: secureCookies,
-  sameSite: cookieSameSite,
-  path: '/',
-  maxAge: sessionMaxAgeMs,
-};
-
-function safeUser(user) {
-  return {
-    id: user.id,
-    email: user.email || null,
-    role: user.app_metadata?.role || user.user_metadata?.role || 'user',
-  };
-}
-
-function timingSafeEqualText(left, right) {
-  if (!left || !right) return false;
-  const a = Buffer.from(left);
-  const b = Buffer.from(right);
-  return a.length === b.length && crypto.timingSafeEqual(a, b);
-}
-
-function csrfProtection(req, res, next) {
-  if (!['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) return next();
-  if (req.path === '/api/webhooks/payment') return next();
-  if (req.path === '/api/auth/taskade/exchange') return next(); // 🔥 NEW: OIDC exchange uses Bearer, not CSRF
-  const cookieToken = req.cookies[csrfCookieName];
-  const headerToken = req.get('X-CSRF-Token');
-  if (!timingSafeEqualText(cookieToken, headerToken)) {
-    return res.status(403).json({ error: 'CSRF_INVALID', message: 'CSRF validation failed.', requestId: req.requestId });
-  }
-  return next();
-}
-app.use(csrfProtection);
-
-// ==================== NEON USER LOOKUP WITH CACHE ====================
+// ==================== NEON USER LOOKUP ====================
 const neonUserCache = new Map();
-const NEON_USER_CACHE_TTL = 60 * 1000; // 60 seconds
+const NEON_USER_CACHE_TTL = 60 * 1000;
 
 async function getOrCreateNeonUser(email) {
   if (!email || !pgPool) return null;
@@ -219,195 +184,46 @@ async function getOrCreateNeonUser(email) {
   }
 }
 
-// 🔥 UPDATED ==================== AUTHENTICATE MIDDLEWARE ====================
-// Supports both legacy Supabase cookies AND new OIDC bridge sessions
+// ==================== AUTHENTICATE MIDDLEWARE (Better Auth) ====================
 async function authenticate(req, res, next) {
-  const token = req.cookies[sessionCookieName];
-  if (!token) {
-    return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Authentication required.', requestId: req.requestId });
-  }
-
-  // First, check the new OIDC bridge session store
-  const bridgeSession = global.__cvSessions.get(token);
-  if (bridgeSession) {
-    const age = Date.now() - bridgeSession.issuedAt;
-    if (age > sessionMaxAgeMs) {
-      global.__cvSessions.delete(token);
-      res.clearCookie(sessionCookieName, { ...cookieOptions, maxAge: undefined });
-      return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Session expired.', requestId: req.requestId });
-    }
-    req.user = {
-      id: bridgeSession.userId,
-      email: bridgeSession.email,
-      role: bridgeSession.role,
-      provider: 'taskade_genesis',
-    };
-    return next();
-  }
-
-  // Fall back to legacy Supabase token
   try {
-    const { data, error } = await supabase.auth.getUser(token);
-    if (error || !data.user || !data.user.email) {
-      res.clearCookie(sessionCookieName, { ...cookieOptions, maxAge: undefined });
-      return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Authentication required.', requestId: req.requestId });
+    const session = await auth.api.getSession({ headers: req.headers });
+    if (!session || !session.user || !session.user.email) {
+      return res.status(401).json({
+        error: 'UNAUTHORIZED',
+        message: 'Authentication required.',
+        requestId: req.requestId,
+      });
     }
 
-    // 🔥 NEW: Look up role from Neon by email
-    const neonUser = await getOrCreateNeonUser(data.user.email);
-    if (!neonUser) {
-      return res.status(401).json({ error: 'UNAUTHORIZED', message: 'User record unavailable.', requestId: req.requestId });
+    const appUser = await getOrCreateNeonUser(session.user.email);
+    if (!appUser) {
+      return res.status(401).json({
+        error: 'UNAUTHORIZED',
+        message: 'User record unavailable.',
+        requestId: req.requestId,
+      });
     }
 
     req.user = {
-      id: neonUser.id,
-      email: neonUser.email,
-      role: neonUser.role,
-      plan: neonUser.plan,
-      supabaseId: data.user.id,
+      id: appUser.id,
+      email: appUser.email,
+      role: appUser.role,
+      plan: appUser.plan,
+      betterAuthId: session.user.id,
     };
     return next();
   } catch (error) {
     console.error(JSON.stringify({ event: 'auth_lookup_failed', requestId: req.requestId, error: error?.message }));
-    return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Authentication required.', requestId: req.requestId });
+    return res.status(401).json({
+      error: 'UNAUTHORIZED',
+      message: 'Authentication required.',
+      requestId: req.requestId,
+    });
   }
 }
 
-// ==================== HEALTH ====================
-app.get('/api/health', (req, res) => {
-  res.setHeader('Cache-Control', 'no-store');
-  res.json({ status: 'OK', service: 'cryptoverse-api', requestId: req.requestId });
-});
-
-app.get('/api/db-test', async (req, res) => {
-  if (!pgPool) {
-    return res.status(503).json({ success: false, error: 'DATABASE_URL is not configured' });
-  }
-  try {
-    const client = await pgPool.connect();
-    const result = await client.query('SELECT version()');
-    client.release();
-    return res.json({ success: true, version: result.rows[0].version });
-  } catch (error) {
-    console.error(JSON.stringify({ event: 'db_test_failed', requestId: req.requestId, error: error?.message }));
-    return res.status(500).json({ success: false, error: 'Database connection failed' });
-  }
-});
-
-app.get('/api/db-tables', async (req, res) => {
-  if (!pgPool) {
-    return res.status(503).json({ success: false, error: 'DATABASE_URL is not configured' });
-  }
-  try {
-    const result = await pgPool.query(`
-      select table_name 
-      from information_schema.tables 
-      where table_schema = 'public' 
-      order by table_name
-    `);
-    return res.json({ success: true, tables: result.rows.map(r => r.table_name) });
-  } catch (error) {
-    console.error(JSON.stringify({ event: 'db_tables_failed', requestId: req.requestId, error: error?.message }));
-    return res.status(500).json({ success: false, error: 'Failed to fetch tables' });
-  }
-});
-
-// 🔥 NEW ==================== TURSO TEST ====================
-app.get('/api/turso-test', async (req, res) => {
-  if (!tursoClient) {
-    return res.status(503).json({ success: false, error: 'Turso environment variables are not configured' });
-  }
-  try {
-    const result = await tursoClient.execute('SELECT sqlite_version() AS version');
-    return res.json({ success: true, version: result.rows[0].version });
-  } catch (error) {
-    console.error(JSON.stringify({ event: 'turso_test_failed', requestId: req.requestId, error: error?.message }));
-    return res.status(500).json({ success: false, error: 'Turso connection failed' });
-  }
-});
-
-// ==================== AUTH ====================
-app.get('/api/auth/csrf', (req, res) => {
-  const token = crypto.randomBytes(32).toString('base64url');
-  res.cookie(csrfCookieName, token, csrfCookieOptions);
-  res.setHeader('Cache-Control', 'no-store');
-  res.json({ csrfToken: token, requestId: req.requestId });
-});
-
-// 🔥 NEW ==================== OIDC EXCHANGE ENDPOINT ====================
-app.post('/api/auth/taskade/exchange', async (req, res) => {
-  const authHeader = req.get('Authorization');
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Bearer token required.', requestId: req.requestId });
-  }
-  const idToken = authHeader.slice(7).trim();
-
-  if (!jwks) {
-    return res.status(503).json({ error: 'OIDC_NOT_CONFIGURED', message: 'OIDC verification is not configured.', requestId: req.requestId });
-  }
-
-  try {
-    const { payload } = await jwtVerify(idToken, jwks, {
-      issuer: process.env.TASKADE_OIDC_ISSUER,
-      audience: process.env.TASKADE_OIDC_AUDIENCE,
-      algorithms: ['RS256'],
-      clockTolerance: 60,
-    });
-
-    const subject = payload.sub;
-    const email = payload.email;
-    if (!subject || !email) {
-      return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Token missing subject or email.', requestId: req.requestId });
-    }
-
-    // Map Taskade subject to a Neon user (create if first time)
-    let userRow;
-    const { rows: existing } = await pgPool.query(
-      'select id, email, role, plan from public.users where email = $1 limit 1',
-      [email]
-    );
-
-    if (existing.length > 0) {
-      userRow = existing[0];
-    } else {
-      const { rows: inserted } = await pgPool.query(
-        `insert into public.users (email, role, plan)
-         values ($1, 'user', 'free')
-         returning id, email, role, plan`,
-        [email]
-      );
-      userRow = inserted[0];
-    }
-
-    // Issue a server-signed session
-    const sessionToken = crypto.randomBytes(48).toString('base64url');
-    global.__cvSessions.set(sessionToken, {
-      userId: userRow.id,
-      email: userRow.email,
-      role: userRow.role,
-      provider: 'taskade_genesis',
-      subject: subject,
-      issuedAt: Date.now(),
-    });
-
-    res.cookie(sessionCookieName, sessionToken, cookieOptions);
-
-    // Also issue a CSRF token so subsequent state-changing requests work
-    const csrfToken = crypto.randomBytes(32).toString('base64url');
-    res.cookie(csrfCookieName, csrfToken, csrfCookieOptions);
-
-    return res.json({
-      user: { id: userRow.id, email: userRow.email, role: userRow.role, plan: userRow.plan },
-      csrfToken: csrfToken,
-      requestId: req.requestId,
-    });
-  } catch (error) {
-    console.error(JSON.stringify({ event: 'oidc_exchange_failed', requestId: req.requestId, error: error?.message }));
-    return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Invalid or expired token.', requestId: req.requestId });
-  }
-});
-
-// ==================== ADMIN AUTHORIZATION MIDDLEWARE ====================
+// ==================== ADMIN AUTHORIZATION ====================
 const ADMIN_READ_ROLES = new Set(['developer', 'subscription_admin', 'support_admin']);
 const ADMIN_WRITE_ROLES = new Set(['developer', 'subscription_admin']);
 
@@ -447,18 +263,63 @@ async function writeAuditLog(entry) {
   }
 }
 
+// ==================== HEALTH ====================
+app.get('/api/health', (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  res.json({ status: 'OK', service: 'cryptoverse-api', requestId: req.requestId });
+});
+
+app.get('/api/db-test', async (req, res) => {
+  if (!pgPool) return res.status(503).json({ success: false, error: 'DATABASE_URL is not configured' });
+  try {
+    const client = await pgPool.connect();
+    const result = await client.query('SELECT version()');
+    client.release();
+    return res.json({ success: true, version: result.rows[0].version });
+  } catch (error) {
+    console.error(JSON.stringify({ event: 'db_test_failed', requestId: req.requestId, error: error?.message }));
+    return res.status(500).json({ success: false, error: 'Database connection failed' });
+  }
+});
+
+app.get('/api/db-tables', async (req, res) => {
+  if (!pgPool) return res.status(503).json({ success: false, error: 'DATABASE_URL is not configured' });
+  try {
+    const result = await pgPool.query(`
+      select table_name from information_schema.tables where table_schema = 'public' order by table_name
+    `);
+    return res.json({ success: true, tables: result.rows.map(r => r.table_name) });
+  } catch (error) {
+    console.error(JSON.stringify({ event: 'db_tables_failed', requestId: req.requestId, error: error?.message }));
+    return res.status(500).json({ success: false, error: 'Failed to fetch tables' });
+  }
+});
+
+app.get('/api/turso-test', async (req, res) => {
+  if (!tursoClient) return res.status(503).json({ success: false, error: 'Turso environment variables are not configured' });
+  try {
+    const result = await tursoClient.execute('SELECT sqlite_version() AS version');
+    return res.json({ success: true, version: result.rows[0].version });
+  } catch (error) {
+    console.error(JSON.stringify({ event: 'turso_test_failed', requestId: req.requestId, error: error?.message }));
+    return res.status(500).json({ success: false, error: 'Turso connection failed' });
+  }
+});
+
+// ==================== CURRENT USER ====================
+app.get('/api/me', authenticate, (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  res.json({ user: req.user, requestId: req.requestId });
+});
+
 // ==================== ADMIN SUBSCRIPTION ENDPOINTS ====================
 
-// List users (read-only)
 app.get('/api/admin/users', authenticate, requireAdminRead, async (req, res) => {
   try {
     const limit = Math.min(Number(req.query.limit) || 50, 100);
     const offset = Number(req.query.offset) || 0;
     const result = await pgPool.query(
-      `select id, email, role, plan, created_at
-       from public.users
-       order by created_at desc
-       limit $1 offset $2`,
+      `select id, email, role, plan, created_at from public.users order by created_at desc limit $1 offset $2`,
       [limit, offset]
     );
     const { rows: countRows } = await pgPool.query('select count(*)::int as total from public.users');
@@ -476,14 +337,12 @@ app.get('/api/admin/users', authenticate, requireAdminRead, async (req, res) => 
   }
 });
 
-// Grant subscription
 app.post('/api/admin/subscriptions/grant', authenticate, requireAdminWrite, async (req, res) => {
   const { target_user_id, plan_id, duration_days, note } = req.body || {};
   const idempotencyKey = req.get('Idempotency-Key');
   const ipAddress = req.ip;
   const userAgent = req.get('User-Agent');
 
-  // Validation
   if (!target_user_id || !plan_id) {
     return res.status(400).json({ error: 'VALIDATION_ERROR', message: 'target_user_id and plan_id required.', requestId: req.requestId });
   }
@@ -499,18 +358,14 @@ app.post('/api/admin/subscriptions/grant', authenticate, requireAdminWrite, asyn
   }
 
   try {
-    // Idempotency check
     const { rows: existing } = await pgPool.query(
-      `select id from public.subscription_audit_log
-       where idempotency_key = $1 and action = 'grant' and result = 'success'
-       limit 1`,
+      `select id from public.subscription_audit_log where idempotency_key = $1 and action = 'grant' and result = 'success' limit 1`,
       [idempotencyKey]
     );
     if (existing.length > 0) {
       return res.json({ success: true, duplicate: true, requestId: req.requestId });
     }
 
-    // Verify target user exists
     const { rows: targetRows } = await pgPool.query(
       'select id, email, role, plan from public.users where id = $1',
       [target_user_id]
@@ -521,17 +376,13 @@ app.post('/api/admin/subscriptions/grant', authenticate, requireAdminWrite, asyn
     const targetUser = targetRows[0];
     const beforeState = { plan: targetUser.plan };
 
-    // Check for existing active subscription
     const { rows: activeSubs } = await pgPool.query(
-      `select id, ends_at from public.subscriptions
-       where user_id = $1 and status = 'active' and ends_at > now()
-       order by ends_at desc limit 1`,
+      `select id, ends_at from public.subscriptions where user_id = $1 and status = 'active' and ends_at > now() order by ends_at desc limit 1`,
       [target_user_id]
     );
 
     let entitlementId;
     if (activeSubs.length > 0) {
-      // Extend existing
       const newEndsAt = new Date(new Date(activeSubs[0].ends_at).getTime() + days * 86400000);
       await pgPool.query(
         `update public.subscriptions set ends_at = $1, plan_id = $2, updated_at = now() where id = $3`,
@@ -539,21 +390,17 @@ app.post('/api/admin/subscriptions/grant', authenticate, requireAdminWrite, asyn
       );
       entitlementId = activeSubs[0].id;
     } else {
-      // Create new
       const endsAt = new Date(Date.now() + days * 86400000).toISOString();
       const { rows: inserted } = await pgPool.query(
         `insert into public.subscriptions (user_id, plan_id, status, starts_at, ends_at, granted_by)
-         values ($1, $2, 'active', now(), $3, $4)
-         returning id`,
+         values ($1, $2, 'active', now(), $3, $4) returning id`,
         [target_user_id, plan_id, endsAt, req.user.id]
       );
       entitlementId = inserted[0].id;
     }
 
-    // Update user's plan field
     await pgPool.query('update public.users set plan = $1, updated_at = now() where id = $2', [plan_id, target_user_id]);
 
-    // Audit log
     await writeAuditLog({
       actor_id: req.user.id,
       actor_email: req.user.email,
@@ -593,7 +440,6 @@ app.post('/api/admin/subscriptions/grant', authenticate, requireAdminWrite, asyn
   }
 });
 
-// Revoke subscription
 app.post('/api/admin/subscriptions/revoke', authenticate, requireAdminWrite, async (req, res) => {
   const { target_user_id, note } = req.body || {};
   const idempotencyKey = req.get('Idempotency-Key');
@@ -608,21 +454,16 @@ app.post('/api/admin/subscriptions/revoke', authenticate, requireAdminWrite, asy
   }
 
   try {
-    // Idempotency check
     const { rows: existing } = await pgPool.query(
-      `select id from public.subscription_audit_log
-       where idempotency_key = $1 and action = 'revoke' and result = 'success' limit 1`,
+      `select id from public.subscription_audit_log where idempotency_key = $1 and action = 'revoke' and result = 'success' limit 1`,
       [idempotencyKey]
     );
     if (existing.length > 0) {
       return res.json({ success: true, duplicate: true, requestId: req.requestId });
     }
 
-    // Find active subscription
     const { rows: activeSubs } = await pgPool.query(
-      `select id, plan_id, ends_at from public.subscriptions
-       where user_id = $1 and status = 'active' and ends_at > now()
-       order by ends_at desc limit 1`,
+      `select id, plan_id, ends_at from public.subscriptions where user_id = $1 and status = 'active' and ends_at > now() order by ends_at desc limit 1`,
       [target_user_id]
     );
     if (activeSubs.length === 0) {
@@ -661,16 +502,13 @@ app.post('/api/admin/subscriptions/revoke', authenticate, requireAdminWrite, asy
   }
 });
 
-// Audit log list
 app.get('/api/admin/subscriptions/audit', authenticate, requireAdminRead, async (req, res) => {
   try {
     const limit = Math.min(Number(req.query.limit) || 50, 200);
     const offset = Number(req.query.offset) || 0;
     const result = await pgPool.query(
       `select id, actor_id, actor_email, actor_role, target_user_id, plan_id, action, result, note, error, ip_address, created_at
-       from public.subscription_audit_log
-       order by created_at desc
-       limit $1 offset $2`,
+       from public.subscription_audit_log order by created_at desc limit $1 offset $2`,
       [limit, offset]
     );
     return res.json({ success: true, entries: result.rows, limit, offset, requestId: req.requestId });
@@ -680,7 +518,6 @@ app.get('/api/admin/subscriptions/audit', authenticate, requireAdminRead, async 
   }
 });
 
-// User's subscription status
 app.get('/api/admin/subscriptions/user/:userId', authenticate, requireAdminRead, async (req, res) => {
   try {
     const { userId } = req.params;
@@ -693,8 +530,7 @@ app.get('/api/admin/subscriptions/user/:userId', authenticate, requireAdminRead,
     }
     const { rows: subs } = await pgPool.query(
       `select id, plan_id, status, starts_at, ends_at, granted_by, created_at
-       from public.subscriptions where user_id = $1
-       order by created_at desc limit 20`,
+       from public.subscriptions where user_id = $1 order by created_at desc limit 20`,
       [userId]
     );
     return res.json({ success: true, user: userRows[0], subscriptions: subs, requestId: req.requestId });
@@ -704,86 +540,7 @@ app.get('/api/admin/subscriptions/user/:userId', authenticate, requireAdminRead,
   }
 });
 
-app.post('/api/auth/send-otp', async (req, res) => {
-  const email = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : '';
-  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
-    return res.status(400).json({ error: 'VALIDATION_ERROR', message: 'A valid email is required.', requestId: req.requestId });
-  }
-  try {
-    const { error } = await supabaseAuth.auth.signInWithOtp({ email });
-    if (error) throw error;
-    return res.status(202).json({ accepted: true, message: 'If the address is eligible, a verification code will be sent.', requestId: req.requestId });
-  } catch (error) {
-    console.error(JSON.stringify({ event: 'otp_send_failed', requestId: req.requestId, error: error?.message }));
-    return res.status(202).json({ accepted: true, message: 'If the address is eligible, a verification code will be sent.', requestId: req.requestId });
-  }
-});
-
-app.post('/api/auth/verify-otp', async (req, res) => {
-  const email = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : '';
-  const token = typeof req.body?.code === 'string' ? req.body.code.trim() : '';
-  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) || !/^\d{6}$/.test(token)) {
-    return res.status(400).json({ error: 'VALIDATION_ERROR', message: 'Invalid verification request.', requestId: req.requestId });
-  }
-  try {
-    // Try 'email' type first (the modern Supabase OTP type)
-    let { data, error } = await supabaseAuth.auth.verifyOtp({ email, token, type: 'email' });
-
-    // Fallback: some Supabase projects still use 'magiclink' for existing users
-    if (error || !data.session) {
-      const fallback = await supabaseAuth.auth.verifyOtp({ email, token, type: 'magiclink' });
-      data = fallback.data;
-      error = fallback.error;
-    }
-
-    if (error || !data.session) {
-      return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Invalid or expired verification code.', requestId: req.requestId });
-    }
-    res.cookie(sessionCookieName, data.session.access_token, cookieOptions);
-    res.cookie(refreshCookieName, data.session.refresh_token, refreshCookieOptions);
-    const csrfToken = crypto.randomBytes(32).toString('base64url');
-    res.cookie(csrfCookieName, csrfToken, csrfCookieOptions);
-    return res.json({ user: safeUser(data.user), requestId: req.requestId });
-  } catch (error) {
-    console.error(JSON.stringify({ event: 'otp_verify_failed', requestId: req.requestId, error: error?.message }));
-    return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Invalid or expired verification code.', requestId: req.requestId });
-  }
-});
-
-
-app.post('/api/auth/refresh', async (req, res) => {
-  const refreshToken = req.cookies[refreshCookieName];
-  if (!refreshToken) return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Authentication required.', requestId: req.requestId });
-  try {
-    const { data, error } = await supabaseAuth.auth.refreshSession({ refresh_token: refreshToken });
-    if (error || !data.session) throw error || new Error('No session');
-    res.cookie(sessionCookieName, data.session.access_token, cookieOptions);
-    res.cookie(refreshCookieName, data.session.refresh_token, refreshCookieOptions);
-    return res.json({ user: safeUser(data.user), requestId: req.requestId });
-  } catch (error) {
-    res.clearCookie(sessionCookieName, { ...cookieOptions, maxAge: undefined });
-    res.clearCookie(refreshCookieName, { ...refreshCookieOptions, maxAge: undefined });
-    return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Authentication required.', requestId: req.requestId });
-  }
-});
-
-app.get('/api/auth/me', authenticate, (req, res) => {
-  res.setHeader('Cache-Control', 'no-store');
-  res.json({ user: req.user, requestId: req.requestId });
-});
-
-app.post('/api/auth/logout', (req, res) => {
-  const token = req.cookies[sessionCookieName];
-  if (token && global.__cvSessions.has(token)) {
-    global.__cvSessions.delete(token);
-  }
-  res.clearCookie(sessionCookieName, { ...cookieOptions, maxAge: undefined });
-  res.clearCookie(refreshCookieName, { ...refreshCookieOptions, maxAge: undefined });
-  res.clearCookie(csrfCookieName, { ...csrfCookieOptions, maxAge: undefined });
-  res.status(204).end();
-});
-
-// ==================== PAYMENTS ====================
+// ==================== PAYMENTS (Supabase - unchanged) ====================
 function normalizeDecimal(value) {
   const text = String(value ?? '').trim();
   return /^\d+(?:\.\d+)?$/.test(text) ? text.replace(/\.?0+$/, '') : null;
@@ -879,10 +636,7 @@ app.get('/api/payments/catalog', async (req, res) => {
 
 app.get('/api/cp/balance', authenticate, async (req, res) => {
   try {
-    const { data, error } = await supabase
-      .from('cp_ledger')
-      .select('amount')
-      .eq('user_id', req.user.id);
+    const { data, error } = await supabase.from('cp_ledger').select('amount').eq('user_id', req.user.id);
     if (error) throw error;
     const balance = (data || []).reduce((total, entry) => total + Number(entry.amount || 0), 0);
     res.setHeader('Cache-Control', 'no-store');
@@ -1041,6 +795,13 @@ function sortObject(value) {
   }, {});
 }
 
+function timingSafeEqualText(left, right) {
+  if (!left || !right) return false;
+  const a = Buffer.from(left);
+  const b = Buffer.from(right);
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+
 function verifyNowPaymentsSignature(payload, signature) {
   const secret = process.env.NOWPAYMENTS_IPN_SECRET;
   if (!secret || !signature) return false;
@@ -1098,9 +859,7 @@ app.post('/api/webhooks/payment', async (req, res) => {
   }
 });
 
-// ==================== EXCHANGE ENDPOINTS ====================
-
-// 1. List connections (GET)
+// ==================== EXCHANGE ENDPOINTS (Supabase - unchanged) ====================
 app.get('/api/exchange/connections', authenticate, async (req, res) => {
   try {
     const { data, error } = await supabase
@@ -1108,7 +867,6 @@ app.get('/api/exchange/connections', authenticate, async (req, res) => {
       .select('id, exchange, label, status, masked_key, created_at, updated_at')
       .eq('user_id', req.user.id)
       .order('created_at', { ascending: false });
-    
     if (error) throw error;
     res.json({ success: true, connections: data || [], requestId: req.requestId });
   } catch (error) {
@@ -1117,14 +875,11 @@ app.get('/api/exchange/connections', authenticate, async (req, res) => {
   }
 });
 
-// 2. Connect exchange (POST)
 app.post('/api/exchange/connect', authenticate, async (req, res) => {
   const { exchange, apiKey, apiSecret, label, isDemo = false } = req.body;
-  
   if (!exchange || typeof exchange !== 'string' || exchange.trim().length < 2) {
     return res.status(400).json({ error: 'VALIDATION_ERROR', message: 'Valid exchange is required.', requestId: req.requestId });
   }
-  
   if (!isDemo) {
     if (!apiKey || typeof apiKey !== 'string' || apiKey.trim().length < 8) {
       return res.status(400).json({ error: 'VALIDATION_ERROR', message: 'Valid API key is required for live connections.', requestId: req.requestId });
@@ -1133,15 +888,12 @@ app.post('/api/exchange/connect', authenticate, async (req, res) => {
       return res.status(400).json({ error: 'VALIDATION_ERROR', message: 'Valid API secret is required for live connections.', requestId: req.requestId });
     }
   }
-  
   const allowedExchanges = ['binance', 'coinbase', 'kraken', 'bybit', 'okx', 'gateio', 'kucoin'];
   if (!allowedExchanges.includes(exchange.trim().toLowerCase())) {
     return res.status(400).json({ error: 'VALIDATION_ERROR', message: 'Unsupported exchange.', requestId: req.requestId });
   }
-  
   try {
     const maskedKey = isDemo ? 'demo' : `${apiKey.slice(0, 4)}...${apiKey.slice(-4)}`;
-    
     const { data, error } = await supabase
       .from('exchange_connections')
       .insert({
@@ -1158,7 +910,6 @@ app.post('/api/exchange/connect', authenticate, async (req, res) => {
       })
       .select()
       .single();
-    
     if (error) throw error;
     res.json({ success: true, connection: data, requestId: req.requestId });
   } catch (error) {
@@ -1167,17 +918,14 @@ app.post('/api/exchange/connect', authenticate, async (req, res) => {
   }
 });
 
-// 3. Disconnect (DELETE)
 app.delete('/api/exchange/connections/:id', authenticate, async (req, res) => {
   const { id } = req.params;
-  
   try {
     const { error } = await supabase
       .from('exchange_connections')
       .delete()
       .eq('id', id)
       .eq('user_id', req.user.id);
-    
     if (error) throw error;
     res.json({ success: true, requestId: req.requestId });
   } catch (error) {
@@ -1186,10 +934,8 @@ app.delete('/api/exchange/connections/:id', authenticate, async (req, res) => {
   }
 });
 
-// 4. Get balance (GET)
 app.get('/api/exchange/balance/:id', authenticate, async (req, res) => {
   const { id } = req.params;
-  
   try {
     const { data: connection, error: connError } = await supabase
       .from('exchange_connections')
@@ -1197,11 +943,9 @@ app.get('/api/exchange/balance/:id', authenticate, async (req, res) => {
       .eq('id', id)
       .eq('user_id', req.user.id)
       .single();
-    
     if (connError || !connection) {
       return res.status(404).json({ error: 'NOT_FOUND', message: 'Connection not found.', requestId: req.requestId });
     }
-    
     if (connection.is_demo) {
       return res.json({
         success: true,
@@ -1216,7 +960,6 @@ app.get('/api/exchange/balance/:id', authenticate, async (req, res) => {
         requestId: req.requestId
       });
     }
-    
     res.json({
       success: true,
       connectionId: id,
@@ -1232,10 +975,8 @@ app.get('/api/exchange/balance/:id', authenticate, async (req, res) => {
   }
 });
 
-// 5. Sync portfolio (POST)
 app.post('/api/exchange/sync/:id', authenticate, async (req, res) => {
   const { id } = req.params;
-  
   try {
     const { data: connection, error: connError } = await supabase
       .from('exchange_connections')
@@ -1243,44 +984,27 @@ app.post('/api/exchange/sync/:id', authenticate, async (req, res) => {
       .eq('id', id)
       .eq('user_id', req.user.id)
       .single();
-    
     if (connError || !connection) {
       return res.status(404).json({ error: 'NOT_FOUND', message: 'Connection not found.', requestId: req.requestId });
     }
-    
     if (connection.is_demo) {
-      return res.json({
-        success: true,
-        syncedAt: new Date().toISOString(),
-        requestId: req.requestId,
-        message: 'Demo sync completed'
-      });
+      return res.json({ success: true, syncedAt: new Date().toISOString(), requestId: req.requestId, message: 'Demo sync completed' });
     }
-    
-    res.json({
-      success: true,
-      syncedAt: new Date().toISOString(),
-      requestId: req.requestId,
-      message: 'Sync initiated (live implementation pending)'
-    });
+    res.json({ success: true, syncedAt: new Date().toISOString(), requestId: req.requestId, message: 'Sync initiated (live implementation pending)' });
   } catch (error) {
     console.error(JSON.stringify({ event: 'exchange_sync_failed', requestId: req.requestId, error: error?.message }));
     res.status(500).json({ error: 'SERVER_ERROR', message: 'Failed to sync.', requestId: req.requestId });
   }
 });
 
-// 6. Execute order (POST)
 app.post('/api/exchange/order', authenticate, async (req, res) => {
   const { connectionId, symbol, side, quantity, orderType = 'market', price } = req.body;
-  
   if (!connectionId || !symbol || !side || !quantity) {
     return res.status(400).json({ error: 'VALIDATION_ERROR', message: 'Missing required fields: connectionId, symbol, side, quantity.', requestId: req.requestId });
   }
-  
   if (!['buy', 'sell'].includes(side.toLowerCase())) {
     return res.status(400).json({ error: 'VALIDATION_ERROR', message: 'Side must be buy or sell.', requestId: req.requestId });
   }
-  
   try {
     const { data: connection, error: connError } = await supabase
       .from('exchange_connections')
@@ -1288,11 +1012,9 @@ app.post('/api/exchange/order', authenticate, async (req, res) => {
       .eq('id', connectionId)
       .eq('user_id', req.user.id)
       .single();
-    
     if (connError || !connection) {
       return res.status(404).json({ error: 'NOT_FOUND', message: 'Connection not found.', requestId: req.requestId });
     }
-    
     if (connection.is_demo) {
       return res.json({
         success: true,
@@ -1307,45 +1029,32 @@ app.post('/api/exchange/order', authenticate, async (req, res) => {
         message: 'Demo order executed'
       });
     }
-    
-    res.status(501).json({
-      error: 'NOT_IMPLEMENTED',
-      message: 'Live order execution not yet implemented.',
-      requestId: req.requestId
-    });
+    res.status(501).json({ error: 'NOT_IMPLEMENTED', message: 'Live order execution not yet implemented.', requestId: req.requestId });
   } catch (error) {
     console.error(JSON.stringify({ event: 'exchange_order_failed', requestId: req.requestId, error: error?.message }));
     res.status(500).json({ error: 'SERVER_ERROR', message: 'Failed to execute order.', requestId: req.requestId });
   }
 });
 
-// ==================== DAILY TRADE LIMIT ====================
-
-// 1. Get daily trade limit (GET)
+// ==================== DAILY TRADE LIMIT (Supabase - unchanged) ====================
 app.get('/api/trading/daily-limit', authenticate, async (req, res) => {
   try {
     const userId = req.user.id;
     const today = new Date().toISOString().split('T')[0];
-    
     const { data, error } = await supabase
       .from('daily_trade_limits')
       .select('trades_used, max_trades')
       .eq('user_id', userId)
       .eq('trade_date', today)
       .maybeSingle();
-    
     if (error) throw error;
-    
     let tradesUsed = 0;
     let maxTrades = 10;
-    
     if (data) {
       tradesUsed = data.trades_used;
       maxTrades = data.max_trades;
     }
-    
     const remaining = Math.max(0, maxTrades - tradesUsed);
-    
     res.json({
       success: true,
       limit: maxTrades,
@@ -1360,29 +1069,23 @@ app.get('/api/trading/daily-limit', authenticate, async (req, res) => {
   }
 });
 
-// 2. Consume a trade (POST)
 app.post('/api/trading/daily-limit/consume', authenticate, async (req, res) => {
   try {
     const userId = req.user.id;
     const today = new Date().toISOString().split('T')[0];
-    
     const { data: current, error: fetchError } = await supabase
       .from('daily_trade_limits')
       .select('trades_used, max_trades')
       .eq('user_id', userId)
       .eq('trade_date', today)
       .maybeSingle();
-    
     if (fetchError) throw fetchError;
-    
     let tradesUsed = 0;
     let maxTrades = 10;
-    
     if (current) {
       tradesUsed = current.trades_used;
       maxTrades = current.max_trades;
     }
-    
     if (tradesUsed >= maxTrades) {
       return res.status(429).json({
         error: 'LIMIT_REACHED',
@@ -1394,9 +1097,7 @@ app.post('/api/trading/daily-limit/consume', authenticate, async (req, res) => {
         requestId: req.requestId
       });
     }
-    
     const newTradesUsed = tradesUsed + 1;
-    
     const { data, error } = await supabase
       .from('daily_trade_limits')
       .upsert({
@@ -1408,9 +1109,7 @@ app.post('/api/trading/daily-limit/consume', authenticate, async (req, res) => {
       })
       .select()
       .single();
-    
     if (error) throw error;
-    
     res.json({
       success: true,
       limit: maxTrades,
@@ -1426,57 +1125,32 @@ app.post('/api/trading/daily-limit/consume', authenticate, async (req, res) => {
 });
 
 // ==================== MARKET DATA PROXY ====================
-
 app.get('/api/market/coingecko/*', async (req, res) => {
   const path = req.params[0] || '';
   const queryString = new URLSearchParams(req.query).toString();
   const url = `https://api.coingecko.com/api/v3/${path}${queryString ? `?${queryString}` : ''}`;
-
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 10000);
-
     const response = await fetch(url, {
       signal: controller.signal,
-      headers: {
-        'Accept': 'application/json',
-        'User-Agent': 'CryptoVerseHQ/1.0',
-      },
+      headers: { 'Accept': 'application/json', 'User-Agent': 'CryptoVerseHQ/1.0' },
     });
-
     clearTimeout(timeout);
-
     const data = await response.json();
-
     if (response.headers.get('x-ratelimit-remaining')) {
       res.setHeader('X-RateLimit-Remaining', response.headers.get('x-ratelimit-remaining'));
     }
     if (response.headers.get('x-ratelimit-reset')) {
       res.setHeader('X-RateLimit-Reset', response.headers.get('x-ratelimit-reset'));
     }
-
     res.status(response.status).json(data);
   } catch (error) {
-    console.error(JSON.stringify({
-      event: 'coingecko_proxy_failed',
-      path,
-      error: error?.message,
-      requestId: req.requestId,
-    }));
-
+    console.error(JSON.stringify({ event: 'coingecko_proxy_failed', path, error: error?.message, requestId: req.requestId }));
     if (error.name === 'AbortError') {
-      return res.status(504).json({
-        error: 'TIMEOUT',
-        message: 'CoinGecko request timed out',
-        requestId: req.requestId,
-      });
+      return res.status(504).json({ error: 'TIMEOUT', message: 'CoinGecko request timed out', requestId: req.requestId });
     }
-
-    res.status(502).json({
-      error: 'PROXY_ERROR',
-      message: 'Failed to fetch from CoinGecko',
-      requestId: req.requestId,
-    });
+    res.status(502).json({ error: 'PROXY_ERROR', message: 'Failed to fetch from CoinGecko', requestId: req.requestId });
   }
 });
 
