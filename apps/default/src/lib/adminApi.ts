@@ -1,28 +1,23 @@
 /**
- * adminApi.ts — shared admin API client + admin-role hook.
+ * adminApi.ts — admin API client (Better Auth + Resend).
  *
- * Talks to the Render backend (backed by Neon) using the HttpOnly Supabase
- * session cookie. There is NO Personal Access Token and NO OIDC token in the
- * browser: the admin session is established by the admin OTP flow
- * (POST /api/auth/send-otp → POST /api/auth/verify-otp) and travels only as a
- * cookie. Every authorization decision is made server-side.
+ * Endpoints:
+ *   POST /api/auth/email-otp/send-verification-otp  { email, type: 'sign-in' }
+ *   POST /api/auth/sign-in/email-otp                { email, otp }
+ *   GET  /api/me                                    → { user: { role, email } }
+ *   POST /api/auth/sign-out
  *
- * Shared by the admin login page, the admin route guard, the portal layout and
- * the subscription page so they all use one transport.
+ * The session lives in a Better Auth HttpOnly cookie: no token is stored in the
+ * browser and no CSRF header is generated. Every call sends credentials.
  */
 import { useEffect, useState } from 'react';
 
-/**
- * Render API base. Mirrors the convention already used by nowPaymentsClient.ts
- * (`VITE_API_BASE_URL`); `VITE_API_URL` is accepted as a second override.
- */
 export const RENDER_API_BASE = (
   (import.meta.env.VITE_API_BASE_URL as string | undefined) ||
   (import.meta.env.VITE_API_URL as string | undefined) ||
   'https://cryptoversehq-os.onrender.com'
 ).replace(/\/$/, '');
 
-/** Thrown when the server answers 401/403 — i.e. "not an authorized admin". */
 export class ApiForbiddenError extends Error {
   constructor(message = 'Forbidden') {
     super(message);
@@ -30,26 +25,24 @@ export class ApiForbiddenError extends Error {
   }
 }
 
-/** How long to wait for a response before giving up (a cold Render instance). */
+// ── Low-level transport ───────────────────────────────────────────────────────
+
+/** Abort a request that never answers (e.g. a sleeping Render instance). */
 const REQUEST_TIMEOUT_MS = 30_000;
 
-/**
- * fetch() with an abort timeout, mapping network/abort failures to a clear,
- * actionable message (instead of a raw "Failed to fetch").
- */
-async function fetchWithTimeout(
-  url: string,
-  init: RequestInit,
-  timeoutMs = REQUEST_TIMEOUT_MS,
-): Promise<Response> {
+async function request(path: string, init: RequestInit = {}): Promise<Response> {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   try {
-    return await fetch(url, { ...init, signal: controller.signal });
+    return await fetch(`${RENDER_API_BASE}${path}`, {
+      credentials: 'include',
+      ...init,
+      signal: controller.signal,
+    });
   } catch (err) {
     if ((err as { name?: string })?.name === 'AbortError') {
       throw new Error(
-        `The API did not respond within ${Math.round(timeoutMs / 1000)}s. ` +
+        `The API did not respond within ${Math.round(REQUEST_TIMEOUT_MS / 1000)}s. ` +
         `It is probably starting up — please try again in a moment.`,
       );
     }
@@ -62,19 +55,27 @@ async function fetchWithTimeout(
   }
 }
 
+/** Read `{ message }` / `{ error }` from a non-OK response. */
+async function readError(res: Response, fallback: string): Promise<Error> {
+  const body = (await res.json().catch(() => null)) as { message?: string; error?: string } | null;
+  return new Error(body?.message || body?.error || fallback);
+}
+
 /**
- * Parse a JSON body, but FAIL LOUDLY when the body is NOT JSON.
- *
- * A waking Render instance (or any proxy) can answer 2xx with an HTML page.
- * Silently treating that as `{}` previously made the OTP screen advance even
- * though the request had never reached the application and no email was sent.
+ * Parse a JSON body, failing loudly on an empty or non-JSON body. A waking Render
+ * instance can answer 2xx with an HTML page — silently treating that as success
+ * previously advanced the OTP screen although no email had been requested.
  */
-async function readJson(res: Response, path: string): Promise<Record<string, unknown>> {
+async function readJson<T>(res: Response, path: string): Promise<T> {
   const raw = await res.text().catch(() => '');
-  if (!raw.trim()) return {};
+  if (!raw.trim()) {
+    throw new Error(
+      `Empty response from ${path} (HTTP ${res.status}). ` +
+      `The API may still be starting up — please retry in a moment.`,
+    );
+  }
   try {
-    const parsed = JSON.parse(raw);
-    return parsed && typeof parsed === 'object' ? (parsed as Record<string, unknown>) : { data: parsed };
+    return JSON.parse(raw) as T;
   } catch {
     throw new Error(
       `Unexpected non-JSON response from ${path} (HTTP ${res.status}). ` +
@@ -83,151 +84,128 @@ async function readJson(res: Response, path: string): Promise<Record<string, unk
   }
 }
 
-/** Read `{ message }` / `{ error }` from an error response, else the fallback. */
-async function readErrorText(res: Response, fallback: string): Promise<string> {
-  const raw = await res.text().catch(() => '');
-  if (!raw.trim()) return fallback;
-  try {
-    const parsed = JSON.parse(raw) as { message?: string; error?: string };
-    return parsed?.message || parsed?.error || fallback;
-  } catch {
-    return fallback;
-  }
-}
+// ── Auth (Better Auth email OTP) ──────────────────────────────────────────────
 
-/** Fetch a CSRF token bound to the current cookie session. */
-export async function getCsrfToken(): Promise<string> {
-  const res = await fetchWithTimeout(`${RENDER_API_BASE}/api/auth/csrf`, {
-    method: 'GET',
-    credentials: 'include',
-    headers: { Accept: 'application/json' },
-  });
-  if (!res.ok) throw new Error(`CSRF fetch failed (${res.status}).`);
-  const body = await readJson(res, '/api/auth/csrf') as { csrfToken?: unknown };
-  if (typeof body.csrfToken !== 'string' || body.csrfToken.length < 16) {
-    throw new Error('CSRF token missing or malformed.');
-  }
-  return body.csrfToken;
-}
-
-/** Authenticated GET (cookie session). 401/403 → ApiForbiddenError. */
-export async function apiGet(path: string): Promise<unknown> {
-  const res = await fetchWithTimeout(`${RENDER_API_BASE}${path}`, {
-    method: 'GET',
-    credentials: 'include',
-    headers: { Accept: 'application/json' },
-  });
-  if (res.status === 401 || res.status === 403) throw new ApiForbiddenError();
-  if (!res.ok) throw new Error(await readErrorText(res, `Request failed (${res.status}).`));
-  return readJson(res, path);
-}
-
-/** Authenticated state-changing POST: cookie session + CSRF + Idempotency-Key. */
-export async function apiPost(
-  path: string,
-  payload: Record<string, unknown>,
-  idempotencyKey: string,
-): Promise<unknown> {
-  const csrfToken = await getCsrfToken();
-  const res = await fetchWithTimeout(`${RENDER_API_BASE}${path}`, {
+/** Send a one-time code to the email. */
+export async function sendOtp(email: string): Promise<{ success?: boolean }> {
+  const res = await request('/api/auth/email-otp/send-verification-otp', {
     method: 'POST',
-    credentials: 'include',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-CSRF-Token': csrfToken,
-      'Idempotency-Key': idempotencyKey,
-    },
-    body: JSON.stringify(payload),
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify({ email, type: 'sign-in' }),
   });
-  if (res.status === 401 || res.status === 403) throw new ApiForbiddenError();
-  if (!res.ok) throw new Error(await readErrorText(res, `Request failed (${res.status}).`));
-  return readJson(res, path);
+  if (!res.ok) throw await readError(res, 'Failed to send code.');
+  return readJson<{ success?: boolean }>(res, '/api/auth/email-otp/send-verification-otp');
 }
 
 /**
- * Pre-authentication POST used by the OTP flow (send-otp / verify-otp).
- * The Backend runs csrfProtection on ALL POSTs (these are not exempt), so a CSRF
- * token is sent. If /api/auth/csrf is momentarily unavailable we still attempt
- * the call rather than failing the login outright.
+ * Verify the code and sign in. On success Better Auth sets the session cookie.
+ *
+ * NOTE: the response may include a session `token`. It is deliberately stripped
+ * before returning — the HttpOnly cookie is the session and nothing token-like
+ * should be able to reach browser storage.
  */
-export async function apiPostPublic(path: string, payload: Record<string, unknown>): Promise<unknown> {
-  let csrfToken: string | null = null;
-  try { csrfToken = await getCsrfToken(); } catch { csrfToken = null; }
-
-  const res = await fetchWithTimeout(`${RENDER_API_BASE}${path}`, {
+export async function verifyOtp(email: string, otp: string): Promise<{ user?: unknown }> {
+  const res = await request('/api/auth/sign-in/email-otp', {
     method: 'POST',
-    credentials: 'include',
-    headers: {
-      'Content-Type': 'application/json',
-      Accept: 'application/json',
-      ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {}),
-    },
-    body: JSON.stringify(payload),
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify({ email, otp }),
   });
-  if (res.status === 401 || res.status === 403) {
-    // Distinguish a genuine "not allowed" from a missing CSRF token, which the
-    // Backend's csrfProtection middleware would also reject with 403.
-    if (!csrfToken) {
-      throw new Error('The request was rejected because no CSRF token was available. Please reload the page and try again.');
-    }
-    throw new ApiForbiddenError();
-  }
-  if (!res.ok) throw new Error(await readErrorText(res, `Request failed (${res.status}).`));
-  return readJson(res, path);
+  if (!res.ok) throw await readError(res, 'Invalid or expired code.');
+  const data = await readJson<{ user?: unknown; token?: unknown }>(res, '/api/auth/sign-in/email-otp');
+  return { user: data?.user };
 }
 
-/**
- * Clear the server (Supabase) session cookie. Best-effort — a network failure
- * must never block the local sign-out.
- */
+/** Sign out (clears the Better Auth cookie). Best-effort. */
 export async function logoutAdminSession(): Promise<void> {
   try {
-    const csrfToken = await getCsrfToken();
-    await fetchWithTimeout(`${RENDER_API_BASE}/api/auth/logout`, {
-      method: 'POST',
-      credentials: 'include',
-      headers: { 'X-CSRF-Token': csrfToken },
-    });
+    await request('/api/auth/sign-out', { method: 'POST' });
   } catch { /* silent fail is fine on logout */ }
 }
 
-// ── Admin role (from GET /api/auth/me) ────────────────────────────────────────
-export type AdminRole = 'developer' | 'subscription_admin' | 'support_admin' | 'user' | string;
+// ── Role / identity ───────────────────────────────────────────────────────────
 
-let _roleCache: AdminRole | null = null;
-let _roleRequest: Promise<AdminRole | null> | null = null;
-
-function extractRole(data: unknown): AdminRole | null {
-  if (!data || typeof data !== 'object') return null;
-  const o = data as { user?: { role?: string }; role?: string };
-  return o.user?.role ?? o.role ?? null;
+export interface AdminIdentity {
+  role: string;
+  email: string;
 }
 
-/** Fetch the current admin role from /api/auth/me (cached for the session). */
-export async function fetchAdminRole(): Promise<AdminRole | null> {
-  if (_roleCache) return _roleCache;
-  if (_roleRequest) return _roleRequest;
-  _roleRequest = apiGet('/api/auth/me')
-    .then(data => { _roleCache = extractRole(data); return _roleCache; })
+/** Roles permitted anywhere in the admin portal. */
+export const ALLOWED_ADMIN_ROLES = ['developer', 'subscription_admin', 'support_admin'] as const;
+
+/** True when the role may use the admin portal at all. */
+export function isAdminRole(role: string | null | undefined): boolean {
+  return !!role && (ALLOWED_ADMIN_ROLES as readonly string[]).includes(role);
+}
+
+/** Current user's role + email from GET /api/me. */
+export async function fetchAdminRole(): Promise<AdminIdentity> {
+  const res = await request('/api/me', { headers: { Accept: 'application/json' } });
+  if (res.status === 401 || res.status === 403) throw new ApiForbiddenError();
+  if (!res.ok) throw await readError(res, `Failed: ${res.status}`);
+  const data = await readJson<{ user?: { role?: string; email?: string } | null }>(res, '/api/me');
+  // Tolerate a missing user object: an empty role is not an admin role, so the
+  // caller denies rather than crashing on `data.user.role`.
+  return { role: data?.user?.role ?? '', email: data?.user?.email ?? '' };
+}
+
+let _identityLoaded = false;
+let _identity: AdminIdentity | null = null;
+let _identityRequest: Promise<AdminIdentity | null> | null = null;
+
+function loadIdentity(): Promise<AdminIdentity | null> {
+  if (_identityLoaded) return Promise.resolve(_identity);
+  if (_identityRequest) return _identityRequest;
+  _identityRequest = fetchAdminRole()
+    .then(identity => { _identity = identity; return _identity; })
     .catch(() => null)
-    .finally(() => { _roleRequest = null; });
-  return _roleRequest;
+    .then(value => { _identityLoaded = true; _identityRequest = null; return value; });
+  return _identityRequest;
 }
 
-/** Clear the cached role (call on sign-out). */
-export function clearAdminRoleCache(): void {
-  _roleCache = null;
-  _roleRequest = null;
+/** Clear the cached identity (call on sign-out). */
+export function clearAdminSessionCache(): void {
+  _identityLoaded = false;
+  _identity = null;
+  _identityRequest = null;
 }
 
-/** React hook: the admin role from /api/auth/me ('developer' | … | null). */
-export function useAdminRole(): AdminRole | null {
-  const [role, setRole] = useState<AdminRole | null>(_roleCache);
+/**
+ * React hook over fetchAdminRole(), memoized so the layout and the page share a
+ * single GET /api/me per session. Returns null while unknown / not signed in.
+ */
+export function useAdminIdentity(): AdminIdentity | null {
+  const [identity, setIdentity] = useState<AdminIdentity | null>(_identityLoaded ? _identity : null);
   useEffect(() => {
-    if (_roleCache) { setRole(_roleCache); return; }
+    if (_identityLoaded) { setIdentity(_identity); return; }
     let canceled = false;
-    void fetchAdminRole().then(r => { if (!canceled) setRole(r); });
+    void loadIdentity().then(value => { if (!canceled) setIdentity(value); });
     return () => { canceled = true; };
   }, []);
-  return role;
+  return identity;
+}
+
+// ── Admin APIs ────────────────────────────────────────────────────────────────
+
+/** Authenticated GET (cookie session). 401/403 → ApiForbiddenError. */
+export async function apiGet<T>(path: string): Promise<T> {
+  const res = await request(path, { headers: { Accept: 'application/json' } });
+  if (res.status === 401 || res.status === 403) throw new ApiForbiddenError();
+  if (!res.ok) throw await readError(res, `Failed: ${res.status}`);
+  return readJson<T>(res, path);
+}
+
+/** Authenticated POST (cookie session). 401/403 → ApiForbiddenError. */
+export async function apiPost<T>(
+  path: string,
+  body: unknown,
+  extraHeaders: Record<string, string> = {},
+): Promise<T> {
+  const res = await request(path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json', ...extraHeaders },
+    body: JSON.stringify(body),
+  });
+  if (res.status === 401 || res.status === 403) throw new ApiForbiddenError();
+  if (!res.ok) throw await readError(res, `Failed: ${res.status}`);
+  return readJson<T>(res, path);
 }

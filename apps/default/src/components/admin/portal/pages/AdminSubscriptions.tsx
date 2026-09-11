@@ -4,13 +4,14 @@
  * SERVER-AUTHORITATIVE subscription management.
  *
  * Users, grant/revoke, per-user subscriptions and the audit trail come from the
- * Render API (backed by Neon) with the response shapes below. Authorization is
- * decided by the server: a 401/403 from any endpoint is rendered as a Forbidden
- * panel — there is no client-side role check acting as a security boundary.
+ * Render API (backed by Neon). Authorization is decided by the server: a 401/403
+ * from any endpoint renders a Forbidden panel — no client-side role check acts as
+ * a security boundary. The admin role (for read-only mode) comes from
+ * /api/auth/get-session via `useAdminRole()`.
  *
  * `support_admin` is read-only here (no grant/revoke forms); the server enforces
  * that too. No token is stored in the browser — the session is the HttpOnly
- * Supabase cookie.
+ * Better Auth cookie.
  */
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
@@ -20,7 +21,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
-import { ApiForbiddenError, apiGet, apiPost, useAdminRole } from '@/lib/adminApi';
+import { ApiForbiddenError, apiGet, apiPost, useAdminIdentity } from '@/lib/adminApi';
 
 // ── Exact API response shapes (contract with the Render backend) ──────────────
 
@@ -57,38 +58,38 @@ export interface AuditEntry {
   created_at: string;
 }
 
-interface UsersResponse       { success: boolean; users: ApiAdminUser[];      total: number; limit: number; offset: number; requestId: string; }
-interface AuditResponse       { success: boolean; entries: AuditEntry[];      limit: number; offset: number; requestId: string; }
-interface UserSubsResponse    { success: boolean; user: ApiAdminUser; subscriptions: UserSubscription[]; requestId: string; }
-interface GrantResponse       { success: boolean; entitlement_id: string; target_user_id: string; plan_id: string; duration_days: number; requestId: string; }
-interface RevokeResponse      { success: boolean; target_user_id: string; previous_plan: string; requestId: string; }
+interface UsersResponse    { success: boolean; users: ApiAdminUser[]; total: number; limit: number; offset: number; requestId: string; }
+interface AuditResponse    { success: boolean; entries: AuditEntry[]; limit: number; offset: number; requestId: string; }
+interface UserSubsResponse { success: boolean; user: ApiAdminUser; subscriptions: UserSubscription[]; requestId: string; }
+interface GrantResponse    { success: boolean; entitlement_id: string; target_user_id: string; plan_id: string; duration_days: number; requestId: string; }
+interface RevokeResponse   { success: boolean; target_user_id: string; previous_plan: string; requestId: string; }
 
 async function fetchUsers(limit = 100, offset = 0): Promise<UsersResponse> {
-  return await apiGet(`/api/admin/users?limit=${limit}&offset=${offset}`) as UsersResponse;
+  return apiGet<UsersResponse>(`/api/admin/users?limit=${limit}&offset=${offset}`);
 }
 
 async function fetchAuditLog(limit = 50, offset = 0): Promise<AuditResponse> {
-  return await apiGet(`/api/admin/subscriptions/audit?limit=${limit}&offset=${offset}`) as AuditResponse;
+  return apiGet<AuditResponse>(`/api/admin/subscriptions/audit?limit=${limit}&offset=${offset}`);
 }
 
 async function fetchUserSubscriptions(userId: string): Promise<UserSubsResponse> {
-  return await apiGet(`/api/admin/subscriptions/user/${encodeURIComponent(userId)}`) as UserSubsResponse;
+  return apiGet<UserSubsResponse>(`/api/admin/subscriptions/user/${encodeURIComponent(userId)}`);
 }
 
 async function grantSubscription(targetUserId: string, planId: PlanId, durationDays: number, note?: string): Promise<GrantResponse> {
-  return await apiPost('/api/admin/subscriptions/grant', {
-    target_user_id: targetUserId,
-    plan_id: planId,
-    duration_days: durationDays,
-    note,
-  }, `grant-${targetUserId}-${Date.now()}-${Math.random().toString(36).slice(2)}`) as GrantResponse;
+  return apiPost<GrantResponse>(
+    '/api/admin/subscriptions/grant',
+    { target_user_id: targetUserId, plan_id: planId, duration_days: durationDays, note },
+    { 'Idempotency-Key': `grant-${targetUserId}-${Date.now()}-${Math.random().toString(36).slice(2)}` },
+  );
 }
 
 async function revokeSubscription(targetUserId: string, note?: string): Promise<RevokeResponse> {
-  return await apiPost('/api/admin/subscriptions/revoke', {
-    target_user_id: targetUserId,
-    note,
-  }, `revoke-${targetUserId}-${Date.now()}-${Math.random().toString(36).slice(2)}`) as RevokeResponse;
+  return apiPost<RevokeResponse>(
+    '/api/admin/subscriptions/revoke',
+    { target_user_id: targetUserId, note },
+    { 'Idempotency-Key': `revoke-${targetUserId}-${Date.now()}-${Math.random().toString(36).slice(2)}` },
+  );
 }
 
 // ── UI constants ──────────────────────────────────────────────────────────────
@@ -132,8 +133,8 @@ function Forbidden403() {
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 export function AdminSubscriptions() {
-  const adminRole = useAdminRole();
-  const readOnly  = adminRole === 'support_admin';
+  const identity  = useAdminIdentity();
+  const readOnly  = identity?.role === 'support_admin';
 
   const [users, setUsers]         = useState<ApiAdminUser[]>([]);
   const [audit, setAudit]         = useState<AuditEntry[]>([]);

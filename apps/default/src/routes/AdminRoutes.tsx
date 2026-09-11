@@ -34,7 +34,7 @@ import { AdminAnalytics } from '../pages/admin/AdminAnalytics';
 import { useAdminAuthStore } from '../lib/adminAuthStore';
 import { useAuthStore } from '../lib/authStore';
 import { hasAccess, type AdminSectionId } from '../lib/adminPortalStore';
-import { ApiForbiddenError, apiGet } from '../lib/adminApi';
+import { ApiForbiddenError, fetchAdminRole, isAdminRole } from '../lib/adminApi';
 
 export function Forbidden403() {
   return (
@@ -82,9 +82,10 @@ function AdminGateMessage({ title, spinner }: { title: string; spinner?: boolean
  * Server-side gate for the whole admin portal (Phase 1).
  *
  * Authorization is NOT read from the browser. On mount we ask the server:
- *   1. GET /api/auth/me            → 200 means a valid Supabase session cookie
- *   2. GET /api/admin/users?limit=1 → 200 means the caller has admin rights
- * A 401/403 (ApiForbiddenError) on either call redirects to /admin/login.
+ *   1. GET /api/me → the current user's role (developer / subscription_admin /
+ *      support_admin)
+ * A 401/403 (ApiForbiddenError), or a missing / insufficient role, redirects to
+ * /admin/login.
  * Any other error (network / 5xx) is shown rather than silently locking out.
  */
 function ServerAdminGuard({ children }: { children: React.ReactElement }) {
@@ -95,8 +96,11 @@ function ServerAdminGuard({ children }: { children: React.ReactElement }) {
     let canceled = false;
     (async () => {
       try {
-        await apiGet('/api/auth/me');
-        await apiGet('/api/admin/users?limit=1&offset=0');
+        const admin = await fetchAdminRole();
+        if (!isAdminRole(admin.role)) {
+          if (!canceled) setState('denied');
+          return;
+        }
         if (!canceled) setState('ok');
       } catch (err) {
         if (canceled) return;

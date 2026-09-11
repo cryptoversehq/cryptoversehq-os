@@ -16,7 +16,7 @@ import { type AdminSectionId } from '@/lib/adminPortalStore';
 import { CryptoVerseLogo } from '@/components/CryptoVerseLogo';
 import { AdminLynxButton } from '@/components/admin/AdminLynxButton';
 import { destroySession } from '@/lib/security/sessionManager';
-import { useAdminRole, logoutAdminSession, clearAdminRoleCache } from '@/lib/adminApi';
+import { useAdminIdentity, logoutAdminSession, clearAdminSessionCache } from '@/lib/adminApi';
 
 // ── Role-based nav config ─────────────────────────────────────────────────────
 interface NavItem {
@@ -190,16 +190,17 @@ export function AdminPortalLayout() {
   const location                  = useLocation();
   const [sidebarOpen, setSidebar] = useState(false);
 
-  // Authorization: the admin role now comes from the SERVER (GET /api/auth/me).
+  // Authorization: the admin role comes from the SERVER (GET /api/me).
   // ServerAdminGuard has already verified the session + role; this value only
   // shapes the UI (which nav items are shown, read-only mode).
-  const adminRole = useAdminRole();
+  const identity  = useAdminIdentity();
+  const adminRole = identity?.role ?? null;
 
   const level: number = adminRole === 'developer' ? 6 : adminRole ? 3 : 1;
   const meta = ADMIN_LEVEL_META[Math.min(level, 6) as keyof typeof ADMIN_LEVEL_META]
     ?? ADMIN_LEVEL_META[1];
   const roleLabel = adminRole ? adminRole.replace(/_/g, ' ') : meta.role;
-  const identityEmail = session?.email ?? appUser?.email ?? 'Admin account';
+  const identityEmail = identity?.email || session?.email || appUser?.email || 'Admin account';
 
   // Nav is filtered purely by the server-provided admin role:
   //   developer                          → everything
@@ -218,7 +219,7 @@ export function AdminPortalLayout() {
   // '/dashboard' — and land on the admin login page.
   const logout = useCallback(async () => {
     await logoutAdminSession();
-    clearAdminRoleCache();
+    clearAdminSessionCache();
     if (session) adminLogout();
     try {
       destroySession();

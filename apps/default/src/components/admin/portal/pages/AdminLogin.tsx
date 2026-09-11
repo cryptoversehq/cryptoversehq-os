@@ -1,33 +1,21 @@
 /**
  * AdminLogin.tsx — /admin/login   (admin OTP sign-in)
  *
- * Passwordless admin sign-in backed by Supabase OTP on the Render API:
- *   1. POST /api/auth/send-otp   { email }          → emails a 6-digit code
- *   2. POST /api/auth/verify-otp { email, code }    → sets the Supabase session cookie
+ * Passwordless admin sign-in backed by Better Auth (email OTP via Resend):
+ *   1. sendOtp(email)            → POST /api/auth/email-otp/send-verification-otp
+ *   2. verifyOtp(email, code)    → POST /api/auth/sign-in/email-otp (sets the cookie)
  *   3. redirect to /admin/subscriptions
  *
- * IMPORTANT: the code step is only shown once the server has CONFIRMED it sent a
- * code. A 2xx alone is not enough — the response body is inspected for
- * `success === false` / `message` / `error`, and a non-JSON body (e.g. a waking
- * Render instance returning an HTML page) is treated as a failure. Otherwise the
- * UI could advance while no email was ever requested.
- *
- * The admin ROLE is not evaluated here — the server decides. No token is ever
- * stored in the browser; the session lives only in the HttpOnly cookie.
+ * No CSRF token is generated here and no token is ever stored — Better Auth's
+ * HttpOnly cookie is the session. The code step is shown only after the server
+ * confirms the send.
  */
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { AlertCircle, ArrowLeft, ChevronRight, KeyRound, Loader2, Mail, RefreshCw, Shield } from 'lucide-react';
 import { CryptoVerseLogo } from '@/components/CryptoVerseLogo';
-import { ApiForbiddenError, RENDER_API_BASE, apiPostPublic } from '@/lib/adminApi';
-
-interface PublicAuthResponse {
-  success?: boolean;
-  message?: string;
-  error?: string;
-  requestId?: string;
-}
+import { ApiForbiddenError, RENDER_API_BASE, sendOtp, verifyOtp } from '@/lib/adminApi';
 
 const RESEND_COOLDOWN_SECONDS = 30;
 
@@ -53,25 +41,18 @@ export function AdminLogin() {
     return () => clearTimeout(t);
   }, [cooldown]);
 
-  /**
-   * Request an OTP. Returns true only when the server CONFIRMED the send, so the
-   * caller can decide whether to advance to the code step.
-   */
+  /** Request a code. Returns true only when the server confirmed the send. */
   const sendCode = async (): Promise<boolean> => {
     setLoading(true);
     setError(null);
     setNotice(null);
     try {
-      const data = await apiPostPublic('/api/auth/send-otp', { email: normalizedEmail });
-      const body = (data ?? {}) as PublicAuthResponse;
-
-      // A 2xx with an explicit failure must NOT be treated as success.
-      if (body.success === false) {
-        setError(body.message || body.error || 'The server could not send the code.');
+      const result = await sendOtp(normalizedEmail);
+      if (result?.success === false) {
+        setError('The server could not send the code.');
         return false;
       }
-
-      setNotice(body.message || `A 6-digit code was sent to ${normalizedEmail}.`);
+      setNotice(`A 6-digit code was sent to ${normalizedEmail}.`);
       setCooldown(RESEND_COOLDOWN_SECONDS);
       return true;
     } catch (err) {
@@ -103,17 +84,8 @@ export function AdminLogin() {
     setLoading(true);
     setError(null);
     try {
-      const data = await apiPostPublic('/api/auth/verify-otp', {
-        email: normalizedEmail,
-        code:  code.trim(),
-      });
-      const body = (data ?? {}) as PublicAuthResponse;
-      if (body.success === false) {
-        setError(body.message || body.error || 'The code could not be verified.');
-        return;
-      }
-      // Confirmed → the Supabase session cookie is set. The route guard
-      // re-verifies the role server-side on the next screen.
+      await verifyOtp(normalizedEmail, code.trim());
+      // Cookie session is set. The route guard re-verifies the role server-side.
       navigate('/admin/subscriptions', { replace: true });
     } catch (err) {
       setError(

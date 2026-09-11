@@ -1,6 +1,6 @@
-import { UserManager, type User } from 'oidc-client-ts';
-import type * as React from 'react';
-import { AuthProvider } from 'react-oidc-context';
+import { ErrorResponse, UserManager, type User } from 'oidc-client-ts';
+import * as React from 'react';
+import { AuthProvider, useAuth } from 'react-oidc-context';
 
 import { GatewayAuthSync } from './gateway-auth.jsx';
 
@@ -53,6 +53,8 @@ function onSigninCallback(): void {
  */
 let cachedUserManager: UserManager | null = null;
 let inflightSigninCallback: Promise<User | undefined> | null = null;
+/** One silent sign-in attempt per page load, remounts included (see above). */
+let silentSigninAttempted = false;
 
 function getUserManager(): UserManager {
   if (cachedUserManager != null) {
@@ -115,7 +117,60 @@ export function GenesisAuth({ children }: { children: React.ReactNode }) {
     <AuthProvider userManager={getUserManager()} onSigninCallback={onSigninCallback}>
       {/* Forwards the signed-in user's id_token to the data gateway (row scoping). */}
       <GatewayAuthSync />
+      <SessionRenewal />
       {children}
     </AuthProvider>
   );
+}
+
+/**
+ * Keeps a signed-in user signed in (#26083). Renders nothing.
+ *
+ * Token renewal itself needs no code here: the auth server now hands out a
+ * refresh token and `oidc-client-ts` uses it automatically before the
+ * 15-minute access token expires. Two gaps remain that the library leaves to
+ * the app:
+ *
+ *  1. A new tab (or a reload after the tab's sessionStorage is gone) starts
+ *     with no stored user, and nothing in `react-oidc-context` tries to sign
+ *     in silently on mount. The auth server keeps a session cookie for this
+ *     app, so ONE `signinSilent()` attempt at mount signs the user back in
+ *     without the login form. `login_required` (no session) is the normal
+ *     signed-out state and is swallowed; the app's own sign-in button remains
+ *     the visible path.
+ *  2. When a refresh is refused (`invalid_grant`: the chain was revoked,
+ *     replayed, expired, or the account was disabled) the library raises
+ *     `silentRenewError` but leaves `isAuthenticated` true with a dead token.
+ *     Dropping the user here flips the app to signed-out so it shows sign-in
+ *     instead of failing every gateway call with 401 until a manual refresh.
+ *     Timeouts and 5xx are left alone: the library retries those itself.
+ */
+function SessionRenewal(): null {
+  const auth = useAuth();
+  const { events, removeUser, signinSilent, isLoading, user } = auth;
+
+  React.useEffect(() => {
+    if (silentSigninAttempted || isLoading || user != null) {
+      return;
+    }
+    const url = new URL(window.location.href);
+    if (OIDC_CALLBACK_PARAMS.some((name) => url.searchParams.has(name))) {
+      // A callback is in flight; AuthProvider is exchanging the code.
+      return;
+    }
+    silentSigninAttempted = true;
+    signinSilent().catch(() => {
+      // login_required, timeout, or an auth server without sessions: signed out.
+    });
+  }, [isLoading, user, signinSilent]);
+
+  React.useEffect(() => {
+    return events.addSilentRenewError((error) => {
+      if (error instanceof ErrorResponse && error.error === 'invalid_grant') {
+        void removeUser();
+      }
+    });
+  }, [events, removeUser]);
+
+  return null;
 }
