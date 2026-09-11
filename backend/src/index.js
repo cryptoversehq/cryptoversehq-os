@@ -7,6 +7,9 @@ const cookieParser = require('cookie-parser');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const { createClient } = require('@supabase/supabase-js');
+const { Pool } = require('pg');
+const { createClient: createTursoClient } = require('@libsql/client'); // 🔥 NEW
+const { jwtVerify, createRemoteJWKSet } = require('jose'); // 🔥 NEW
 
 const app = express();
 const port = Number(process.env.PORT || 3000);
@@ -44,9 +47,46 @@ const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey, {
   auth: { autoRefreshToken: false, persistSession: false },
 });
 
+// ==================== NEON POSTGRES CONNECTION ====================
+const pgPool = process.env.DATABASE_URL
+  ? new Pool({
+      connectionString: process.env.DATABASE_URL,
+      ssl: { rejectUnauthorized: false },
+      max: 5,
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 10000,
+    })
+  : null;
+
+// 🔥 NEW ==================== TURSO LIBSQL CONNECTION ====================
+const tursoClient = (process.env.TURSO_DATABASE_URL && process.env.TURSO_AUTH_TOKEN)
+  ? createTursoClient({
+      url: process.env.TURSO_DATABASE_URL,
+      authToken: process.env.TURSO_AUTH_TOKEN,
+    })
+  : null;
+
+// 🔥 NEW ==================== TASKADE OIDC VERIFICATION ====================
+let jwks = null;
+if (process.env.TASKADE_OIDC_JWKS_URI) {
+  try {
+    jwks = createRemoteJWKSet(new URL(process.env.TASKADE_OIDC_JWKS_URI), {
+      cacheMaxAge: 600000,
+      timeoutDuration: 5000,
+    });
+  } catch (err) {
+    console.error(JSON.stringify({ event: 'jwks_init_failed', error: err?.message }));
+  }
+}
+
+// 🔥 NEW ==================== IN-MEMORY SESSION STORE ====================
+// NOTE: For production, move this to Neon. For staging, in-memory is acceptable.
+if (!global.__cvSessions) global.__cvSessions = new Map();
+
 app.disable('x-powered-by');
 app.set('trust proxy', 1);
 app.use(helmet({ contentSecurityPolicy: false }));
+
 app.use(cors({
   origin(origin, callback) {
     if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
@@ -54,9 +94,16 @@ app.use(cors({
   },
   credentials: true,
   methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'X-CSRF-Token', 'X-Request-ID'],
+  allowedHeaders: [
+    'Content-Type',
+    'Authorization',
+    'X-CSRF-Token',
+    'X-Request-ID',
+    'Idempotency-Key'
+  ],
   maxAge: 600,
 }));
+
 app.use(cookieParser());
 app.use(express.json({
   limit: '100kb',
@@ -126,6 +173,7 @@ function timingSafeEqualText(left, right) {
 function csrfProtection(req, res, next) {
   if (!['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) return next();
   if (req.path === '/api/webhooks/payment') return next();
+  if (req.path === '/api/auth/taskade/exchange') return next(); // 🔥 NEW: OIDC exchange uses Bearer, not CSRF
   const cookieToken = req.cookies[csrfCookieName];
   const headerToken = req.get('X-CSRF-Token');
   if (!timingSafeEqualText(cookieToken, headerToken)) {
@@ -135,18 +183,89 @@ function csrfProtection(req, res, next) {
 }
 app.use(csrfProtection);
 
+// ==================== NEON USER LOOKUP WITH CACHE ====================
+const neonUserCache = new Map();
+const NEON_USER_CACHE_TTL = 60 * 1000; // 60 seconds
+
+async function getOrCreateNeonUser(email) {
+  if (!email || !pgPool) return null;
+  const key = email.toLowerCase();
+  const cached = neonUserCache.get(key);
+  if (cached && Date.now() - cached.at < NEON_USER_CACHE_TTL) {
+    return cached.user;
+  }
+  try {
+    const { rows } = await pgPool.query(
+      'select id, email, role, plan from public.users where lower(email) = lower($1) limit 1',
+      [email]
+    );
+    let user;
+    if (rows.length > 0) {
+      user = rows[0];
+    } else {
+      const { rows: inserted } = await pgPool.query(
+        `insert into public.users (email, role, plan)
+         values ($1, 'user', 'free')
+         returning id, email, role, plan`,
+        [email]
+      );
+      user = inserted[0];
+    }
+    neonUserCache.set(key, { user, at: Date.now() });
+    return user;
+  } catch (err) {
+    console.error(JSON.stringify({ event: 'neon_user_lookup_failed', error: err?.message }));
+    return null;
+  }
+}
+
+// 🔥 UPDATED ==================== AUTHENTICATE MIDDLEWARE ====================
+// Supports both legacy Supabase cookies AND new OIDC bridge sessions
 async function authenticate(req, res, next) {
   const token = req.cookies[sessionCookieName];
   if (!token) {
     return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Authentication required.', requestId: req.requestId });
   }
+
+  // First, check the new OIDC bridge session store
+  const bridgeSession = global.__cvSessions.get(token);
+  if (bridgeSession) {
+    const age = Date.now() - bridgeSession.issuedAt;
+    if (age > sessionMaxAgeMs) {
+      global.__cvSessions.delete(token);
+      res.clearCookie(sessionCookieName, { ...cookieOptions, maxAge: undefined });
+      return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Session expired.', requestId: req.requestId });
+    }
+    req.user = {
+      id: bridgeSession.userId,
+      email: bridgeSession.email,
+      role: bridgeSession.role,
+      provider: 'taskade_genesis',
+    };
+    return next();
+  }
+
+  // Fall back to legacy Supabase token
   try {
     const { data, error } = await supabase.auth.getUser(token);
-    if (error || !data.user) {
+    if (error || !data.user || !data.user.email) {
       res.clearCookie(sessionCookieName, { ...cookieOptions, maxAge: undefined });
       return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Authentication required.', requestId: req.requestId });
     }
-    req.user = data.user;
+
+    // 🔥 NEW: Look up role from Neon by email
+    const neonUser = await getOrCreateNeonUser(data.user.email);
+    if (!neonUser) {
+      return res.status(401).json({ error: 'UNAUTHORIZED', message: 'User record unavailable.', requestId: req.requestId });
+    }
+
+    req.user = {
+      id: neonUser.id,
+      email: neonUser.email,
+      role: neonUser.role,
+      plan: neonUser.plan,
+      supabaseId: data.user.id,
+    };
     return next();
   } catch (error) {
     console.error(JSON.stringify({ event: 'auth_lookup_failed', requestId: req.requestId, error: error?.message }));
@@ -160,6 +279,53 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'OK', service: 'cryptoverse-api', requestId: req.requestId });
 });
 
+app.get('/api/db-test', async (req, res) => {
+  if (!pgPool) {
+    return res.status(503).json({ success: false, error: 'DATABASE_URL is not configured' });
+  }
+  try {
+    const client = await pgPool.connect();
+    const result = await client.query('SELECT version()');
+    client.release();
+    return res.json({ success: true, version: result.rows[0].version });
+  } catch (error) {
+    console.error(JSON.stringify({ event: 'db_test_failed', requestId: req.requestId, error: error?.message }));
+    return res.status(500).json({ success: false, error: 'Database connection failed' });
+  }
+});
+
+app.get('/api/db-tables', async (req, res) => {
+  if (!pgPool) {
+    return res.status(503).json({ success: false, error: 'DATABASE_URL is not configured' });
+  }
+  try {
+    const result = await pgPool.query(`
+      select table_name 
+      from information_schema.tables 
+      where table_schema = 'public' 
+      order by table_name
+    `);
+    return res.json({ success: true, tables: result.rows.map(r => r.table_name) });
+  } catch (error) {
+    console.error(JSON.stringify({ event: 'db_tables_failed', requestId: req.requestId, error: error?.message }));
+    return res.status(500).json({ success: false, error: 'Failed to fetch tables' });
+  }
+});
+
+// 🔥 NEW ==================== TURSO TEST ====================
+app.get('/api/turso-test', async (req, res) => {
+  if (!tursoClient) {
+    return res.status(503).json({ success: false, error: 'Turso environment variables are not configured' });
+  }
+  try {
+    const result = await tursoClient.execute('SELECT sqlite_version() AS version');
+    return res.json({ success: true, version: result.rows[0].version });
+  } catch (error) {
+    console.error(JSON.stringify({ event: 'turso_test_failed', requestId: req.requestId, error: error?.message }));
+    return res.status(500).json({ success: false, error: 'Turso connection failed' });
+  }
+});
+
 // ==================== AUTH ====================
 app.get('/api/auth/csrf', (req, res) => {
   const token = crypto.randomBytes(32).toString('base64url');
@@ -168,9 +334,379 @@ app.get('/api/auth/csrf', (req, res) => {
   res.json({ csrfToken: token, requestId: req.requestId });
 });
 
+// 🔥 NEW ==================== OIDC EXCHANGE ENDPOINT ====================
+app.post('/api/auth/taskade/exchange', async (req, res) => {
+  const authHeader = req.get('Authorization');
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Bearer token required.', requestId: req.requestId });
+  }
+  const idToken = authHeader.slice(7).trim();
+
+  if (!jwks) {
+    return res.status(503).json({ error: 'OIDC_NOT_CONFIGURED', message: 'OIDC verification is not configured.', requestId: req.requestId });
+  }
+
+  try {
+    const { payload } = await jwtVerify(idToken, jwks, {
+      issuer: process.env.TASKADE_OIDC_ISSUER,
+      audience: process.env.TASKADE_OIDC_AUDIENCE,
+      algorithms: ['RS256'],
+      clockTolerance: 60,
+    });
+
+    const subject = payload.sub;
+    const email = payload.email;
+    if (!subject || !email) {
+      return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Token missing subject or email.', requestId: req.requestId });
+    }
+
+    // Map Taskade subject to a Neon user (create if first time)
+    let userRow;
+    const { rows: existing } = await pgPool.query(
+      'select id, email, role, plan from public.users where email = $1 limit 1',
+      [email]
+    );
+
+    if (existing.length > 0) {
+      userRow = existing[0];
+    } else {
+      const { rows: inserted } = await pgPool.query(
+        `insert into public.users (email, role, plan)
+         values ($1, 'user', 'free')
+         returning id, email, role, plan`,
+        [email]
+      );
+      userRow = inserted[0];
+    }
+
+    // Issue a server-signed session
+    const sessionToken = crypto.randomBytes(48).toString('base64url');
+    global.__cvSessions.set(sessionToken, {
+      userId: userRow.id,
+      email: userRow.email,
+      role: userRow.role,
+      provider: 'taskade_genesis',
+      subject: subject,
+      issuedAt: Date.now(),
+    });
+
+    res.cookie(sessionCookieName, sessionToken, cookieOptions);
+
+    // Also issue a CSRF token so subsequent state-changing requests work
+    const csrfToken = crypto.randomBytes(32).toString('base64url');
+    res.cookie(csrfCookieName, csrfToken, csrfCookieOptions);
+
+    return res.json({
+      user: { id: userRow.id, email: userRow.email, role: userRow.role, plan: userRow.plan },
+      csrfToken: csrfToken,
+      requestId: req.requestId,
+    });
+  } catch (error) {
+    console.error(JSON.stringify({ event: 'oidc_exchange_failed', requestId: req.requestId, error: error?.message }));
+    return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Invalid or expired token.', requestId: req.requestId });
+  }
+});
+
+// ==================== ADMIN AUTHORIZATION MIDDLEWARE ====================
+const ADMIN_READ_ROLES = new Set(['developer', 'subscription_admin', 'support_admin']);
+const ADMIN_WRITE_ROLES = new Set(['developer', 'subscription_admin']);
+
+function requireAdminRead(req, res, next) {
+  if (!req.user || !ADMIN_READ_ROLES.has(req.user.role)) {
+    return res.status(403).json({ error: 'FORBIDDEN', message: 'Admin access required.', requestId: req.requestId });
+  }
+  next();
+}
+
+function requireAdminWrite(req, res, next) {
+  if (!req.user || !ADMIN_WRITE_ROLES.has(req.user.role)) {
+    return res.status(403).json({ error: 'FORBIDDEN', message: 'Subscription admin access required.', requestId: req.requestId });
+  }
+  next();
+}
+
+async function writeAuditLog(entry) {
+  try {
+    await pgPool.query(
+      `insert into public.subscription_audit_log
+       (actor_id, actor_email, actor_role, target_user_id, plan_id, action, result, note, error, before_state, after_state, ip_address, user_agent, request_id, idempotency_key, entitlement_id)
+       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
+      [
+        entry.actor_id, entry.actor_email, entry.actor_role,
+        entry.target_user_id, entry.plan_id, entry.action,
+        entry.result, entry.note || null, entry.error || null,
+        entry.before_state ? JSON.stringify(entry.before_state) : null,
+        entry.after_state ? JSON.stringify(entry.after_state) : null,
+        entry.ip_address || null, entry.user_agent || null,
+        entry.request_id || null, entry.idempotency_key || null,
+        entry.entitlement_id || null,
+      ]
+    );
+  } catch (err) {
+    console.error(JSON.stringify({ event: 'audit_log_failed', error: err?.message }));
+  }
+}
+
+// ==================== ADMIN SUBSCRIPTION ENDPOINTS ====================
+
+// List users (read-only)
+app.get('/api/admin/users', authenticate, requireAdminRead, async (req, res) => {
+  try {
+    const limit = Math.min(Number(req.query.limit) || 50, 100);
+    const offset = Number(req.query.offset) || 0;
+    const result = await pgPool.query(
+      `select id, email, role, plan, created_at
+       from public.users
+       order by created_at desc
+       limit $1 offset $2`,
+      [limit, offset]
+    );
+    const { rows: countRows } = await pgPool.query('select count(*)::int as total from public.users');
+    return res.json({
+      success: true,
+      users: result.rows,
+      total: countRows[0].total,
+      limit,
+      offset,
+      requestId: req.requestId,
+    });
+  } catch (error) {
+    console.error(JSON.stringify({ event: 'admin_users_failed', requestId: req.requestId, error: error?.message }));
+    return res.status(500).json({ error: 'SERVER_ERROR', message: 'Failed to fetch users.', requestId: req.requestId });
+  }
+});
+
+// Grant subscription
+app.post('/api/admin/subscriptions/grant', authenticate, requireAdminWrite, async (req, res) => {
+  const { target_user_id, plan_id, duration_days, note } = req.body || {};
+  const idempotencyKey = req.get('Idempotency-Key');
+  const ipAddress = req.ip;
+  const userAgent = req.get('User-Agent');
+
+  // Validation
+  if (!target_user_id || !plan_id) {
+    return res.status(400).json({ error: 'VALIDATION_ERROR', message: 'target_user_id and plan_id required.', requestId: req.requestId });
+  }
+  if (!['pro', 'pro_plus'].includes(plan_id)) {
+    return res.status(400).json({ error: 'VALIDATION_ERROR', message: 'Invalid plan_id.', requestId: req.requestId });
+  }
+  const days = Number(duration_days) || 30;
+  if (!Number.isInteger(days) || days < 1 || days > 3650) {
+    return res.status(400).json({ error: 'VALIDATION_ERROR', message: 'duration_days must be 1-3650.', requestId: req.requestId });
+  }
+  if (!idempotencyKey || !/^[A-Za-z0-9._:-]{16,128}$/.test(idempotencyKey)) {
+    return res.status(400).json({ error: 'VALIDATION_ERROR', message: 'Valid Idempotency-Key required.', requestId: req.requestId });
+  }
+
+  try {
+    // Idempotency check
+    const { rows: existing } = await pgPool.query(
+      `select id from public.subscription_audit_log
+       where idempotency_key = $1 and action = 'grant' and result = 'success'
+       limit 1`,
+      [idempotencyKey]
+    );
+    if (existing.length > 0) {
+      return res.json({ success: true, duplicate: true, requestId: req.requestId });
+    }
+
+    // Verify target user exists
+    const { rows: targetRows } = await pgPool.query(
+      'select id, email, role, plan from public.users where id = $1',
+      [target_user_id]
+    );
+    if (targetRows.length === 0) {
+      return res.status(404).json({ error: 'NOT_FOUND', message: 'Target user not found.', requestId: req.requestId });
+    }
+    const targetUser = targetRows[0];
+    const beforeState = { plan: targetUser.plan };
+
+    // Check for existing active subscription
+    const { rows: activeSubs } = await pgPool.query(
+      `select id, ends_at from public.subscriptions
+       where user_id = $1 and status = 'active' and ends_at > now()
+       order by ends_at desc limit 1`,
+      [target_user_id]
+    );
+
+    let entitlementId;
+    if (activeSubs.length > 0) {
+      // Extend existing
+      const newEndsAt = new Date(new Date(activeSubs[0].ends_at).getTime() + days * 86400000);
+      await pgPool.query(
+        `update public.subscriptions set ends_at = $1, plan_id = $2, updated_at = now() where id = $3`,
+        [newEndsAt.toISOString(), plan_id, activeSubs[0].id]
+      );
+      entitlementId = activeSubs[0].id;
+    } else {
+      // Create new
+      const endsAt = new Date(Date.now() + days * 86400000).toISOString();
+      const { rows: inserted } = await pgPool.query(
+        `insert into public.subscriptions (user_id, plan_id, status, starts_at, ends_at, granted_by)
+         values ($1, $2, 'active', now(), $3, $4)
+         returning id`,
+        [target_user_id, plan_id, endsAt, req.user.id]
+      );
+      entitlementId = inserted[0].id;
+    }
+
+    // Update user's plan field
+    await pgPool.query('update public.users set plan = $1, updated_at = now() where id = $2', [plan_id, target_user_id]);
+
+    // Audit log
+    await writeAuditLog({
+      actor_id: req.user.id,
+      actor_email: req.user.email,
+      actor_role: req.user.role,
+      target_user_id,
+      plan_id,
+      action: 'grant',
+      result: 'success',
+      note: note || null,
+      before_state: beforeState,
+      after_state: { plan: plan_id, ends_at: new Date(Date.now() + days * 86400000).toISOString() },
+      ip_address: ipAddress,
+      user_agent: userAgent,
+      request_id: req.requestId,
+      idempotency_key: idempotencyKey,
+      entitlement_id: entitlementId,
+    });
+
+    return res.json({
+      success: true,
+      entitlement_id: entitlementId,
+      target_user_id,
+      plan_id,
+      duration_days: days,
+      requestId: req.requestId,
+    });
+  } catch (error) {
+    console.error(JSON.stringify({ event: 'grant_failed', requestId: req.requestId, error: error?.message }));
+    await writeAuditLog({
+      actor_id: req.user.id, actor_email: req.user.email, actor_role: req.user.role,
+      target_user_id: target_user_id || null, plan_id: plan_id || null,
+      action: 'grant', result: 'failure', error: error?.message,
+      ip_address: ipAddress, user_agent: userAgent, request_id: req.requestId,
+      idempotency_key: idempotencyKey,
+    });
+    return res.status(500).json({ error: 'SERVER_ERROR', message: 'Grant failed.', requestId: req.requestId });
+  }
+});
+
+// Revoke subscription
+app.post('/api/admin/subscriptions/revoke', authenticate, requireAdminWrite, async (req, res) => {
+  const { target_user_id, note } = req.body || {};
+  const idempotencyKey = req.get('Idempotency-Key');
+  const ipAddress = req.ip;
+  const userAgent = req.get('User-Agent');
+
+  if (!target_user_id) {
+    return res.status(400).json({ error: 'VALIDATION_ERROR', message: 'target_user_id required.', requestId: req.requestId });
+  }
+  if (!idempotencyKey || !/^[A-Za-z0-9._:-]{16,128}$/.test(idempotencyKey)) {
+    return res.status(400).json({ error: 'VALIDATION_ERROR', message: 'Valid Idempotency-Key required.', requestId: req.requestId });
+  }
+
+  try {
+    // Idempotency check
+    const { rows: existing } = await pgPool.query(
+      `select id from public.subscription_audit_log
+       where idempotency_key = $1 and action = 'revoke' and result = 'success' limit 1`,
+      [idempotencyKey]
+    );
+    if (existing.length > 0) {
+      return res.json({ success: true, duplicate: true, requestId: req.requestId });
+    }
+
+    // Find active subscription
+    const { rows: activeSubs } = await pgPool.query(
+      `select id, plan_id, ends_at from public.subscriptions
+       where user_id = $1 and status = 'active' and ends_at > now()
+       order by ends_at desc limit 1`,
+      [target_user_id]
+    );
+    if (activeSubs.length === 0) {
+      return res.status(404).json({ error: 'NOT_FOUND', message: 'No active subscription found.', requestId: req.requestId });
+    }
+
+    const sub = activeSubs[0];
+    await pgPool.query(
+      `update public.subscriptions set status = 'revoked', ends_at = now(), updated_at = now() where id = $1`,
+      [sub.id]
+    );
+    await pgPool.query('update public.users set plan = $1, updated_at = now() where id = $2', ['free', target_user_id]);
+
+    await writeAuditLog({
+      actor_id: req.user.id, actor_email: req.user.email, actor_role: req.user.role,
+      target_user_id, plan_id: sub.plan_id, action: 'revoke', result: 'success',
+      note: note || null,
+      before_state: { plan: sub.plan_id, ends_at: sub.ends_at },
+      after_state: { plan: 'free', ends_at: new Date().toISOString() },
+      ip_address: ipAddress, user_agent: userAgent,
+      request_id: req.requestId, idempotency_key: idempotencyKey,
+      entitlement_id: sub.id,
+    });
+
+    return res.json({ success: true, target_user_id, previous_plan: sub.plan_id, requestId: req.requestId });
+  } catch (error) {
+    console.error(JSON.stringify({ event: 'revoke_failed', requestId: req.requestId, error: error?.message }));
+    await writeAuditLog({
+      actor_id: req.user.id, actor_email: req.user.email, actor_role: req.user.role,
+      target_user_id: target_user_id || null, plan_id: null,
+      action: 'revoke', result: 'failure', error: error?.message,
+      ip_address: ipAddress, user_agent: userAgent, request_id: req.requestId,
+      idempotency_key: idempotencyKey,
+    });
+    return res.status(500).json({ error: 'SERVER_ERROR', message: 'Revoke failed.', requestId: req.requestId });
+  }
+});
+
+// Audit log list
+app.get('/api/admin/subscriptions/audit', authenticate, requireAdminRead, async (req, res) => {
+  try {
+    const limit = Math.min(Number(req.query.limit) || 50, 200);
+    const offset = Number(req.query.offset) || 0;
+    const result = await pgPool.query(
+      `select id, actor_id, actor_email, actor_role, target_user_id, plan_id, action, result, note, error, ip_address, created_at
+       from public.subscription_audit_log
+       order by created_at desc
+       limit $1 offset $2`,
+      [limit, offset]
+    );
+    return res.json({ success: true, entries: result.rows, limit, offset, requestId: req.requestId });
+  } catch (error) {
+    console.error(JSON.stringify({ event: 'audit_list_failed', requestId: req.requestId, error: error?.message }));
+    return res.status(500).json({ error: 'SERVER_ERROR', message: 'Failed to fetch audit log.', requestId: req.requestId });
+  }
+});
+
+// User's subscription status
+app.get('/api/admin/subscriptions/user/:userId', authenticate, requireAdminRead, async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { rows: userRows } = await pgPool.query(
+      'select id, email, role, plan, created_at from public.users where id = $1',
+      [userId]
+    );
+    if (userRows.length === 0) {
+      return res.status(404).json({ error: 'NOT_FOUND', message: 'User not found.', requestId: req.requestId });
+    }
+    const { rows: subs } = await pgPool.query(
+      `select id, plan_id, status, starts_at, ends_at, granted_by, created_at
+       from public.subscriptions where user_id = $1
+       order by created_at desc limit 20`,
+      [userId]
+    );
+    return res.json({ success: true, user: userRows[0], subscriptions: subs, requestId: req.requestId });
+  } catch (error) {
+    console.error(JSON.stringify({ event: 'user_sub_failed', requestId: req.requestId, error: error?.message }));
+    return res.status(500).json({ error: 'SERVER_ERROR', message: 'Failed to fetch user subscriptions.', requestId: req.requestId });
+  }
+});
+
 app.post('/api/auth/send-otp', async (req, res) => {
   const email = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : '';
-  if (!/^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$/.test(email)) {
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
     return res.status(400).json({ error: 'VALIDATION_ERROR', message: 'A valid email is required.', requestId: req.requestId });
   }
   try {
@@ -186,11 +722,11 @@ app.post('/api/auth/send-otp', async (req, res) => {
 app.post('/api/auth/verify-otp', async (req, res) => {
   const email = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : '';
   const token = typeof req.body?.code === 'string' ? req.body.code.trim() : '';
-  if (!/^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$/.test(email) || !/^\\d{6}$/.test(token)) {
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) || !/^\d{6}$/.test(token)) {
     return res.status(400).json({ error: 'VALIDATION_ERROR', message: 'Invalid verification request.', requestId: req.requestId });
   }
   try {
-    const { data, error } = await supabaseAuth.auth.verifyOtp({ email, token, type: 'email' });
+    let { data, error } = await supabaseAuth.auth.verifyOtp({ email, token, type: 'signup' });
     if (error || !data.session) {
       return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Invalid or expired verification code.', requestId: req.requestId });
     }
@@ -223,10 +759,14 @@ app.post('/api/auth/refresh', async (req, res) => {
 
 app.get('/api/auth/me', authenticate, (req, res) => {
   res.setHeader('Cache-Control', 'no-store');
-  res.json({ user: safeUser(req.user), requestId: req.requestId });
+  res.json({ user: req.user, requestId: req.requestId });
 });
 
 app.post('/api/auth/logout', (req, res) => {
+  const token = req.cookies[sessionCookieName];
+  if (token && global.__cvSessions.has(token)) {
+    global.__cvSessions.delete(token);
+  }
   res.clearCookie(sessionCookieName, { ...cookieOptions, maxAge: undefined });
   res.clearCookie(refreshCookieName, { ...refreshCookieOptions, maxAge: undefined });
   res.clearCookie(csrfCookieName, { ...csrfCookieOptions, maxAge: undefined });
@@ -236,7 +776,7 @@ app.post('/api/auth/logout', (req, res) => {
 // ==================== PAYMENTS ====================
 function normalizeDecimal(value) {
   const text = String(value ?? '').trim();
-  return /^\\d+(?:\\.\\d+)?$/.test(text) ? text.replace(/\\.?0+$/, '') : null;
+  return /^\d+(?:\.\d+)?$/.test(text) ? text.replace(/\.?0+$/, '') : null;
 }
 
 const nowPaymentsBaseUrl = (process.env.NOWPAYMENTS_API_BASE_URL || 'https://api.nowpayments.io/v1').replace(/\/$/, '');
@@ -571,7 +1111,6 @@ app.get('/api/exchange/connections', authenticate, async (req, res) => {
 app.post('/api/exchange/connect', authenticate, async (req, res) => {
   const { exchange, apiKey, apiSecret, label, isDemo = false } = req.body;
   
-  // Validation
   if (!exchange || typeof exchange !== 'string' || exchange.trim().length < 2) {
     return res.status(400).json({ error: 'VALIDATION_ERROR', message: 'Valid exchange is required.', requestId: req.requestId });
   }
@@ -585,7 +1124,6 @@ app.post('/api/exchange/connect', authenticate, async (req, res) => {
     }
   }
   
-  // Allowlist exchanges
   const allowedExchanges = ['binance', 'coinbase', 'kraken', 'bybit', 'okx', 'gateio', 'kucoin'];
   if (!allowedExchanges.includes(exchange.trim().toLowerCase())) {
     return res.status(400).json({ error: 'VALIDATION_ERROR', message: 'Unsupported exchange.', requestId: req.requestId });
@@ -643,7 +1181,6 @@ app.get('/api/exchange/balance/:id', authenticate, async (req, res) => {
   const { id } = req.params;
   
   try {
-    // First verify the connection belongs to this user
     const { data: connection, error: connError } = await supabase
       .from('exchange_connections')
       .select('exchange, api_key, is_demo')
@@ -655,7 +1192,6 @@ app.get('/api/exchange/balance/:id', authenticate, async (req, res) => {
       return res.status(404).json({ error: 'NOT_FOUND', message: 'Connection not found.', requestId: req.requestId });
     }
     
-    // For demo connections, return mock data
     if (connection.is_demo) {
       return res.json({
         success: true,
@@ -670,9 +1206,6 @@ app.get('/api/exchange/balance/:id', authenticate, async (req, res) => {
         requestId: req.requestId
       });
     }
-    
-    // For live connections, fetch from exchange API
-    // TODO: Implement actual exchange API integration
     
     res.json({
       success: true,
@@ -705,7 +1238,6 @@ app.post('/api/exchange/sync/:id', authenticate, async (req, res) => {
       return res.status(404).json({ error: 'NOT_FOUND', message: 'Connection not found.', requestId: req.requestId });
     }
     
-    // For demo connections, return success
     if (connection.is_demo) {
       return res.json({
         success: true,
@@ -714,9 +1246,6 @@ app.post('/api/exchange/sync/:id', authenticate, async (req, res) => {
         message: 'Demo sync completed'
       });
     }
-    
-    // For live connections, sync with exchange API
-    // TODO: Implement actual exchange API integration
     
     res.json({
       success: true,
@@ -754,7 +1283,6 @@ app.post('/api/exchange/order', authenticate, async (req, res) => {
       return res.status(404).json({ error: 'NOT_FOUND', message: 'Connection not found.', requestId: req.requestId });
     }
     
-    // For demo connections, return mock order
     if (connection.is_demo) {
       return res.json({
         success: true,
@@ -769,9 +1297,6 @@ app.post('/api/exchange/order', authenticate, async (req, res) => {
         message: 'Demo order executed'
       });
     }
-    
-    // For live connections, execute via exchange API
-    // TODO: Implement actual exchange API integration
     
     res.status(501).json({
       error: 'NOT_IMPLEMENTED',
@@ -790,9 +1315,8 @@ app.post('/api/exchange/order', authenticate, async (req, res) => {
 app.get('/api/trading/daily-limit', authenticate, async (req, res) => {
   try {
     const userId = req.user.id;
-    const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+    const today = new Date().toISOString().split('T')[0];
     
-    // Get or create today's limit record
     const { data, error } = await supabase
       .from('daily_trade_limits')
       .select('trades_used, max_trades')
@@ -832,7 +1356,6 @@ app.post('/api/trading/daily-limit/consume', authenticate, async (req, res) => {
     const userId = req.user.id;
     const today = new Date().toISOString().split('T')[0];
     
-    // Get current record
     const { data: current, error: fetchError } = await supabase
       .from('daily_trade_limits')
       .select('trades_used, max_trades')
@@ -850,7 +1373,6 @@ app.post('/api/trading/daily-limit/consume', authenticate, async (req, res) => {
       maxTrades = current.max_trades;
     }
     
-    // Check if limit is reached
     if (tradesUsed >= maxTrades) {
       return res.status(429).json({
         error: 'LIMIT_REACHED',
@@ -863,10 +1385,8 @@ app.post('/api/trading/daily-limit/consume', authenticate, async (req, res) => {
       });
     }
     
-    // Increment trades_used
     const newTradesUsed = tradesUsed + 1;
     
-    // Upsert the record
     const { data, error } = await supabase
       .from('daily_trade_limits')
       .upsert({
@@ -894,6 +1414,62 @@ app.post('/api/trading/daily-limit/consume', authenticate, async (req, res) => {
     res.status(500).json({ error: 'SERVER_ERROR', message: 'Failed to consume trade.', requestId: req.requestId });
   }
 });
+
+// ==================== MARKET DATA PROXY ====================
+
+app.get('/api/market/coingecko/*', async (req, res) => {
+  const path = req.params[0] || '';
+  const queryString = new URLSearchParams(req.query).toString();
+  const url = `https://api.coingecko.com/api/v3/${path}${queryString ? `?${queryString}` : ''}`;
+
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10000);
+
+    const response = await fetch(url, {
+      signal: controller.signal,
+      headers: {
+        'Accept': 'application/json',
+        'User-Agent': 'CryptoVerseHQ/1.0',
+      },
+    });
+
+    clearTimeout(timeout);
+
+    const data = await response.json();
+
+    if (response.headers.get('x-ratelimit-remaining')) {
+      res.setHeader('X-RateLimit-Remaining', response.headers.get('x-ratelimit-remaining'));
+    }
+    if (response.headers.get('x-ratelimit-reset')) {
+      res.setHeader('X-RateLimit-Reset', response.headers.get('x-ratelimit-reset'));
+    }
+
+    res.status(response.status).json(data);
+  } catch (error) {
+    console.error(JSON.stringify({
+      event: 'coingecko_proxy_failed',
+      path,
+      error: error?.message,
+      requestId: req.requestId,
+    }));
+
+    if (error.name === 'AbortError') {
+      return res.status(504).json({
+        error: 'TIMEOUT',
+        message: 'CoinGecko request timed out',
+        requestId: req.requestId,
+      });
+    }
+
+    res.status(502).json({
+      error: 'PROXY_ERROR',
+      message: 'Failed to fetch from CoinGecko',
+      requestId: req.requestId,
+    });
+  }
+});
+
 // ==================== ERROR HANDLING ====================
 app.use((err, req, res, next) => {
   console.error(JSON.stringify({ event: 'request_failed', requestId: req.requestId, error: err?.message }));
