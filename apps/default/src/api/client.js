@@ -90,7 +90,7 @@ export const api = {
     me: () => request('/auth/me', {}, 'Failed to get user info'),
   },
 
-  health: () => request('/health', {}, 'Health check failed'),
+  health: () => request('/api/health', {}, 'Health check failed'),
   test: () => request('/test', {}, 'Test endpoint failed'),
 };
 

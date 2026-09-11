@@ -27,6 +27,7 @@ import {
 import { analyzePortfolioHealth, type PortfolioHealthReport } from '@/features/portfolioHealthEnhanced';
 import { portfolioHistory } from '@/lib/portfolioHistoryService';
 import { priceAlertService } from '@/lib/priceAlertService';
+import { DataStatusBadge } from '@/components/common/DataStatusBadge';
 
 const INITIAL_BALANCE = 100_000;
 
@@ -135,6 +136,23 @@ export function Portfolio() {
         tradeCount={history.length}
         positionCount={positions.length}
       />
+
+      <div className="flex items-center gap-2 flex-wrap" aria-label="Portfolio data sources">
+        <DataStatusBadge
+          type="simulated"
+          explanation="The virtual portfolio, practice balance, positions, and trading history are simulated. They do not represent real funds."
+        />
+        <span className="text-xs text-muted-foreground">Virtual practice portfolio</span>
+        {hasExchanges && (
+          <>
+            <DataStatusBadge
+              type="livePortfolio"
+              explanation="This portfolio value comes from a connected exchange account and represents real account data."
+            />
+            <span className="text-xs text-muted-foreground">Connected exchange portfolios</span>
+          </>
+        )}
+      </div>
 
       {/* ── AI Portfolio Health ──────────────────────────────────────── */}
       {healthReport && (

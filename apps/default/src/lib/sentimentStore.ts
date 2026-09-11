@@ -25,6 +25,8 @@
 
 import { create } from 'zustand';
 import { cloudRecordStore } from './cloudData';
+import { request } from '../api/client';
+import type { GetCurrentSentimentResponse } from '../api/types';
 import {
   SentimentSnapshot,
   SentimentAlert,
@@ -265,6 +267,9 @@ export interface SentimentState {
 
   // ── Polling engine ─────────────────────────────────────────────────────────
 
+  /** Refresh one symbol from the server-authoritative sentiment endpoint. */
+  refreshFromServer: (symbol?: string) => Promise<{ ok: boolean; message: string }>;
+
   /** Start the live simulation ticks (one snapshot per symbol per interval). */
   startPolling: () => void;
 
@@ -363,7 +368,43 @@ export const useSentimentStore = create<SentimentState>((set, get) => {
       set({ snapshots: newSnapshots });
     },
 
-    // ── Polling engine ────────────────────────────────────────────────────────
+    // ── Server refresh and polling engine ────────────────────────────────────
+
+    refreshFromServer: async (symbol = MARKET_SYMBOL) => {
+      try {
+        const response = await request<GetCurrentSentimentResponse>(
+          'GET',
+          `/api/sentiment/current/${encodeURIComponent(symbol)}`,
+        );
+        const item = response.snapshot;
+        const previous = get().getLatestSnapshots(item.symbol, 1).at(-1) ?? null;
+        const bullish = item.bullishPct / 100;
+        const bearish = item.bearishPct / 100;
+        const overallSentiment = Math.max(-1, Math.min(1, bullish - bearish));
+        const snapshot: SentimentSnapshot = {
+          id: item.id,
+          symbol: item.symbol,
+          fearGreedIndex: item.fearGreedIndex,
+          fearGreedZone: getFearGreedZone(item.fearGreedIndex),
+          twitterSentiment: overallSentiment,
+          redditSentiment: overallSentiment,
+          newsSentiment: item.newsSentiment,
+          overallSentiment,
+          twitterVolume: item.twitterMentions,
+          redditVolume: item.redditMentions,
+          newsVolume: Math.max(0, Math.round(item.socialVolume - item.twitterMentions - item.redditMentions)),
+          totalVolume: item.socialVolume,
+          trend: previous ? (item.fearGreedIndex > previous.fearGreedIndex ? 'rising' : item.fearGreedIndex < previous.fearGreedIndex ? 'falling' : 'stable') : null,
+          timestamp: item.timestamp,
+        };
+        const snapshots = { ...get().snapshots, [snapshot.id]: snapshot };
+        persist(SNAPSHOTS_KEY, snapshots);
+        set({ snapshots });
+        return { ok: true, message: `Server data refreshed for ${item.symbol}.` };
+      } catch {
+        return { ok: false, message: 'Server sentiment data is unavailable.' };
+      }
+    },
 
     startPolling: () => {
       startSentimentPolling(() => get().runTick());

@@ -25,6 +25,7 @@
 
 import { cloudDataLayer } from './cloudData';
 import { hashPassword as hashPasswordPbkdf2, verifyPassword as verifyPasswordPbkdf2 } from './passwordHash';
+import { trackProductEventInBackground } from './productAnalytics';
 
 const USERS_PROJECT = '3dMq65zUi1A7ayiC';
 const USERS_API     = `/api/taskade/projects/${USERS_PROJECT}/nodes`;
@@ -83,24 +84,50 @@ export function generateOtp(): string {
 
 // ─── Raw API helpers ──────────────────────────────────────────────────────────
 
+const USER_ROSTER_CACHE_MS = 2_000;
+let userRosterCache: Record<string, unknown>[] | null = null;
+let userRosterCacheAt = 0;
+let userRosterRequest: Promise<Record<string, unknown>[]> | null = null;
+
+function invalidateUserRosterCache() {
+  userRosterCache = null;
+  userRosterCacheAt = 0;
+}
+
 async function apiGet(_url: string) {
-  return { payload: { nodes: await cloudDataLayer.projectNodes(USERS_PROJECT) } };
+  const now = Date.now();
+  if (userRosterCache && now - userRosterCacheAt < USER_ROSTER_CACHE_MS) {
+    return { payload: { nodes: userRosterCache } };
+  }
+  if (!userRosterRequest) {
+    userRosterRequest = cloudDataLayer.projectNodes(USERS_PROJECT)
+      .finally(() => { userRosterRequest = null; });
+  }
+  const nodes = await userRosterRequest;
+  userRosterCache = nodes;
+  userRosterCacheAt = Date.now();
+  return { payload: { nodes } };
 }
 
 async function apiPost(_url: string, body: object): Promise<any> {
-  return cloudDataLayer.createProjectNode(USERS_PROJECT, body as Record<string, unknown>);
+  const result = await cloudDataLayer.createProjectNode(USERS_PROJECT, body as Record<string, unknown>);
+  invalidateUserRosterCache();
+  return result;
 }
 
 async function apiPatch(url: string, body: object) {
   const nodeId = url.split('/').filter(Boolean).pop();
   if (!nodeId || nodeId === 'nodes') throw new Error('Missing user node id');
-  return cloudDataLayer.updateProjectNode(USERS_PROJECT, nodeId, body as Record<string, unknown>);
+  const result = await cloudDataLayer.updateProjectNode(USERS_PROJECT, nodeId, body as Record<string, unknown>);
+  invalidateUserRosterCache();
+  return result;
 }
 
 async function apiDelete(url: string) {
   const nodeId = url.split('/').filter(Boolean).pop();
   if (!nodeId || nodeId === 'nodes') throw new Error('Missing user node id');
   await cloudDataLayer.deleteProjectNode(USERS_PROJECT, nodeId);
+  invalidateUserRosterCache();
 }
 
 // ─── Parse node → UserRecord ──────────────────────────────────────────────────
@@ -447,6 +474,28 @@ export function isSessionStorageAvailable(): boolean {
     return true;
   } catch {
     return false;
+  }
+}
+
+// ─── Update editable profile fields ─────────────────────────────────────────
+
+export async function updateUserProfile(
+  email: string,
+  changes: { fullName?: string },
+): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const user = await findUserByEmail(email);
+    if (!user) return { ok: false, error: 'User not found.' };
+    const fields: Record<string, unknown> = {};
+    if (changes.fullName !== undefined) {
+      fields['/attributes/@cv_fname'] = changes.fullName.trim();
+    }
+    if (Object.keys(fields).length > 0) {
+      await apiPatch(`${USERS_API}/${user.nodeId}`, fields);
+    }
+    return { ok: true };
+  } catch (err: any) {
+    return { ok: false, error: err?.message ?? 'Failed to update profile.' };
   }
 }
 

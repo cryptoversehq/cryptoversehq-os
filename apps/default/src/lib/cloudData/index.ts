@@ -1,4 +1,4 @@
-import type { CachePolicy, CloudEntity, CloudProvider, CloudMetrics, IntegrityReport } from './types';
+import type { CachePolicy, CloudEntity, CloudProvider, CloudMetrics, IntegrityReport, CloudEventMap } from './types';
 import { CacheEngine, cacheEngine } from './CacheEngine';
 import { ConflictEngine, conflictEngine } from './ConflictEngine';
 import { CloudEventBus, cloudEventBus } from './CloudEventBus';
@@ -19,7 +19,7 @@ export { CloudDashboard } from './CloudDashboard';
 
 export const DEFAULT_CACHE_POLICIES: Record<string, CachePolicy> = {
   trading: 'persistent', academy: 'persistent', wallet: 'persistent', theme: 'persistent',
-  universal_memory: 'persistent', trial: 'persistent', sentiment: 'persistent', on_chain: 'persistent', feedback: 'persistent', mentor_chat: 'persistent', login_history: 'persistent', localization: 'persistent', referrals: 'persistent', bot_marketplace: 'persistent', ai_recommender: 'persistent', copy_trading: 'persistent', bot_templates: 'persistent', background_jobs: 'persistent', feature_previews: 'persistent', monetization: 'persistent', live_prices: 'temporary', notifications: 'session', ai_conversation: 'persistent', market_feed: 'memory',
+  universal_memory: 'persistent', trial: 'persistent', sentiment: 'persistent', exchange_portfolio: 'persistent', on_chain: 'persistent', feedback: 'persistent', mentor_chat: 'persistent', login_history: 'persistent', localization: 'persistent', referrals: 'persistent', bot_marketplace: 'persistent', ai_recommender: 'persistent', copy_trading: 'persistent', bot_templates: 'persistent', background_jobs: 'persistent', feature_previews: 'persistent', monetization: 'persistent', live_prices: 'temporary', notifications: 'session', ai_conversation: 'persistent', market_feed: 'memory',
 };
 
 function emptyMetrics(): CloudMetrics {
@@ -32,6 +32,7 @@ export class CloudDataLayer {
   private readonly conflicts: ConflictEngine;
   private readonly events: CloudEventBus;
   private readonly queue: OfflineQueue;
+  private readonly activeWrites = new Map<string, Promise<CloudEntity<unknown>>>();
   private metrics: CloudMetrics = emptyMetrics();
 
   constructor(
@@ -48,31 +49,50 @@ export class CloudDataLayer {
     this.queue = queue;
   }
 
+  on<K extends keyof CloudEventMap>(name: K, listener: (payload: CloudEventMap[K]) => void): () => void {
+    return this.events.on(name, listener);
+  }
+
   async get<T>(objectType: string, key: string, policy: CachePolicy = this.policyFor(objectType), userId?: string): Promise<T | null> {
     const started = Date.now();
     const remote = await this.provider.read<T>({ objectType, key, userId }).catch(() => null);
     this.metrics.cloudLatencyMs = Date.now() - started;
     if (remote) {
       this.cache.set(remote, policy);
+      this.events.emit('CloudCacheUpdated', { objectType, key, policy });
       return remote.data;
     }
     return this.cache.get<T>(objectType, key, policy)?.data ?? null;
   }
 
   async save<T>(objectType: string, key: string, data: T, policy: CachePolicy = this.policyFor(objectType), userId?: string): Promise<CloudEntity<T>> {
-    const previous = this.cache.get<T>(objectType, key, policy);
-    const entity = await this.prepare(objectType, key, data, previous?.version ?? 0, userId);
-    this.events.emit('CloudSyncStarted', { objectType, key });
+    const writeKey = `${objectType}:${key}:${userId ?? ''}`;
+    const active = this.activeWrites.get(writeKey);
+    if (active) return active as Promise<CloudEntity<T>>;
+
+    const write = (async (): Promise<CloudEntity<T>> => {
+      const previous = this.cache.get<T>(objectType, key, policy);
+      const entity = await this.prepare(objectType, key, data, previous?.version ?? 0, userId);
+      this.events.emit('CloudSyncStarted', { objectType, key });
+      try {
+        const saved = await this.provider.write({ objectType, key, entity, userId });
+        this.cache.set(saved, policy);
+        this.events.emit('CloudCacheUpdated', { objectType, key, policy });
+        this.events.emit('CloudSyncFinished', { objectType, key, ok: true });
+        return saved;
+      } catch (error) {
+        this.queue.enqueue({ priority: 5, operation: 'write', payload: { objectType, key, entity, userId }, maxAttempts: 5 });
+        this.events.emit('CloudOffline', { reason: error instanceof Error ? error.message : 'Cloud write failed' });
+        this.events.emit('CloudSyncFinished', { objectType, key, ok: false });
+        return entity;
+      }
+    })();
+
+    this.activeWrites.set(writeKey, write as Promise<CloudEntity<unknown>>);
     try {
-      const saved = await this.provider.write({ objectType, key, entity, userId });
-      this.cache.set(saved, policy);
-      this.events.emit('CloudSyncFinished', { objectType, key, ok: true });
-      return saved;
-    } catch (error) {
-      this.queue.enqueue({ priority: 5, operation: 'write', payload: { objectType, key, entity, userId }, maxAttempts: 5 });
-      this.events.emit('CloudOffline', { reason: error instanceof Error ? error.message : 'Cloud write failed' });
-      this.events.emit('CloudSyncFinished', { objectType, key, ok: false });
-      return entity;
+      return await write;
+    } finally {
+      if (this.activeWrites.get(writeKey) === write) this.activeWrites.delete(writeKey);
     }
   }
 
@@ -81,12 +101,14 @@ export class CloudDataLayer {
     const entity = await this.prepare(objectType, key, data, this.cache.get<T>(objectType, key, selectedPolicy)?.version ?? 0, userId);
     const saved = await this.provider.update({ objectType, key, entity, userId });
     this.cache.set(saved, selectedPolicy);
+    this.events.emit('CloudCacheUpdated', { objectType, key, policy: selectedPolicy });
     return saved;
   }
 
   async delete(objectType: string, key: string, policy: CachePolicy = this.policyFor(objectType), userId?: string): Promise<void> {
     await this.provider.delete({ objectType, key, userId });
     this.cache.delete(objectType, key, policy);
+    this.events.emit('CloudCacheUpdated', { objectType, key, policy });
   }
 
   async sync(): Promise<{ completed: number; failed: number }> {

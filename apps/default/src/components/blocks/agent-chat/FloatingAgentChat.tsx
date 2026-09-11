@@ -309,7 +309,12 @@ function ActiveChat({
   notice?: string;
 }) {
   const { messages, status, stop, error, clearError, regenerate, addToolApprovalResponse } =
-    useChat({ chat, id: chat.id });
+    useChat({
+      chat,
+      id: chat.id,
+      // Matches useAiSdkChat.ts: coalesce stream-part re-renders to ~frame rate.
+      experimental_throttle: 16,
+    });
   const busy = status === 'submitted' || status === 'streaming';
 
   // Shows the SERVER's message (already end-user-safe and specific about the

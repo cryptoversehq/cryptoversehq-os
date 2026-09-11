@@ -1,13 +1,13 @@
+
 import { create } from 'zustand';
-import { hashPassword as hashPasswordPbkdf2, verifyPassword as verifyPasswordPbkdf2, isLegacySha256 } from './passwordHash';
+import { hashPassword as hashPasswordPbkdf2, verifyPassword as verifyPasswordPbkdf2 } from './passwordHash';
 import { recordLogin } from './loginHistoryStore';
-import { cloudDataLayer } from './cloudData';
-import { syncOnLogin, syncOnLogout, syncKey } from './syncStorage';
-import { runBulkMigrationOnce, ensureUserMigrated, refreshAdminCacheFromDb } from './userMigrationService';
+import { refreshAdminCacheFromDb } from './userMigrationService';
 import { rateLimiter } from './security/rateLimiter';
-import { createSession, destroySession, loadAuthSession, refreshActivity } from './security/sessionManager';
-import { emitAuthEvent } from './security/authEvents';
-import { recordAuthAudit } from './security/authAudit';
+import { createSession, destroySession, loadAuthSession } from './security/sessionManager';
+import { cloudRecordStore } from './cloudData';
+import { createPendingUser, findUserByEmail, generateOtp, sendOtpEmail, updatePassword, updateUserProfile, type UserRecord } from './authApi';
+import { trackProductEventInBackground, trackProductEventOnce } from './productAnalytics';
 
 // ── Password hashing (PBKDF2-SHA256) ────────────────────────────────────────
 // Delegated to ./passwordHash (WebCrypto PBKDF2 with a per-user 16-byte salt and
@@ -18,28 +18,6 @@ async function hashPassword(password: string): Promise<string> {
 
 async function verifyPassword(password: string, storedHash: string): Promise<boolean> {
   return verifyPasswordPbkdf2(password, storedHash);
-}
-
-// ── Write new user to CryptoVerse Users project via API ──────────────────────
-const USERS_PROJECT_ID = '3dMq65zUi1A7ayiC';
-
-async function writeUserToProject(profile: {
-  email: string; passwordHash: string; displayName: string; role: string;
-}): Promise<void> {
-  try {
-    await cloudDataLayer.createProjectNode(USERS_PROJECT_ID, {
-      content: profile.email,
-      attributes: {
-        '@cv_email':    profile.email,
-        '@cv_phash':    profile.passwordHash,
-        '@cv_fname':    profile.displayName,
-        '@cv_role':     { type: 'Select', optionId: `role_${profile.role}` },
-        '@cv_verified': { type: 'Select', optionId: 'ev_false' },
-      },
-    });
-  } catch {
-    // Fire-and-forget — user is still saved locally even if API write fails
-  }
 }
 
 // ── Role System ───────────────────────────────────────────────────────────────
@@ -179,7 +157,7 @@ interface AuthState {
   requestAdmin: () => { approved: boolean; reason?: string };
 
   // Role management (super_admin only)
-  setUserRole: (targetEmail: string, newRole: UserRole) => { success: boolean; error?: string };
+  setUserRole: (targetEmail: string, newRole: UserRole) => Promise<{ success: boolean; error?: string }>;
 
   // Get all users (super_admin only)
   getAllUsers: () => Array<{ email: string; profile: UserProfile }>;
@@ -194,7 +172,7 @@ interface AuthState {
   resetPassword: (email: string, newPassword: string) => Promise<{ success: boolean; error?: string }>;
 
   // New: log in directly from an external auth session (used by new auth pages)
-  loginFromSession: (params: { id: string; email: string; fullName: string; role: UserRole }) => void;
+  loginFromSession: (params: { id: string; email: string; fullName: string; role: UserRole }) => Promise<void>;
 
   // Refresh the current user's role from the Taskade DB (reactive role sync)
   refreshRole: () => Promise<void>;
@@ -254,19 +232,69 @@ function saveUsers(u: Record<string, { password: string; profile: UserProfile }>
 }
 function getSession(): UserProfile | null {
   try {
+    const authSession = loadAuthSession();
     const raw = localStorage.getItem(SESSION_KEY);
-    if (!raw) return null;
-    const p = JSON.parse(raw) as UserProfile | null;
-    if (!p) return null;
-    // Role is NEVER trusted from localStorage. Strip privilege-bearing fields so
-    // a tampered session cannot grant admin/super_admin. The authoritative role
-    // is re-established on the next DB-backed (OTP-verified) authentication.
-    return { ...p, role: 'user' as UserRole, isAdmin: false } as UserProfile;
+    const cached = raw ? JSON.parse(raw) as Partial<UserProfile> : null;
+    const email = authSession?.email ?? cached?.email;
+    if (!email) return null;
+    return {
+      id: authSession?.email ?? cached?.id ?? '',
+      email,
+      displayName: cached?.displayName ?? email.split('@')[0],
+      avatarSeed: cached?.avatarSeed ?? email.split('@')[0],
+      plan: cached?.plan ?? 'free',
+      planExpiry: cached?.planExpiry,
+      referralCode: cached?.referralCode ?? '',
+      referralCount: cached?.referralCount ?? 0,
+      referralBonus: cached?.referralBonus ?? 0,
+      language: cached?.language ?? 'en',
+      isFirstLogin: cached?.isFirstLogin ?? false,
+      joinedAt: cached?.joinedAt ?? new Date().toISOString(),
+      role: cached?.role ?? 'user',
+      isAdmin: cached?.isAdmin ?? roleToIsAdmin(cached?.role ?? 'user'),
+      virtualBalance: cached?.virtualBalance ?? 0,
+    };
   } catch { return null; }
 }
 function saveSession(p: UserProfile | null) {
-  if (p) localStorage.setItem(SESSION_KEY, JSON.stringify(p));
-  else   localStorage.removeItem(SESSION_KEY);
+  if (p) {
+    localStorage.setItem(SESSION_KEY, JSON.stringify({
+      ...p,
+      role: p.role,
+      isAdmin: roleToIsAdmin(p.role),
+    }));
+  } else {
+    localStorage.removeItem(SESSION_KEY);
+  }
+}
+
+function profileFromServer(record: UserRecord, previous?: UserProfile | null): UserProfile {
+  const base = previous ?? {
+    id: record.nodeId,
+    email: record.email,
+    displayName: record.fullName || record.email.split('@')[0],
+    avatarSeed: (record.fullName || record.email).split(' ')[0],
+    plan: 'free' as const,
+    referralCode: makeReferralCode(record.fullName || record.email),
+    referralCount: 0,
+    referralBonus: 0,
+    language: 'en',
+    isFirstLogin: false,
+    joinedAt: record.createdAt || new Date().toISOString(),
+    role: 'user' as UserRole,
+    isAdmin: false,
+    virtualBalance: 0,
+  };
+  return migrateProfile({
+    ...base,
+    id: record.nodeId,
+    email: record.email,
+    displayName: record.fullName || base.displayName,
+    role: record.role as UserRole,
+    isAdmin: roleToIsAdmin(record.role as UserRole),
+    isDeveloper: record.role === 'developer',
+    joinedAt: record.createdAt || base.joinedAt,
+  });
 }
 
 // ── Admin account management ──────────────────────────────────────────────────
@@ -276,15 +304,11 @@ function saveSession(p: UserProfile | null) {
 // Extension point: a one-time setup script or environment-variable-driven
 // initial Super Admin seed can be added here if needed for new deployments.
 
-// ── Priority-1 migration: push every legacy (localStorage) account into the
-// shared Taskade Users project once per browser. Fire-and-forget — the app
-// works exactly as before if the DB is unreachable (existing localStorage
-// login below is untouched and remains the fallback path). ──────────────────
-runBulkMigrationOnce();
-// Warm the super-admin/ban/suspend/section-permission localStorage cache
-// from the DB on every app load, so admin checks are DB-fresh even before
-// anyone opens the Admin Users page.
-refreshAdminCacheFromDb().catch(() => {});
+// Warm the admin cache only when an authenticated session exists. Public auth
+// pages must not fetch the full users roster before registration or login.
+if (loadAuthSession()?.email) {
+  refreshAdminCacheFromDb().catch(() => {});
+}
 
 // ── Role helpers ──────────────────────────────────────────────────────────────
 function roleToIsAdmin(role: UserRole): boolean {
@@ -404,127 +428,50 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   login: async (email, password) => {
     const normalizedEmail = email.toLowerCase().trim();
-    // Sprint 1B: Rate limiting + lockout
     const rateCheck = rateLimiter.checkRateLimit('login', normalizedEmail);
-    if (!rateCheck.allowed) {
-      recordAuthAudit({ event: 'RATE_LIMITED', timestamp: Date.now(), email: normalizedEmail, success: false, reason: rateCheck.message });
-      emitAuthEvent({ type: 'RATE_LIMITED', timestamp: Date.now(), email: normalizedEmail });
-      return { success: false, error: rateCheck.message || 'Too many attempts. Please wait.' };
-    }
+    if (!rateCheck.allowed) return { success: false, error: rateCheck.message || 'Too many attempts. Please wait.' };
     const lockCheck = rateLimiter.isLockedOut(normalizedEmail);
-    if (lockCheck.locked) {
-      recordAuthAudit({ event: 'ACCOUNT_LOCKED', timestamp: Date.now(), email: normalizedEmail, success: false });
-      emitAuthEvent({ type: 'ACCOUNT_LOCKED', timestamp: Date.now(), email: normalizedEmail });
-      return { success: false, error: lockCheck.message || 'Account is temporarily locked.' };
-    }
+    if (lockCheck.locked) return { success: false, error: lockCheck.message || 'Account is temporarily locked.' };
 
-    const users = getUsers();
-    const key   = normalizedEmail;
-    const entry = users[key];
+    try {
+      const record = await findUserByEmail(normalizedEmail);
+      if (!record || !record.passwordHash || !(await verifyPassword(password, record.passwordHash))) {
+        rateLimiter.recordFailedAttempt('login', normalizedEmail);
+        return { success: false, error: 'Incorrect email or password.' };
+      }
+      if (record.status !== 'active') return { success: false, error: 'This account is not active.' };
 
-    if (!entry) {
-      rateLimiter.recordFailedAttempt('login', normalizedEmail);
-      recordAuthAudit({ event: 'LOGIN_FAILED', timestamp: Date.now(), email: normalizedEmail, success: false, reason: 'User not found' });
-      emitAuthEvent({ type: 'LOGIN_FAILED', timestamp: Date.now(), email: normalizedEmail });
-      return { success: false, error: 'Incorrect email or password.' };
+      const profile = profileFromServer(record, get().user?.email === record.email ? get().user : null);
+      createSession(record.email);
+      saveSession(profile);
+      set({ user: profile, isAuthenticated: true, isAdmin: roleToIsAdmin(profile.role), isSuperAdmin: profile.role === 'super_admin' });
+      recordLogin({ userId: profile.id, method: 'email' });
+      hydrateUserData(profile.email);
+      return { success: true };
+    } catch {
+      return { success: false, error: 'We could not reach the account service. Please try again.' };
     }
-    const storedPwd = entry.password;
-    // Plaintext passwords are never accepted.
-    if (!storedPwd || (/^[0-9a-f]{64}$/.test(storedPwd) === false && !storedPwd.startsWith('pbkdf2$'))) {
-      rateLimiter.recordFailedAttempt('login', normalizedEmail);
-      recordAuthAudit({ event: 'LOGIN_FAILED', timestamp: Date.now(), email: normalizedEmail, success: false, reason: 'Legacy unhashed password rejected' });
-      emitAuthEvent({ type: 'LOGIN_FAILED', timestamp: Date.now(), email: normalizedEmail });
-      return { success: false, error: 'Insecure legacy password format detected. Please reset your password to upgrade to PBKDF2 security.' };
-    }
-
-    const passwordOk = await verifyPassword(password, storedPwd);
-    if (!passwordOk) {
-      rateLimiter.recordFailedAttempt('login', normalizedEmail);
-      recordAuthAudit({ event: 'LOGIN_FAILED', timestamp: Date.now(), email: normalizedEmail, success: false, reason: 'Wrong password' });
-      emitAuthEvent({ type: 'LOGIN_FAILED', timestamp: Date.now(), email: normalizedEmail });
-      return { success: false, error: 'Incorrect email or password.' };
-    }
-
-    // Re-hash legacy SHA-256 credentials to PBKDF2 on successful login.
-    if (isLegacySha256(storedPwd)) {
-      hashPassword(password).then((upgraded) => {
-        const latestUsers = getUsers();
-        if (latestUsers[key]) {
-          latestUsers[key].password = upgraded;
-          saveUsers(latestUsers);
-        }
-      }).catch(() => {});
-    }
-
-    const profile = migrateProfile({ ...entry.profile });
-    entry.profile  = profile;
-    saveUsers(users);
-    saveSession(profile);
-    set({
-      user:            profile,
-      isAuthenticated: true,
-      isAdmin:         roleToIsAdmin(profile.role),
-      isSuperAdmin:    profile.role === 'super_admin',
-    });
-    recordLogin({ userId: profile.id, method: 'email' });
-    // Sync user data from Taskade (cross-device)
-    syncOnLogin(profile.email).catch(() => {});
-    // Priority-1 migration: if this legacy account isn't in the shared DB
-    // yet, push it now so the next login goes through the modern OTP path.
-    ensureUserMigrated(key, storedPwd).catch(() => {});
-    // Task 49: pull this user's Academy XP/lesson progress from the DB.
-    import('./academyStore').then(({ useAcademyStore }) => {
-      useAcademyStore.getState().hydrate(profile.email).catch(() => {});
-    });
-    // Priority 5: migrate/hydrate/sync trading, bots, copy-trading,
-    // marketplace purchases, and CP coins for this user.
-    import('./tradingMigrationService').then(({ onTradingLogin }) => {
-      onTradingLogin(profile.email).catch(() => {});
-    });
-    // Pull this user's saved language preference from the DB (cross-device sync).
-    import('./i18nStore').then(({ hydrateLang }) => {
-      hydrateLang(profile.email).catch(() => {});
-    });
-    return { success: true };
   },
 
   register: async (email, password, displayName) => {
-    const users = getUsers();
-    const key   = email.toLowerCase().trim();
-    if (users[key]) return { success: false, error: 'An account with this email already exists.' };
+    const normalizedEmail = email.toLowerCase().trim();
     if (password.length < 6) return { success: false, error: 'Password must be at least 6 characters.' };
-
-    const profile: UserProfile = {
-      id:            `user_${Date.now()}`,
-      email:         key,
-      displayName:   displayName.trim() || email.split('@')[0],
-      avatarSeed:    displayName.split(' ')[0] || 'User',
-      plan:          'free',
-      referralCode:  makeReferralCode(displayName || email),
-      referralCount: 0,
-      referralBonus: 0,
-      language:      navigator.language.split('-')[0] || 'en',
-      isFirstLogin:  true,
-      joinedAt:      new Date().toISOString(),
-      role:          'user',
-      isAdmin:       false,
-      virtualBalance: 0,
-    };
-
-    // Hash password via PBKDF2-SHA256 and store; also write to Users project.
-    const hash = await hashPassword(password);
-    users[key] = { password: hash, profile };
-    saveUsers(users);
-    writeUserToProject({ email: key, passwordHash: hash, displayName: profile.displayName, role: 'user' }).catch(() => { /* fire-and-forget */ });
-    saveSession(profile);
-    set({
-      user:            profile,
-      isAuthenticated: true,
-      isAdmin:         false,
-      isSuperAdmin:    false,
-    });
-    recordLogin({ userId: profile.id, method: 'register', isNewUser: true });
-    return { success: true };
+    try {
+      const passwordHash = await hashPassword(password);
+      const otpCode = generateOtp();
+      const otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+      await createPendingUser({
+        email: normalizedEmail,
+        passwordHash,
+        fullName: displayName.trim() || normalizedEmail.split('@')[0],
+        otpCode,
+        otpExpiresAt,
+      });
+      await sendOtpEmail({ email: normalizedEmail, name: displayName.trim() || normalizedEmail.split('@')[0], code: otpCode });
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : 'Unable to create the account.' };
+    }
   },
 
   // loginWithGoogle / loginWithApple / loginWithBiometric were removed.
@@ -533,6 +480,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   // (OTP-verified) and the standalone AdminLogin flow only.
 
   logout: () => {
+    destroySession();
     saveSession(null);
     // Also clear sessionStorage for any legacy entries
     try { sessionStorage.removeItem('cryptoverse_session'); } catch { /* ignore */ }
@@ -549,11 +497,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const user = get().user;
     if (!user) return;
     const updated = migrateProfile({ ...user, ...partial });
-    const users   = getUsers();
-    const key     = user.email.toLowerCase();
-    if (users[key]) {
-      users[key].profile = updated;
-      saveUsers(users);
+    cloudRecordStore.set('auth_profile', user.email.toLowerCase(), updated);
+    if (partial.displayName !== undefined) {
+      void updateUserProfile(user.email, { fullName: partial.displayName }).then(result => {
+        if (!result.ok) console.warn('[authStore] Profile update was not accepted by the server.');
+      });
     }
     saveSession(updated);
     set({
@@ -599,25 +547,24 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     return { approved, reason };
   },
 
-  setUserRole: (targetEmail, newRole) => {
+  setUserRole: async (targetEmail, newRole) => {
     const currentUser = get().user;
     if (!currentUser || currentUser.role !== 'super_admin') {
       return { success: false, error: 'Only Super Admins can change user roles.' };
     }
+    const result = await import('./authApi').then(({ updateUserRole }) => updateUserRole(targetEmail, newRole));
+    if (!result.ok) return { success: false, error: result.error };
+
+    const key = targetEmail.toLowerCase().trim();
     const users = getUsers();
-    const key   = targetEmail.toLowerCase().trim();
-    if (!users[key]) return { success: false, error: 'User not found.' };
-    users[key].profile.role    = newRole;
-    users[key].profile.isAdmin = roleToIsAdmin(newRole);
-    saveUsers(users);
-    // If the modified user is the current session, update session too
+    const target = users[key];
+    if (target) {
+      target.profile = migrateProfile({ ...target.profile, role: newRole, isAdmin: roleToIsAdmin(newRole) });
+      saveUsers(users);
+    }
     if (key === currentUser.email.toLowerCase()) {
       get().updateProfile({ role: newRole, isAdmin: roleToIsAdmin(newRole) });
     }
-    // Persist to Taskade project (fire-and-forget)
-    import('./authApi').then(({ updateUserRole }) => {
-      updateUserRole(targetEmail, newRole).catch(() => {/* silent */});
-    });
     return { success: true };
   },
 
@@ -638,63 +585,28 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   // ── Subscription management ───────────────────────────────────────────
   updateSubscription: (planId) => {
-    set((state) => ({
-      user: state.user ? {
-        ...state.user,
-        plan: planId as 'free' | 'pro' | 'pro_plus',
-        planExpiry: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-      } : null,
-    }));
-    localStorage.setItem('cryptoverse_subscription', planId);
-    localStorage.setItem('cryptoverse_subscription_expiry', String(Date.now() + 30 * 24 * 60 * 60 * 1000));
+    const user = get().user;
+    if (!user) return;
+    const planExpiry = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+    get().updateProfile({
+      plan: planId as 'free' | 'pro' | 'pro_plus',
+      planExpiry,
+    });
   },
 
-  loginFromSession: ({ id, email, fullName, role }) => {
-    const profile: UserProfile = {
-      id,
-      email,
-      displayName:   fullName,
-      avatarSeed:    fullName.split(' ')[0] || 'User',
-      plan:          'free',
-      referralCode:  makeReferralCode(fullName || email),
-      referralCount: 0,
-      referralBonus: 0,
-      language:      navigator.language.split('-')[0] || 'en',
-      isFirstLogin:  false,
-      joinedAt:      new Date().toISOString(),
-      role,
-      isAdmin:       roleToIsAdmin(role),
-      virtualBalance: 0,
-    };
-    // Merge with any existing local profile data
-    const users = getUsers();
-    const key   = email.toLowerCase();
-    if (users[key]) {
-      const merged = migrateProfile({ ...users[key].profile, ...profile, id, role });
-      users[key].profile = merged;
-      saveUsers(users);
-      saveSession(merged);
-      set({ user: merged, isAuthenticated: true, isAdmin: roleToIsAdmin(merged.role), isSuperAdmin: merged.role === 'super_admin' });
-    } else {
-      users[key] = { password: '', profile };
-      saveUsers(users);
+  loginFromSession: async ({ email }) => {
+    try {
+      const record = await findUserByEmail(email.toLowerCase().trim());
+      if (!record || record.status !== 'active') return;
+      const profile = profileFromServer(record, get().user?.email === record.email ? get().user : null);
+      createSession(record.email);
       saveSession(profile);
-      set({ user: profile, isAuthenticated: true, isAdmin: roleToIsAdmin(role), isSuperAdmin: role === 'super_admin' });
+      set({ user: profile, isAuthenticated: true, isAdmin: roleToIsAdmin(profile.role), isSuperAdmin: profile.role === 'super_admin' });
+      recordLogin({ userId: profile.id, method: 'email' });
+      hydrateUserData(profile.email);
+    } catch {
+      console.warn('[authStore] Server session hydration failed.');
     }
-    recordLogin({ userId: id, method: 'email' });
-    // Task 49: pull this user's Academy XP/lesson progress from the DB.
-    import('./academyStore').then(({ useAcademyStore }) => {
-      useAcademyStore.getState().hydrate(email).catch(() => {});
-    });
-    // Priority 5: migrate/hydrate/sync trading, bots, copy-trading,
-    // marketplace purchases, and CP coins for this user.
-    import('./tradingMigrationService').then(({ onTradingLogin }) => {
-      onTradingLogin(email).catch(() => {});
-    });
-    // Pull this user's saved language preference from the DB (cross-device sync).
-    import('./i18nStore').then(({ hydrateLang }) => {
-      hydrateLang(email).catch(() => {});
-    });
   },
 
   refreshRole: async () => {
@@ -731,13 +643,37 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     if (newPassword.length < 6) {
       return { success: false, error: 'Password must be at least 6 characters.' };
     }
-    const users = getUsers();
-    const key   = email.toLowerCase().trim();
-    if (!users[key]) {
-      return { success: false, error: 'No account found with this email.' };
+    try {
+      const record = await findUserByEmail(email.toLowerCase().trim());
+      if (!record) return { success: false, error: 'No account found with this email.' };
+      await updatePassword(record.nodeId, await hashPassword(newPassword));
+      return { success: true };
+    } catch {
+      return { success: false, error: 'Unable to update the password right now.' };
     }
-    users[key].password = await hashPassword(newPassword);
-    saveUsers(users);
-    return { success: true };
   },
 }));
+
+
+async function hydrateCurrentUserFromServer(): Promise<void> {
+  const cachedUser = useAuthStore.getState().user;
+  if (!cachedUser?.email) return;
+  try {
+    const record = await findUserByEmail(cachedUser.email);
+    if (!record || record.status !== 'active') {
+      destroySession();
+      saveSession(null);
+      useAuthStore.setState({ user: null, isAuthenticated: false, isAdmin: false, isSuperAdmin: false });
+      return;
+    }
+    const profile = profileFromServer(record, cachedUser);
+    saveSession(profile);
+    useAuthStore.setState({ user: profile, isAuthenticated: true, isAdmin: roleToIsAdmin(profile.role), isSuperAdmin: profile.role === 'super_admin' });
+    hydrateUserData(profile.email);
+  } catch {
+    console.warn('[authStore] Server hydration unavailable; retaining the cached session until retry.');
+  }
+}
+
+void hydrateCurrentUserFromServer();
+

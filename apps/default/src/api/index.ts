@@ -37,7 +37,9 @@ export {
   apiPost,
   apiPut,
   apiDel,
+  request,
   resolveAuthContext,
+  configureApiAuthRefresh,
   callTaskadeWebhook,
   ApiErrors,
   ApiClientError,
@@ -56,6 +58,12 @@ export type {
   ApiErrorCode,
   ApiMeta,
   PaginationParams,
+  ServerDataSource,
+  ServerAuthority,
+  ServerAuthoritative,
+  ServerMutationReceipt,
+  MaskedSecret,
+  ExchangeConnectionMode,
 
   // Strategies
   CreateStrategyRequest,
@@ -138,6 +146,10 @@ export type {
   ListConnectionsResponse,
   ExchangeConnectionItem,
   GetExchangeBalanceResponse,
+  SyncExchangeResponse,
+  ExchangeTradeItem,
+  ExecuteExchangeOrderRequest,
+  ExecuteExchangeOrderResponse,
 } from './types';
 
 // ── Typed endpoint namespace ──────────────────────────────────────────────────
@@ -161,6 +173,12 @@ import type {
   TrackNftWalletRequest,
   GetRecommendationsRequest,
   ConnectExchangeRequest,
+  ConnectExchangeResponse,
+  ListConnectionsResponse,
+  GetExchangeBalanceResponse,
+  SyncExchangeResponse,
+  ExecuteExchangeOrderRequest,
+  ExecuteExchangeOrderResponse,
 } from './types';
 
 export const api = {
@@ -245,10 +263,12 @@ export const api = {
 
   // ── Exchange Connections ───────────────────────────────────────────────────
   exchange: {
-    connect:     (body: ConnectExchangeRequest) => apiPost('/api/exchange/connect', body),
-    connections: ()                             => apiGet('/api/exchange/connections'),
-    disconnect:  (id: string)                   => apiDel(`/api/exchange/connections/${id}`),
-    balance:     (id: string)                   => apiGet(`/api/exchange/balance/${id}`),
+    connect:     (body: ConnectExchangeRequest) => apiPost<ConnectExchangeResponse>('/api/exchange/connect', body),
+    connections: ()                             => apiGet<ListConnectionsResponse>('/api/exchange/connections'),
+    disconnect:  (id: string)                   => apiDel<{ ok: boolean }>(`/api/exchange/connections/${id}`),
+    balance:     (id: string)                   => apiGet<GetExchangeBalanceResponse>(`/api/exchange/balance/${id}`),
+    sync:        (id: string)                   => apiPost<SyncExchangeResponse>(`/api/exchange/sync/${id}`, {}),
+    order:       (body: ExecuteExchangeOrderRequest) => apiPost<ExecuteExchangeOrderResponse>('/api/exchange/order', body),
   },
 };
 

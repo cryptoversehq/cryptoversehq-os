@@ -15,8 +15,14 @@ export function CloudDashboardPage() {
 
   useEffect(() => {
     refresh();
+    const unsubscribeCache = cloudDataLayer.on('CloudCacheUpdated', refresh);
+    const unsubscribeSync = cloudDataLayer.on('CloudSyncFinished', refresh);
     const timer = window.setInterval(refresh, 5000);
-    return () => window.clearInterval(timer);
+    return () => {
+      unsubscribeCache();
+      unsubscribeSync();
+      window.clearInterval(timer);
+    };
   }, [refresh]);
 
   const integrityGood = metrics.integrityStatus === 'verified';

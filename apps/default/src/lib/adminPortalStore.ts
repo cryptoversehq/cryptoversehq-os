@@ -173,6 +173,40 @@ function userRecordToDemo(r: UserRecord): DemoUser {
 }
 
 /**
+ * Mirror the live roster into the legacy synchronous profile cache. User-view
+ * mode and offline admin fallbacks still read this cache, so it must be
+ * refreshed whenever the authoritative roster succeeds.
+ */
+function syncLegacyUsersCache(records: UserRecord[]): void {
+  try {
+    const existing = JSON.parse(localStorage.getItem('cryptoverse_users') || '{}') as Record<string, {
+      password?: string;
+      profile?: Record<string, unknown>;
+    }>;
+    const next: Record<string, { password: string; profile: Record<string, unknown> }> = {};
+    for (const record of records) {
+      const email = record.email.toLowerCase().trim();
+      const previous = existing[email];
+      next[email] = {
+        password: previous?.password ?? '',
+        profile: {
+          ...(previous?.profile ?? {}),
+          id: record.nodeId,
+          email: record.email,
+          displayName: record.fullName || record.email.split('@')[0],
+          role: record.role,
+          isAdmin: record.role !== 'user',
+          joinedAt: record.createdAt,
+        },
+      };
+    }
+    localStorage.setItem('cryptoverse_users', JSON.stringify(next));
+  } catch {
+    // Keep the live roster authoritative if the synchronous cache is unavailable.
+  }
+}
+
+/**
  * Offline fallback for loadUsers() — builds the same DemoUser[] shape
  * directly from legacy cryptoverse_users localStorage, used only when the
  * Taskade Users project is unreachable. Once the DB comes back, the next
@@ -229,6 +263,9 @@ export const ADMIN_SECTIONS = [
   { id: 'users',        label: 'User Management',         icon: '👥' },
   { id: 'content',      label: 'Content Management',       icon: '📚' },
   { id: 'transactions', label: 'Transaction Management',   icon: '💳' },
+  // "Super Admin – Subscriptions" role: grants the manual Pro/Pro+ entitlement
+  // tool at /admin/subscriptions. Assignable via Admin → Users permissions.
+  { id: 'subscriptions', label: 'Subscription Management', icon: '👑' },
   { id: 'competitions', label: 'Competition Management',   icon: '🏆' },
   { id: 'events',       label: 'Events Management',        icon: '📅' },
   { id: 'reports',      label: 'Reports Management',       icon: '📋' },
@@ -381,10 +418,9 @@ export const useAdminPortalStore = create<AdminPortalState>((set, get) => ({
     set({ loadingUsers: true });
     try {
       const records = await fetchAllUsers();
-      // Keep the localStorage admin cache (super-admins/bans/suspensions/
-      // sections) in sync with the DB every time the roster is loaded, so
-      // hasAccess() / getAdminSections() / AdminUsers.tsx's synchronous
-      // reads stay current without needing to become async themselves.
+      // Keep both synchronous legacy caches and the admin metadata cache in
+      // sync with the live roster used by AdminUsers and user-view mode.
+      syncLegacyUsersCache(records);
       await refreshAdminCacheFromDb(records).catch(() => {});
       set({
         users:            records.map(userRecordToDemo),

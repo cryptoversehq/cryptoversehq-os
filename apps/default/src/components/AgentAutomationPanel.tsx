@@ -5,19 +5,19 @@ const AGENTS = [
   {
     name: 'AI Assistant',
     description: 'Navigate CryptoVerse and explain the workspace.',
-    publicId: '01KZ4MPA7QSFHNR4KWZT74EKC7',
+    publicUrl: 'https://cryptoversehq.com/a/crypto-verse-ai-assistant-01KZ4MPA7QSFHNR4KWZT74EKC7',
     icon: Bot,
   },
   {
     name: 'Data Analyst',
     description: 'Review reports, payments, tickets, and user trends.',
-    publicId: '01KZZX54572M9KHCJ9ZSCVCP36',
+    publicUrl: 'https://cryptoversehq.com/a/crypto-verse-data-analyst-01KZZX54572M9KHCJ9ZSCVCP36',
     icon: BrainCircuit,
   },
   {
     name: 'Operations Operator',
     description: 'Inspect and update operational records safely.',
-    publicId: '01KZZX5459ECRNXBJCR3RG3KEN',
+    publicUrl: 'https://cryptoversehq.com/a/crypto-verse-operations-operator-01KZZX5459ECRNXBJCR3RG3KEN',
     icon: Wrench,
   },
 ] as const;
@@ -43,10 +43,10 @@ const FLOWS = [
   },
 ] as const;
 
-function HostedAgentLink({ publicId, children }: { publicId: string; children: ReactNode }) {
+function HostedAgentLink({ publicUrl, children }: { publicUrl: string; children: ReactNode }) {
   return (
     <a
-      href={`/a/${publicId}`}
+      href={publicUrl}
       target="_blank"
       rel="noreferrer"
       className="inline-flex min-h-11 items-center gap-1.5 rounded-lg px-2.5 text-xs font-semibold text-primary transition-colors hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
@@ -92,8 +92,8 @@ export function AgentAutomationPanel() {
             Ask an agent
           </div>
           <div className="divide-y divide-border rounded-xl border border-border bg-secondary/10">
-            {AGENTS.map(({ name, description, publicId, icon: Icon }) => (
-              <div key={publicId} className="flex items-center justify-between gap-3 p-3">
+            {AGENTS.map(({ name, description, publicUrl, icon: Icon }) => (
+              <div key={publicUrl} className="flex items-center justify-between gap-3 p-3">
                 <div className="flex min-w-0 items-center gap-3">
                   <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10">
                     <Icon className="h-4 w-4 text-primary" aria-hidden="true" />
@@ -103,7 +103,7 @@ export function AgentAutomationPanel() {
                     <p className="line-clamp-2 text-[11px] text-muted-foreground">{description}</p>
                   </div>
                 </div>
-                <HostedAgentLink publicId={publicId}>Open</HostedAgentLink>
+                <HostedAgentLink publicUrl={publicUrl}>Open</HostedAgentLink>
               </div>
             ))}
           </div>

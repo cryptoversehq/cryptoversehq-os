@@ -113,6 +113,7 @@ export interface ExchangeConnection {
   permissions: ExchangePermission[];
   // Mode
   modes: TradingMode[];
+  isDemoMode?: boolean;
   // Balance snapshot (from last sync)
   balanceUSD: number;
   balanceBTC: number;

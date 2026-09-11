@@ -146,7 +146,7 @@ function loadSettings(): GlobalSettings {
 // ── Main Page ──────────────────────────────────────────────────────────────────
 
 export function ExchangeSettingsPage() {
-  const { connections, resetKillSwitch } = useExchangeStore();
+  const { connections, resetKillSwitch, updateRiskControls } = useExchangeStore();
 
   const [settings, setSettings] = useState<GlobalSettings>(loadSettings);
   const [isDirty,  setIsDirty]  = useState(false);
@@ -160,6 +160,16 @@ export function ExchangeSettingsPage() {
 
   function save() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+    connections.forEach(connection => {
+      updateRiskControls(connection.id, {
+        maxPositionSizeUSD: settings.maxPositionSizeUSD,
+        maxDailyLossUSD: settings.maxDailyLossUSD,
+        maxLeverage: settings.maxLeverage,
+        alertOnTrade: settings.notifyOnTrade,
+        alertOnLoss: settings.notifyOnLoss80,
+        alertOnLimitReached: settings.notifyOnLossLimit,
+      });
+    });
     setIsDirty(false);
     toast.success('Settings saved ✓');
   }

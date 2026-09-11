@@ -112,7 +112,7 @@ function AllocationSection({ portfolio }: { portfolio: ReturnType<ReturnType<typ
 
 // ── Performance Chart ──────────────────────────────────────────────────────────
 
-function PerformanceChart({ baseUSD }: { baseUSD: number }) {
+export function PerformanceChart({ baseUSD }: { baseUSD: number }) {
   const [range, setRange] = useState<'1m' | '3m' | '6m'>('3m');
   const days = range === '1m' ? 30 : range === '3m' ? 90 : 180;
   const data = useMemo(() => buildPortfolioHistory(baseUSD, days), [baseUSD, range]);
@@ -353,8 +353,12 @@ export function ExchangePortfolioPage() {
       {/* Allocation */}
       {portfolio && <AllocationSection portfolio={portfolio} />}
 
-      {/* Performance chart */}
-      {portfolio && <PerformanceChart baseUSD={portfolio.totalUSD} />}
+      {/* Historical performance requires a server history response, which is not part of the current Render contract. */}
+      {portfolio && (
+        <div className="rounded-2xl border border-white/8 px-5 py-4 text-xs text-white/40">
+          Historical performance will appear when the exchange service returns portfolio history. Current balances and trades above are live server data.
+        </div>
+      )}
 
       {/* Trade history */}
       <TradeHistoryTable trades={trades} onExport={handleExport} />

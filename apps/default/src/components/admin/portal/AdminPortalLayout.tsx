@@ -12,9 +12,11 @@ import { cn } from '@/lib/utils';
 import { useAdminAuthStore } from '@/lib/adminAuthStore';
 import { useAdminManagementStore, ADMIN_LEVEL_META, AdminNotifType } from '@/lib/adminManagementStore';
 import { useAuthStore } from '@/lib/authStore';
-import { hasAccess, type AdminSectionId } from '@/lib/adminPortalStore';
+import { type AdminSectionId } from '@/lib/adminPortalStore';
 import { CryptoVerseLogo } from '@/components/CryptoVerseLogo';
 import { AdminLynxButton } from '@/components/admin/AdminLynxButton';
+import { destroySession } from '@/lib/security/sessionManager';
+import { useAdminRole, logoutAdminSession, clearAdminRoleCache } from '@/lib/adminApi';
 
 // ── Role-based nav config ─────────────────────────────────────────────────────
 interface NavItem {
@@ -28,6 +30,9 @@ interface NavItem {
    *  needs hasAccess(email, section) to see/use this item. Super Admins and
    *  items without a section are governed by minLevel alone. */
   section?: AdminSectionId;
+  /** When true the item is shown only to the Developer or an admin explicitly
+   *  granted the `subscriptions` section — never by level alone. */
+  subscriptionAdminOnly?: boolean;
 }
 
 const NAV_ITEMS: NavItem[] = [
@@ -47,6 +52,7 @@ const NAV_ITEMS: NavItem[] = [
   { path: '/admin/nft',         label: 'NFT Management',  icon: Image,           minLevel: 2,  color: 'text-violet-400', section: 'nft' },
   { path: '/admin/sentiment',   label: 'Sentiment',       icon: Brain,           minLevel: 2,  color: 'text-amber-400', section: 'sentiment'  },
   { path: '/admin/exchange',    label: 'Exchange Mgmt',   icon: Activity,        minLevel: 3,  color: 'text-emerald-400' },
+  { path: '/admin/subscriptions', label: 'Subscriptions',  icon: CreditCard,      minLevel: 1,  color: 'text-amber-400', subscriptionAdminOnly: true },
   // ── AI Intelligence ─────────────────────────────────────────────────────
   { path: '/admin/ai-dashboard',    label: 'AI Intelligence', icon: Brain,       minLevel: 1,  color: 'text-purple-400' },
   { path: '/admin/command-console', label: 'Command Console', icon: Terminal,    minLevel: 3,  color: 'text-amber-400' },
@@ -179,41 +185,52 @@ function AdminNotifBell() {
 // ── Main Layout ───────────────────────────────────────────────────────────────
 export function AdminPortalLayout() {
   const { session, logout: adminLogout } = useAdminAuthStore();
-  const { user: appUser, logout: appLogout } = useAuthStore();
+  const { user: appUser } = useAuthStore();
   const { notifications }         = useAdminManagementStore();
   const location                  = useLocation();
   const [sidebarOpen, setSidebar] = useState(false);
 
-  // Authorization comes ONLY from a real adminAuthStore session obtained via
-  // the standalone AdminLogin flow (email/password/2FA). The main-app
-  // appUser.role is NOT trusted to elevate privilege (it is client-editable
-  // and never grants admin portal access).
-  const level: number = session?.level ?? 1;
+  // Authorization: the admin role now comes from the SERVER (GET /api/auth/me).
+  // ServerAdminGuard has already verified the session + role; this value only
+  // shapes the UI (which nav items are shown, read-only mode).
+  const adminRole = useAdminRole();
 
+  const level: number = adminRole === 'developer' ? 6 : adminRole ? 3 : 1;
   const meta = ADMIN_LEVEL_META[Math.min(level, 6) as keyof typeof ADMIN_LEVEL_META]
     ?? ADMIN_LEVEL_META[1];
-  const unifiedRole = appUser?.role;
-  const roleLabel = unifiedRole ? unifiedRole.replace(/_/g, ' ') : meta.role;
+  const roleLabel = adminRole ? adminRole.replace(/_/g, ' ') : meta.role;
   const identityEmail = session?.email ?? appUser?.email ?? 'Admin account';
 
-  // Unified logout — clears both auth systems and redirects to home
-  const logout = () => {
+  // Nav is filtered purely by the server-provided admin role:
+  //   developer                          → everything
+  //   subscription_admin / support_admin  → only the Subscriptions tool
+  //   anything else → nothing (ServerAdminGuard has already redirected)
+  const allowedNav = React.useMemo(() => {
+    if (adminRole === 'developer') return NAV_ITEMS;
+    if (adminRole === 'subscription_admin' || adminRole === 'support_admin') {
+      return NAV_ITEMS.filter(n => n.path === '/admin/subscriptions');
+    }
+    return [];
+  }, [adminRole]);
+
+  // Sign out: clear the server (Supabase) session, then the admin session store,
+  // then the main app session — WITHOUT authStore.logout()'s own redirect to
+  // '/dashboard' — and land on the admin login page.
+  const logout = useCallback(async () => {
+    await logoutAdminSession();
+    clearAdminRoleCache();
     if (session) adminLogout();
-    if (appUser) appLogout();
-    // appLogout() calls window.location.replace('/') so this fires after
-  };
+    try {
+      destroySession();
+      window.localStorage.removeItem('cryptoverse_session');
+      window.sessionStorage.removeItem('cryptoverse_session');
+      window.sessionStorage.removeItem('cryptoverse_user_view_state');
+      useAuthStore.setState({ user: null, isAuthenticated: false, isAdmin: false, isSuperAdmin: false });
+    } catch { /* ignore — sign-out must always complete */ }
+    window.location.replace('/admin/login');
+  }, [session, adminLogout]);
 
-  // Effective email across both auth systems — used to resolve section access.
-  const email = session?.email ?? appUser?.email ?? '';
-
-  // Items tagged with a `section` are gated purely by the Superadmin's
-  // per-section grant (see adminPortalStore.hasAccess); Super Admins (level 6)
-  // always see everything. Untagged items keep the existing level gate.
-  const allowedNav = NAV_ITEMS.filter(n =>
-    n.section ? (level >= 6 || hasAccess(email, n.section)) : level >= n.minLevel,
-  );
-
-  const handleExpiry = useCallback(() => { logout(); }, [logout]);
+  const handleExpiry = useCallback(() => { void logout(); }, [logout]);
 
   useEffect(() => { setSidebar(false); }, [location.pathname]);
 
@@ -290,7 +307,7 @@ export function AdminPortalLayout() {
             <span>Back to App</span>
           </Link>
           <button
-            onClick={logout}
+            onClick={() => { void logout(); }}
             className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-red-400/70 hover:text-red-400 hover:bg-red-500/8 text-sm transition-all"
           >
             <LogOut className="h-4 w-4" />

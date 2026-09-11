@@ -23,9 +23,21 @@ export interface EnterpriseSessionToken {
   expiresAt: number;
 }
 
+async function getCsrfToken(): Promise<string> {
+  const response = await fetch('/api/auth/csrf', {
+    method: 'GET',
+    credentials: 'include',
+    headers: { Accept: 'application/json' },
+  });
+  const body = await response.json().catch(() => ({})) as { csrfToken?: unknown };
+  if (!response.ok || typeof body.csrfToken !== 'string' || body.csrfToken.length < 16) {
+    throw new Error('Unable to establish a CSRF-protected session.');
+  }
+  return body.csrfToken;
+}
+
 class EnterpriseCookieSessionTransport {
   private inMemorySession: EnterpriseSessionToken | null = null;
-  private readonly COOKIE_NAME = 'cv_gateway_session';
 
   /**
    * Sets a session token.
@@ -33,18 +45,24 @@ class EnterpriseCookieSessionTransport {
    * In CDN preview mode, stores the token in memory and syncs to Taskade Cloud via CloudDataLayer.
    */
   async setSession(session: EnterpriseSessionToken): Promise<void> {
+    if (!session.sessionId || !session.userId || !session.email || !session.expiresAt || session.expiresAt <= Date.now()) {
+      throw new Error('Invalid or expired session.');
+    }
+
     this.inMemorySession = session;
     try {
-      // Proxy to Gateway to establish Secure HttpOnly cookie
+      const csrfToken = await getCsrfToken();
       await fetch('/api/taskade/auth/session', {
         method: 'POST',
         credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken },
         body: JSON.stringify(session),
+      }).then((response) => {
+        if (!response.ok) throw new Error('Gateway session rejected.');
       });
     } catch {
-      // Preview mode fallback: sync via CloudDataLayer without unencrypted localStorage exposure
-      await cloudDataLayer.save('auth_session', session.email, session, 'persistent');
+      // Preview fallback remains memory-first and does not write session data to localStorage.
+      await cloudDataLayer.save('auth_session', session.email, session, 'session');
     }
   }
 
@@ -83,12 +101,16 @@ class EnterpriseCookieSessionTransport {
   async clearSession(email: string): Promise<void> {
     this.inMemorySession = null;
     try {
+      const csrfToken = await getCsrfToken();
       await fetch('/api/taskade/auth/session', {
         method: 'DELETE',
         credentials: 'include',
+        headers: { 'X-CSRF-Token': csrfToken },
+      }).then((response) => {
+        if (!response.ok) throw new Error('Gateway logout rejected.');
       });
     } catch {
-      await cloudDataLayer.delete('auth_session', email, 'persistent');
+      await cloudDataLayer.delete('auth_session', email, 'session');
     }
   }
 }

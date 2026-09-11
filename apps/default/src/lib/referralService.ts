@@ -27,6 +27,11 @@ class ReferralService {
 
   constructor() {
     this.loadFromStorage();
+    if (typeof window !== 'undefined') {
+      window.addEventListener('storage', event => {
+        if (event.key === this.storageKey) this.loadFromStorage();
+      });
+    }
   }
 
   /** Generate a shareable referral link for a user. */
@@ -46,6 +51,7 @@ class ReferralService {
 
   /** Register a new referral when someone signs up via a referral link. */
   registerReferral(referrerId: string, refereeId: string): void {
+    this.loadFromStorage();
     // Prevent self-referral
     if (referrerId === refereeId) return;
     // Prevent duplicate referrals
@@ -65,6 +71,7 @@ class ReferralService {
 
   /** Confirm a referral after the referee completes onboarding/verification. */
   confirmReferral(refereeId: string): void {
+    this.loadFromStorage();
     const referral = this.referrals.find(r => r.refereeId === refereeId);
     if (!referral || referral.status !== 'pending') return;
 
@@ -79,6 +86,7 @@ class ReferralService {
 
   /** Get referral statistics for a user. */
   getReferralStats(userId: string): ReferralStats {
+    this.loadFromStorage();
     const userReferrals = this.referrals.filter(r => r.referrerId === userId);
     const active = userReferrals.filter(r => r.status === 'active');
     return {
@@ -90,6 +98,7 @@ class ReferralService {
 
   /** Get all referrals made by a user. */
   getReferrals(userId: string): Referral[] {
+    this.loadFromStorage();
     return this.referrals.filter(r => r.referrerId === userId);
   }
 
@@ -114,8 +123,11 @@ class ReferralService {
   private loadFromStorage(): void {
     try {
       const data = localStorage.getItem(this.storageKey);
-      if (data) this.referrals = JSON.parse(data);
-    } catch { /* ignore */ }
+      const parsed = data ? JSON.parse(data) : [];
+      this.referrals = Array.isArray(parsed) ? parsed : [];
+    } catch {
+      this.referrals = [];
+    }
   }
 
   private saveToStorage(): void {

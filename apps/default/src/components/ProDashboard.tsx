@@ -32,6 +32,7 @@ import { getBasePrice as getBase } from '@/lib/priceSimulation';
 import { generateOrderBook, OrderBook as OBType } from '@/lib/marketEngine';
 import { useDrawingStore } from '@/lib/drawingStore';
 import { InfoTooltip } from '@/components/common/InfoTooltip';
+import { DataStatusBadge } from '@/components/common/DataStatusBadge';
 import { ORDER_TYPE_HELP, LEVERAGE_HELP, TPSL_HELP } from '@/lib/tradingHelpText';
 import { StrategyBuilderPanel } from './trading/StrategyBuilderPanel';
 import { PositionSizeCalculator } from './trading/PositionSizeCalculator';
@@ -588,9 +589,9 @@ function ProBottomPanel({ coin, price }: { coin: CoinInfo; price: number }) {
   const hasHistory     = filteredHistory.length > 0;
   const hasSearch      = search.length > 0;
 
-  const TABS: { id: BTab; label: string; count: number }[] = [
-    { id: 'positions', label: 'Open Positions', count: positions.length },
-    { id: 'orders',    label: 'Active Orders',  count: 0 },
+  const TABS: { id: BTab; label: string; count: number; status?: 'simulated' }[] = [
+    { id: 'positions', label: 'Open Positions', count: positions.length, status: 'simulated' },
+    { id: 'orders',    label: 'Active Orders',  count: 0, status: 'simulated' },
     { id: 'history',   label: 'Trade History',  count: 0 },
     { id: 'perf',      label: 'Performance',    count: 0 },
     // Strategy Builder + backtesting is an advanced feature — gated to
@@ -612,6 +613,12 @@ function ProBottomPanel({ coin, price }: { coin: CoinInfo; price: number }) {
               className={cn('px-4 py-2.5 text-[12px] font-medium whitespace-nowrap transition-colors border-b-2 flex items-center gap-1.5',
                 isActive ? 'border-amber-400 text-amber-400' : 'border-transparent text-white/35 hover:text-white/65')}>
               {t.label}
+              {t.status === 'simulated' && (
+                <DataStatusBadge
+                  type="simulated"
+                  explanation="Orders and positions here use the virtual practice account. They do not place trades with real money."
+                />
+              )}
               {hasBadge && (
                 <span className="px-1.5 py-0.5 bg-amber-400/20 text-amber-400 text-[10px] rounded-full font-bold">{t.count}</span>
               )}
@@ -1124,27 +1131,13 @@ export function ProDashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [liveCg]);
 
-  // ── Optional WebSocket live feed (priority #5 — ported from the retired
-  // Dashboard.tsx terminal, this is the only push-based, not-polled data
-  // source in the app). Off by default; only takes effect when the user
-  // toggles it on AND the current coin has a Binance USDT market. Highest
-  // priority of the three price sources when connected — overrides both
-  // the simulated tick and the CoinGecko poll, same as it did before.
-  const [wsEnabled, setWsEnabled] = useState(() => {
-    try { return localStorage.getItem('cv_ws_feed_enabled') === 'true'; }
-    catch { return false; }
-  });
+  // ── Automatic WebSocket live feed ────────────────────────────────────────
+  // Binance-listed markets connect as soon as the trading surface loads. The
+  // hook owns reconnect backoff and falls back to CoinGecko or simulation when
+  // the public stream is unavailable.
   const binanceSymbol = useMemo(() => getBinanceSymbol(coin.id), [coin.id]);
-  const { connected: wsConnected, ticker: wsTicker, book: wsBook } = useBinanceLiveFeed(binanceSymbol, wsEnabled);
+  const { connected: wsConnected, ticker: wsTicker, book: wsBook } = useBinanceLiveFeed(binanceSymbol, true);
   wsConnectedRef.current = wsConnected;
-
-  const toggleWsFeed = useCallback(() => {
-    setWsEnabled(prev => {
-      const next = !prev;
-      try { localStorage.setItem('cv_ws_feed_enabled', String(next)); } catch {}
-      return next;
-    });
-  }, []);
 
   useEffect(() => {
     if (!wsConnected || !wsTicker) return;
@@ -1260,16 +1253,16 @@ export function ProDashboard() {
           ))}
         </div>
 
-        {/* WebSocket live feed toggle — only shown for Binance-listed coins */}
+        {/* Automatic WebSocket status, shown for Binance-listed coins */}
         {binanceSymbol && (
-          <button onClick={toggleWsFeed}
-            title={wsEnabled ? 'Disable real-time WebSocket feed' : 'Enable real-time WebSocket feed (Binance, beta)'}
-            className={cn('hidden md:flex items-center gap-1 px-2 py-1.5 rounded-xl border text-[10px] font-bold transition-all flex-shrink-0',
-              wsEnabled
-                ? (wsConnected ? 'border-emerald-400/30 bg-emerald-400/10 text-emerald-400' : 'border-amber-400/30 bg-amber-400/10 text-amber-400')
-                : 'border-white/[0.08] bg-white/[0.04] text-white/40 hover:text-white/70')}>
-            🔌 {wsEnabled ? (wsConnected ? 'WS Live' : 'Connecting…') : 'WS Feed'}
-          </button>
+          <span
+            title="Binance real-time market feed connects automatically"
+            className={cn('hidden md:flex items-center gap-1 px-2 py-1.5 rounded-xl border text-[10px] font-bold flex-shrink-0',
+              wsConnected
+                ? 'border-emerald-400/30 bg-emerald-400/10 text-emerald-400'
+                : 'border-amber-400/30 bg-amber-400/10 text-amber-400')}>
+            🔌 {wsConnected ? 'WS Live' : 'Connecting…'}
+          </span>
         )}
         <span className={cn('hidden lg:flex items-center gap-1 px-2 py-1 rounded-full border text-[10px] font-semibold whitespace-nowrap flex-shrink-0',
           wsConnected ? 'border-emerald-400/20 bg-emerald-400/10 text-emerald-400'
@@ -1277,6 +1270,12 @@ export function ProDashboard() {
             : 'border-amber-400/20 bg-amber-400/10 text-amber-400')}>
           {wsConnected ? '🟢 Live (WebSocket)' : liveCg ? '🟡 Live (CoinGecko)' : '📡 Paper Trading'}
         </span>
+        {wsConnected && (
+          <DataStatusBadge
+            type="liveExchange"
+            explanation="This label confirms the Binance market feed is connected. Your orders, positions, and balance remain simulated practice data."
+          />
+        )}
 
         {/* Level switcher */}
         <div className="flex items-center gap-1 bg-white/[0.04] rounded-xl p-1 border border-white/[0.06]">

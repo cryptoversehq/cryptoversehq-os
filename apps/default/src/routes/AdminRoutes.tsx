@@ -1,8 +1,8 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Navigate, Route, Routes } from 'react-router-dom';
-import { ShieldCheck } from 'lucide-react';
-import { AdminLogin } from '../components/admin/portal/AdminLogin';
+import { ShieldCheck, RefreshCw } from 'lucide-react';
+import { AdminLogin } from '../components/admin/portal/pages/AdminLogin';
 import { AdminPortalLayout } from '../components/admin/portal/AdminPortalLayout';
 import { AdminDashboard } from '../components/admin/portal/pages/AdminDashboard';
 import { AdminUsers } from '../components/admin/portal/pages/AdminUsers';
@@ -20,6 +20,7 @@ import { AdminOnChain } from '../components/admin/portal/pages/AdminOnChain';
 import { AdminNFTManagement } from '../components/admin/portal/pages/AdminNFTManagement';
 import { AdminSentiment } from '../components/admin/portal/pages/AdminSentiment';
 import { AdminExchangeManagement } from '../components/admin/portal/pages/AdminExchangeManagement';
+import { AdminSubscriptions } from '../components/admin/portal/pages/AdminSubscriptions';
 import { AdminRevenueDashboard } from '../components/admin/portal/pages/AdminRevenueDashboard';
 import { AdminRoleManagement } from '../components/admin/portal/pages/AdminRoleManagement';
 import { AdminApiManagement } from '../pages/admin/AdminApiManagement';
@@ -29,9 +30,11 @@ import { AIExecutiveDashboard } from '../components/admin/AIExecutiveDashboard';
 import { AICommandConsole } from '../components/admin/AICommandConsole';
 import { AIAdminDashboard } from '../pages/admin/AIAdminDashboard';
 import { AdminLynxSettings } from '../pages/admin/AdminLynxSettings';
+import { AdminAnalytics } from '../pages/admin/AdminAnalytics';
 import { useAdminAuthStore } from '../lib/adminAuthStore';
 import { useAuthStore } from '../lib/authStore';
 import { hasAccess, type AdminSectionId } from '../lib/adminPortalStore';
+import { ApiForbiddenError, apiGet } from '../lib/adminApi';
 
 export function Forbidden403() {
   return (
@@ -60,17 +63,79 @@ function SectionGuard({ section, children }: { section: AdminSectionId; children
   return level >= 6 || hasAccess(email, section) ? children : <Navigate to="/admin/403" replace />;
 }
 
-const ADMIN_ROLES = new Set(['admin', 'senior_admin', 'super_admin', 'founder', 'developer']);
+/** Full-screen status card used while the server gate is deciding. */
+function AdminGateMessage({ title, spinner }: { title: string; spinner?: boolean }) {
+  return (
+    <div className="min-h-screen flex flex-col items-center justify-center gap-3 bg-[#0a0a0f] text-white/60">
+      {spinner
+        ? <RefreshCw className="h-5 w-5 animate-spin text-amber-400" />
+        : <ShieldCheck className="h-6 w-6 text-red-400" />}
+      <p className="text-sm max-w-sm text-center px-6">{title}</p>
+      {!spinner && (
+        <a href="/admin/login" className="text-xs text-amber-300 hover:underline">Go to admin login</a>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Server-side gate for the whole admin portal (Phase 1).
+ *
+ * Authorization is NOT read from the browser. On mount we ask the server:
+ *   1. GET /api/auth/me            → 200 means a valid Supabase session cookie
+ *   2. GET /api/admin/users?limit=1 → 200 means the caller has admin rights
+ * A 401/403 (ApiForbiddenError) on either call redirects to /admin/login.
+ * Any other error (network / 5xx) is shown rather than silently locking out.
+ */
+function ServerAdminGuard({ children }: { children: React.ReactElement }) {
+  const [state, setState]   = useState<'checking' | 'ok' | 'denied' | 'error'>('checking');
+  const [detail, setDetail] = useState<string | null>(null);
+
+  useEffect(() => {
+    let canceled = false;
+    (async () => {
+      try {
+        await apiGet('/api/auth/me');
+        await apiGet('/api/admin/users?limit=1&offset=0');
+        if (!canceled) setState('ok');
+      } catch (err) {
+        if (canceled) return;
+        if (err instanceof ApiForbiddenError) {
+          setState('denied');
+        } else {
+          setDetail((err as Error).message);
+          setState('error');
+        }
+      }
+    })();
+    return () => { canceled = true; };
+  }, []);
+
+  if (state === 'checking') return <AdminGateMessage title="Verifying admin session…" spinner />;
+  if (state === 'denied')   return <Navigate to="/admin/login" replace />;
+  if (state === 'error')    return <AdminGateMessage title={detail ?? 'Could not verify the admin session.'} />;
+  return children;
+}
+
+/**
+ * Subscription management is authorized by the SERVER: the Render API answers
+ * 401/403 to callers without the developer / subscription_admin role, and
+ * AdminSubscriptions renders a Forbidden panel from that response. This guard is
+ * a deliberate pass-through — a client-side role check would be a UX hint, not a
+ * security boundary.
+ */
+function SubscriptionAdminGuard({ children }: { children: React.ReactElement }) {
+  return children;
+}
 
 export function AdminRoutes() {
-  const { isAdminAuth } = useAdminAuthStore();
-  const appUser = useAuthStore(state => state.user);
-  const hasUnifiedAdminAccess = !!appUser && ADMIN_ROLES.has(appUser.role);
-
-  if (!isAdminAuth && !hasUnifiedAdminAccess) return <AdminLogin />;
   return (
     <Routes>
-      <Route element={<AdminPortalLayout />}>
+      {/* Public admin entry — no auth, no portal layout. */}
+      <Route path="login" element={<AdminLogin />} />
+
+      {/* Everything else is behind the server-side admin gate. */}
+      <Route element={<ServerAdminGuard><AdminPortalLayout /></ServerAdminGuard>}>
         <Route path="dashboard" element={<AdminDashboard />} />
         <Route path="users" element={<SectionGuard section="users"><AdminUsers /></SectionGuard>} />
         <Route path="transactions" element={<SectionGuard section="transactions"><AdminTransactions /></SectionGuard>} />
@@ -78,6 +143,7 @@ export function AdminRoutes() {
         <Route path="competitions" element={<SectionGuard section="competitions"><AdminCompetitions /></SectionGuard>} />
         <Route path="events" element={<SectionGuard section="events"><AdminEvents /></SectionGuard>} />
         <Route path="reports" element={<SectionGuard section="reports"><AdminReports /></SectionGuard>} />
+        <Route path="analytics" element={<AdminAnalytics />} />
         <Route path="tickets" element={<AdminTickets />} />
         <Route path="admins" element={<AdminAdmins />} />
         <Route path="requests" element={<AdminRequests />} />
@@ -87,6 +153,7 @@ export function AdminRoutes() {
         <Route path="nft" element={<SectionGuard section="nft"><AdminNFTManagement /></SectionGuard>} />
         <Route path="sentiment" element={<SectionGuard section="sentiment"><AdminSentiment /></SectionGuard>} />
         <Route path="exchange" element={<AdminExchangeManagement />} />
+        <Route path="subscriptions" element={<SubscriptionAdminGuard><AdminSubscriptions /></SubscriptionAdminGuard>} />
         <Route path="revenue" element={<AdminRevenueDashboard />} />
         <Route path="role-management" element={<AdminRoleManagement />} />
         <Route path="api-management" element={<AdminApiManagement />} />

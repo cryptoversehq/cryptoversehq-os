@@ -3,7 +3,7 @@
  * Route: /exchange (connections list + add new inline form)
  * Matches spec §3.1 exactly
  */
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Plus, RefreshCw, Pencil, Trash2, Wifi, WifiOff,
@@ -83,8 +83,7 @@ function ConnectionCard({
 
   async function handleSync() {
     setSyncing(true);
-    await new Promise(r => setTimeout(r, 1200));
-    onSync();
+    await onSync();
     setSyncing(false);
     toast.success('Sync complete');
   }
@@ -229,10 +228,9 @@ function AddExchangeForm({ onConnected }: { onConnected: () => void }) {
   async function handleTest() {
     if (!isOAuth && (!apiKey || apiKey.length < 8)) { setError('Enter a valid API key'); return; }
     setTesting(true); setTestResult('idle'); setError('');
-    await new Promise(r => setTimeout(r, 1200));
     setTesting(false);
-    setTestResult('ok');
-    toast.success('Connection test successful ✓');
+    setTestResult('fail');
+    setError('Testing is performed during the secure Render connect request.');
   }
 
   async function handleConnect() {
@@ -433,7 +431,8 @@ function AddExchangeForm({ onConnected }: { onConnected: () => void }) {
 // ── Main Page ──────────────────────────────────────────────────────────────────
 
 export function ExchangeConnectionsPage({ onAddNew }: { onAddNew?: () => void }) {
-  const { connections, disconnectExchange, syncExchange } = useExchangeStore();
+  const { connections, disconnectExchange, syncExchange, refreshConnections } = useExchangeStore();
+
 
   const [warningDismissed, setWarningDismissed] = useState(() =>
     localStorage.getItem('exchange_warning_dismissed') === 'true',
@@ -445,9 +444,14 @@ export function ExchangeConnectionsPage({ onAddNew }: { onAddNew?: () => void })
     setWarningDismissed(true);
   }
 
-  function handleDisconnect(id: string, name: string) {
+  async function handleDisconnect(id: string, name: string) {
     if (confirm(`Disconnect ${name}? All deployed strategies will be stopped.`)) {
-      disconnectExchange(id);
+      const result = await disconnectExchange(id);
+      if (!result.success) {
+        toast.error(result.error ?? 'Exchange disconnect failed');
+        return;
+      }
+      await refreshConnections();
       toast.success('Exchange disconnected');
     }
   }

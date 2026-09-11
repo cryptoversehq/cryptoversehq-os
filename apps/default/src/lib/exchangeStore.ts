@@ -12,19 +12,27 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { createCloudStorage } from './cloudData';
 import { useAuthStore } from './authStore';
+import { request } from '../api/client';
+import type {
+  ExchangeConnectionItem,
+  GetExchangeBalanceResponse,
+  SyncExchangeResponse,
+  ExecuteExchangeOrderRequest,
+  ExecuteExchangeOrderResponse,
+  DeployExchangeStrategyRequest,
+  DeployExchangeStrategyResponse,
+} from '../api/types';
 
 import {
-  ExchangeId, ExchangeConnection, ConnectionStatus,
+  ExchangeId, ExchangeConnection,
   RiskControls, DEFAULT_RISK_CONTROLS, RealTrade,
   DeployedStrategy, DeployStatus, RealPortfolioSnapshot,
-  PortfolioAsset, ExchangePermission, TradingMode, OrderSide,
+  PortfolioAsset, ExchangePermission, TradingMode,
 } from './exchangeTypes';
 
-import { connectionManager }  from './exchangeConnectionManager';
-import { riskManager, RiskMetrics, RiskLimitReachedEvent } from './exchangeRiskManager';
-import { tradeExecutor, RealTradeRequest, RealTradeResult, consumeTradeNotifications } from './exchangeTradeExecutor';
-import { portfolioSyncer, SyncResult } from './exchangePortfolioSyncer';
-import { strategyDeployer, DeploymentResult, ApprovalQueueItem } from './exchangeStrategyDeployer';
+import { riskManager, RiskMetrics } from './exchangeRiskManager';
+import { RealTradeRequest, RealTradeResult, consumeTradeNotifications } from './exchangeTradeExecutor';
+import { strategyDeployer, ApprovalQueueItem } from './exchangeStrategyDeployer';
 import { toast } from 'sonner';
 
 // ── Internal helpers ───────────────────────────────────────────────────────────
@@ -33,55 +41,52 @@ function uid(): string {
   return Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
 }
 
+function mapServerConnection(item: ExchangeConnectionItem): ExchangeConnection {
+  const exchangeId = item.exchange as ExchangeId;
+  return {
+    id: item.id,
+    exchangeId,
+    label: item.label,
+    status: item.isActive ? 'connected' : 'error',
+    connectedAt: item.connectedAt,
+    lastSyncAt: item.lastSyncAt ?? undefined,
+    maskedKey: undefined,
+    permissions: ['read', 'trade'],
+    modes: ['spot'],
+    balanceUSD: 0,
+    balanceBTC: 0,
+    isReadOnly: false,
+  };
+}
+
+function mapServerTrade(item: import('../api/types').ExchangeTradeItem): RealTrade {
+  return {
+    id: item.id,
+    connectionId: item.connectionId,
+    exchangeId: (item.exchange ?? 'binance') as ExchangeId,
+    symbol: item.symbol,
+    side: item.side,
+    type: item.orderType ?? 'market',
+    status: item.status,
+    quantity: item.quantity,
+    price: item.price,
+    filledQty: item.filledQuantity ?? item.quantity,
+    filledAvgPx: item.filledPrice ?? item.price,
+    feePaid: item.fee ?? 0,
+    feeCurrency: item.feeCurrency ?? 'USDT',
+    pnl: item.pnl,
+    pnlPct: item.pnlPct,
+    createdAt: item.createdAt,
+    filledAt: item.filledAt ?? item.createdAt,
+    mode: 'spot',
+    isFromBot: false,
+  };
+}
+
 function randFloat(min: number, max: number, dp = 2): number {
   return parseFloat((Math.random() * (max - min) + min).toFixed(dp));
 }
 
-function daysAgo(d: number): string {
-  return new Date(Date.now() - d * 86400000).toISOString();
-}
-
-// ── Mock trade history (for initial load after connect) ────────────────────────
-
-const MOCK_SYMBOLS = ['BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'BNB/USDT', 'XRP/USDT', 'AVAX/USDT'];
-const MOCK_PRICES: Record<string, number> = {
-  'BTC/USDT': 67000, 'ETH/USDT': 3400, 'SOL/USDT': 180,
-  'BNB/USDT': 590,   'XRP/USDT': 0.62, 'AVAX/USDT': 38,
-};
-
-function generateMockTrades(connectionId: string, exchangeId: ExchangeId, count = 25): RealTrade[] {
-  const trades: RealTrade[] = [];
-  for (let i = 0; i < count; i++) {
-    const symbol    = MOCK_SYMBOLS[Math.floor(Math.random() * MOCK_SYMBOLS.length)];
-    const basePrice = MOCK_PRICES[symbol] ?? 100;
-    const side: OrderSide = Math.random() > 0.5 ? 'buy' : 'sell';
-    const price = basePrice * (1 + randFloat(-0.02, 0.02));
-    const qty   = randFloat(0.001, 0.5, 6);
-    const pnl   = side === 'sell' ? randFloat(-50, 200) : undefined;
-    trades.push({
-      id: uid(),
-      connectionId,
-      exchangeId,
-      symbol,
-      side,
-      type:       Math.random() > 0.7 ? 'limit' : 'market',
-      status:     Math.random() > 0.1 ? 'filled' : 'partial',
-      quantity:   qty,
-      price,
-      filledQty:  qty * (Math.random() > 0.1 ? 1 : randFloat(0.5, 0.9)),
-      filledAvgPx: price * (1 + randFloat(-0.001, 0.001)),
-      feePaid:    price * qty * 0.001,
-      feeCurrency:'USDT',
-      pnl,
-      pnlPct:     pnl !== undefined ? (pnl / (price * qty)) * 100 : undefined,
-      createdAt:  daysAgo(randFloat(0, 30, 0)),
-      filledAt:   daysAgo(randFloat(0, 30, 0)),
-      mode:       'spot',
-      isFromBot:  Math.random() > 0.7,
-    });
-  }
-  return trades.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-}
 
 // ── Store interface ────────────────────────────────────────────────────────────
 
@@ -121,6 +126,9 @@ export interface ExchangeState {
   getRiskMetrics:         (connectionId: string) => RiskMetrics;
   isKillSwitchActive:     (connectionId: string) => boolean;
 
+  // ── Server-authoritative cache actions ─────────────────────────────────────
+  refreshConnections: () => Promise<{ success: boolean; error?: string }>;
+
   // ── §4.1 Connection actions ────────────────────────────────────────────────
   connectExchange: (params: {
     exchangeId:  ExchangeId;
@@ -138,7 +146,7 @@ export interface ExchangeState {
     label:      string;
   }) => Promise<{ success: boolean; connectionId?: string; error?: string }>;
 
-  disconnectExchange: (connectionId: string) => void;
+  disconnectExchange: (connectionId: string) => Promise<{ success: boolean; error?: string }>;
 
   testConnection: (connectionId: string) => Promise<{ success: boolean; latencyMs?: number; error?: string }>;
 
@@ -249,141 +257,116 @@ export const useExchangeStore = create<ExchangeState>()(
 
       // ── §4.1 Connection ───────────────────────────────────────────────────────
 
-      connectExchange: async ({ exchangeId, label, apiKey, apiSecret, passphrase, modes, permissions, isReadOnly }) => {
-        const result = await connectionManager.connectWithApiKey({
-          exchangeId, apiKey, apiSecret, passphrase,
-          modes,
-          requestedPermissions: permissions,
-        });
-
-        if (!result.success) {
-          return { success: false, error: result.error };
+      refreshConnections: async () => {
+        try {
+          const response = await request<{ connections: ExchangeConnectionItem[] }>('GET', '/api/exchange/connections');
+          const connections = (response.connections ?? []).map(mapServerConnection);
+          set(state => ({
+            connections,
+            activeConnectionId: connections.some(c => c.id === state.activeConnectionId)
+              ? state.activeConnectionId
+              : (connections[0]?.id ?? null),
+            syncError: null,
+          }));
+          return { success: true };
+        } catch (error) {
+          const message = error instanceof Error ? error.message : 'Unable to load exchange connections.';
+          set({ syncError: message });
+          return { success: false, error: message };
         }
-
-        const id = uid();
-        const connection: ExchangeConnection = {
-          id,
-          exchangeId,
-          label:       label || `${EXCHANGE_MAP[exchangeId]} Account`,
-          status:      'connected',
-          connectedAt: new Date().toISOString(),
-          lastSyncAt:  new Date().toISOString(),
-          maskedKey:   result.maskedKey,
-          permissions: result.permissions ?? ['read', 'trade'],
-          modes,
-          balanceUSD:  result.balanceUSD ?? 0,
-          balanceBTC:  result.balanceBTC ?? 0,
-          isReadOnly,
-        };
-
-        const rc: RiskControls = { ...DEFAULT_RISK_CONTROLS, connectionId: id };
-        const mockTrades  = generateMockTrades(id, exchangeId);
-
-        // Do initial portfolio sync with real syncer
-        const syncResult = await portfolioSyncer.syncPortfolio(connection);
-        const portfolio   = syncResult.snapshot ?? buildFallbackPortfolio(id, connection.balanceUSD);
-
-        set(s => ({
-          connections:  [...s.connections, connection],
-          riskControls: { ...s.riskControls, [id]: rc },
-          trades:       { ...s.trades, [id]: mockTrades },
-          portfolios:   { ...s.portfolios, [id]: portfolio },
-          activeConnectionId: s.activeConnectionId ?? id,
-        }));
-
-        return { success: true, connectionId: id };
       },
 
-      connectOAuth: async ({ exchangeId, label }) => {
-        const result = await connectionManager.connectOAuth({
-          exchangeId,
-          requestedScopes: ['read', 'trade'],
-        });
-
-        if (!result.success) return { success: false, error: result.error };
-
-        const id = uid();
-        const connection: ExchangeConnection = {
-          id,
-          exchangeId,
-          label:       label || `${EXCHANGE_MAP[exchangeId]} Account`,
-          status:      'connected',
-          connectedAt: new Date().toISOString(),
-          lastSyncAt:  new Date().toISOString(),
-          permissions: result.permissions ?? ['read', 'trade'],
-          modes:       ['spot'],
-          balanceUSD:  result.balanceUSD ?? 0,
-          balanceBTC:  result.balanceBTC ?? 0,
-          isReadOnly:  false,
-          oauthToken:  `oauth_${uid()}`,
-        };
-
-        const rc      = { ...DEFAULT_RISK_CONTROLS, connectionId: id };
-        const trades  = generateMockTrades(id, exchangeId, 15);
-        const syncRes = await portfolioSyncer.syncPortfolio(connection);
-        const portfolio = syncRes.snapshot ?? buildFallbackPortfolio(id, connection.balanceUSD);
-
-        set(s => ({
-          connections:  [...s.connections, connection],
-          riskControls: { ...s.riskControls, [id]: rc },
-          trades:       { ...s.trades, [id]: trades },
-          portfolios:   { ...s.portfolios, [id]: portfolio },
-          activeConnectionId: s.activeConnectionId ?? id,
-        }));
-
-        return { success: true, connectionId: id };
+      connectExchange: async ({ exchangeId, label, apiKey, apiSecret, passphrase }) => {
+        try {
+          const result = await request<{ connectionId: string }>('POST', '/api/exchange/connect', {
+            exchange: exchangeId,
+            apiKey,
+            apiSecret,
+            label,
+            isDemoMode: false,
+            ...(passphrase ? { passphrase } : {}),
+          });
+          await get().refreshConnections();
+          set({ activeConnectionId: result.connectionId, syncError: null });
+          return { success: true, connectionId: result.connectionId };
+        } catch (error) {
+          return { success: false, error: error instanceof Error ? error.message : 'Connection failed.' };
+        }
       },
 
-      disconnectExchange: (connectionId) => {
-        set(s => {
-          const filtered  = s.connections.filter(c => c.id !== connectionId);
-          const newActive = s.activeConnectionId === connectionId
-            ? (filtered[0]?.id ?? null)
-            : s.activeConnectionId;
-          // Stop any deployed strategies for this connection
-          const strats = s.deployedStrategies.map(d =>
-            d.connectionId === connectionId ? { ...d, status: 'stopped' as DeployStatus } : d,
-          );
-          return { connections: filtered, activeConnectionId: newActive, deployedStrategies: strats };
-        });
+      connectOAuth: async () => ({
+        success: false,
+        error: 'OAuth connection is not exposed by the current Render exchange contract.',
+      }),
+
+      disconnectExchange: async (connectionId) => {
+        try {
+          await request<{ ok: boolean }>('DELETE', `/api/exchange/connections/${encodeURIComponent(connectionId)}`);
+          set(s => {
+            const filtered = s.connections.filter(c => c.id !== connectionId);
+            const newActive = s.activeConnectionId === connectionId ? (filtered[0]?.id ?? null) : s.activeConnectionId;
+            const strats = s.deployedStrategies.map(d =>
+              d.connectionId === connectionId ? { ...d, status: 'stopped' as DeployStatus } : d,
+            );
+            return { connections: filtered, activeConnectionId: newActive, deployedStrategies: strats };
+          });
+          return { success: true };
+        } catch (error) {
+          return { success: false, error: error instanceof Error ? error.message : 'Disconnect failed.' };
+        }
       },
 
-      testConnection: async (connectionId) => {
-        const conn = get().connections.find(c => c.id === connectionId);
-        if (!conn) return { success: false, error: 'Connection not found' };
-        const result = await connectionManager.testConnection(conn.exchangeId, conn.maskedKey ?? '');
-        return { success: result.reachable, latencyMs: result.latencyMs, error: result.error };
-      },
+      testConnection: async () => ({
+        success: false,
+        error: 'Connection testing is performed by the Render connect endpoint.',
+      }),
 
       // ── §4.4 Sync ──────────────────────────────────────────────────────────────
 
       syncExchange: async (connectionId) => {
         set({ isSyncing: true, syncError: null });
-        const conn = get().connections.find(c => c.id === connectionId);
-        if (!conn) { set({ isSyncing: false, syncError: 'Connection not found' }); return; }
-
-        const result: SyncResult = await portfolioSyncer.syncPortfolio(conn);
-
-        // Also fetch some new simulated trades
-        const newTrades = generateMockTrades(connectionId, conn.exchangeId, 3);
-
-        set(s => ({
-          isSyncing:  false,
-          lastSyncAt: new Date().toISOString(),
-          syncError:  result.success ? null : (result.error ?? 'Sync failed'),
-          portfolios: result.success && result.snapshot
-            ? { ...s.portfolios, [connectionId]: result.snapshot }
-            : s.portfolios,
-          trades: {
-            ...s.trades,
-            [connectionId]: [...newTrades, ...(s.trades[connectionId] ?? [])].slice(0, 100),
-          },
-          connections: s.connections.map(c =>
-            c.id === connectionId
-              ? { ...c, lastSyncAt: new Date().toISOString(), balanceUSD: result.snapshot?.totalUSD ?? c.balanceUSD }
-              : c,
-          ),
-        }));
+        try {
+          const result = await request<SyncExchangeResponse>('POST', `/api/exchange/sync/${encodeURIComponent(connectionId)}`, {});
+          const balance: GetExchangeBalanceResponse | undefined = result.balance;
+          if (balance) {
+            const total = balance.totalUsdValue;
+            const assets: PortfolioAsset[] = balance.balances.map(asset => ({
+              symbol: asset.asset,
+              name: asset.asset,
+              logoEmoji: '◈',
+              quantity: asset.total,
+              avgCostUSD: asset.total ? asset.usdValue / asset.total : 0,
+              currentUSD: asset.total ? asset.usdValue / asset.total : 0,
+              valueUSD: asset.usdValue,
+              pnl: 0,
+              pnlPct: 0,
+              allocation: total ? (asset.usdValue / total) * 100 : 0,
+            }));
+            set(s => ({
+              isSyncing: false,
+              syncError: null,
+              lastSyncAt: result.syncedAt,
+              portfolios: { ...s.portfolios, [connectionId]: {
+                connectionId,
+                takenAt: balance.updatedAt,
+                totalUSD: total,
+                assets,
+                dailyPnL: 0,
+                dailyPnLPct: 0,
+                weeklyPnL: 0,
+                monthlyPnL: 0,
+              } },
+              connections: s.connections.map(c => c.id === connectionId
+                ? { ...c, lastSyncAt: balance.updatedAt, balanceUSD: total }
+                : c),
+              trades: result.trades ? { ...s.trades, [connectionId]: result.trades.map(mapServerTrade) } : s.trades,
+            }));
+          } else {
+            set({ isSyncing: false, syncError: null, lastSyncAt: result.syncedAt });
+          }
+        } catch (error) {
+          set({ isSyncing: false, syncError: error instanceof Error ? error.message : 'Sync failed.' });
+        }
       },
 
       // ── §4.3 Risk controls ─────────────────────────────────────────────────────
@@ -412,103 +395,76 @@ export const useExchangeStore = create<ExchangeState>()(
 
       // ── §4.2 Trade execution ───────────────────────────────────────────────────
 
-      executeTrade: async (connectionId, trade, requires2FA) => {
+      executeTrade: async (connectionId, trade) => {
         set({ isExecutingTrade: true, tradeError: null, tradeWarnings: [] });
-
-        const conn     = get().connections.find(c => c.id === connectionId);
-        const controls = get().getRiskControls(connectionId);
-
-        if (!conn) {
-          set({ isExecutingTrade: false, tradeError: 'Exchange not connected' });
-          return { success: false, error: 'Exchange not connected' };
+        try {
+          const order = await request<ExecuteExchangeOrderResponse>('POST', '/api/exchange/order', {
+            connectionId,
+            symbol: trade.symbol,
+            side: trade.side,
+            quantity: trade.amount,
+            orderType: trade.orderType,
+            price: trade.orderType === 'market' ? undefined : trade.price,
+          } satisfies ExecuteExchangeOrderRequest);
+          set({ isExecutingTrade: false, tradeError: null });
+          if (order.trade) {
+            set(state => ({ trades: { ...state.trades, [connectionId]: [mapServerTrade(order.trade!), ...(state.trades[connectionId] ?? [])] } }));
+          }
+          await get().syncExchange(connectionId);
+          return { success: true, orderId: order.orderId };
+        } catch (error) {
+          const message = error instanceof Error ? error.message : 'Trade failed.';
+          set({ isExecutingTrade: false, tradeError: message });
+          return { success: false, error: message };
         }
-
-        const availableUSD  = conn.balanceUSD * 0.82;
-        const availableBase = (get().portfolios[connectionId]?.assets ?? [])
-          .find(a => a.symbol === trade.symbol.split('/')[0])?.quantity ?? 0;
-
-        const result = await tradeExecutor.executeTrade(
-          conn, trade, controls, availableUSD, availableBase, requires2FA,
-        );
-
-        if (result.success) {
-          // Record trade
-          const tradeRecord = tradeExecutor.buildTradeRecord(connectionId, conn.exchangeId, trade, result);
-          const fullTrade: RealTrade = { ...tradeRecord, id: uid() };
-
-          // Update daily loss tracking in UI
-          const metrics = riskManager.getMetrics(connectionId);
-
-          set(s => ({
-            isExecutingTrade: false,
-            tradeWarnings:    result.riskWarnings ?? [],
-            trades:           { ...s.trades, [connectionId]: [fullTrade, ...(s.trades[connectionId] ?? [])] },
-            dailyLossUSD:     { ...s.dailyLossUSD, [connectionId]: metrics.dailyLossUSD },
-            killSwitchActive: { ...s.killSwitchActive, [connectionId]: metrics.killSwitchTriggered },
-          }));
-        } else {
-          set({ isExecutingTrade: false, tradeError: result.error ?? 'Trade failed' });
-        }
-
-        // Drain notification queue → toast
-        get().pollNotifications();
-
-        return result;
       },
 
       clearTradeError: () => set({ tradeError: null, tradeWarnings: [] }),
 
       // ── §4.5 Strategy deployment ───────────────────────────────────────────────
 
-      deployStrategy: async ({
-        connectionId, strategyId, strategyName, strategyInfo,
-        symbol, mode, allocatedUSD, userLevel, pairs, maxDailyLoss,
-      }) => {
-        const conn = get().connections.find(c => c.id === connectionId);
-        if (!conn) return { success: false, error: 'Connection not found' };
-
-        const result: DeploymentResult = await strategyDeployer.deployStrategy(
-          {
-            connectionId,
-            strategyId,
-            strategyName,
-            settings: { symbol, mode, allocatedUSD, maxPositionUSD: allocatedUSD / 10, maxDailyLossUSD: maxDailyLoss, tradingHours: '00:00-23:59', pairs },
-            userLevel,
-          },
-          conn,
-          { id: strategyId, name: strategyName, ...strategyInfo },
-        );
-
-        if (result.success && result.status === 'active') {
-          const id = result.deployId ?? uid();
-          const rc = get().getRiskControls(connectionId);
-          const ds: DeployedStrategy = {
-            id,
-            connectionId,
-            exchangeId:      conn.exchangeId,
-            strategyId,
-            strategyName,
-            symbol,
-            mode,
-            status:          'running',
-            deployedAt:      new Date().toISOString(),
-            lastRunAt:       new Date().toISOString(),
-            allocatedUSD,
-            currentValueUSD: allocatedUSD * (1 + randFloat(-0.01, 0.03)),
-            realizedPnl:     0,
-            unrealizedPnl:   allocatedUSD * randFloat(-0.005, 0.015),
-            totalTrades:     0,
-            winRate:         strategyInfo.winRate,
-            maxDrawdown:     strategyInfo.maxDrawdown,
-            riskControls:    rc,
+      deployStrategy: async (params) => {
+        try {
+          const payload: DeployExchangeStrategyRequest = {
+            connectionId: params.connectionId,
+            strategyId: params.strategyId,
+            strategyName: params.strategyName,
+            strategyInfo: params.strategyInfo,
+            symbol: params.symbol,
+            mode: params.mode,
+            allocatedUSD: params.allocatedUSD,
+            userLevel: params.userLevel,
+            pairs: params.pairs,
+            maxDailyLoss: params.maxDailyLoss,
           };
-          set(s => ({ deployedStrategies: [...s.deployedStrategies, ds] }));
+          const result = await request<DeployExchangeStrategyResponse>('POST', '/api/exchange/deploy', payload);
+          if (result.status === 'failed') {
+            return { success: false, deployId: result.deployId, status: result.status, error: result.message ?? 'Deployment failed.' };
+          }
+          set(state => ({
+            deployedStrategies: [
+              ...state.deployedStrategies.filter(strategy => strategy.id !== result.deployId),
+              {
+                id: result.deployId,
+                connectionId: params.connectionId,
+                strategyId: params.strategyId,
+                strategyName: params.strategyName,
+                status: result.status === 'running' ? 'running' : 'pending',
+                allocatedUSD: params.allocatedUSD,
+                currentValueUSD: params.allocatedUSD,
+                realizedPnl: 0,
+                unrealizedPnl: 0,
+                totalTrades: 0,
+                winRate: 0,
+                deployedAt: new Date().toISOString(),
+                lastRunAt: null,
+              } as DeployedStrategy,
+            ],
+          }));
+          return { success: true, deployId: result.deployId, status: result.status };
+        } catch (error) {
+          return { success: false, error: error instanceof Error ? error.message : 'Deployment failed.' };
         }
-
-        // Refresh approval queue
-        get().refreshApprovalQueue();
-
-        return { success: result.success, deployId: result.deployId, error: result.error, status: result.status };
       },
 
       toggleDeployedStrategy: (deployId, status) => {
@@ -595,16 +551,9 @@ export const useExchangeStore = create<ExchangeState>()(
   ),
 );
 
-// ── Exchange name map ──────────────────────────────────────────────────────────
 
-const EXCHANGE_MAP: Record<ExchangeId, string> = {
-  binance:  'Binance',
-  coinbase: 'Coinbase',
-  kraken:   'Kraken',
-  okx:      'OKX',
-};
 
-// ── Fallback portfolio (if sync fails) ────────────────────────────────────────
+
 
 function buildFallbackPortfolio(connectionId: string, baseUSD: number): RealPortfolioSnapshot {
   const assets: PortfolioAsset[] = [

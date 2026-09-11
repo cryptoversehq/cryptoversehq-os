@@ -54,20 +54,28 @@ export async function loadUserData(email: string): Promise<SyncData | null> {
   }
 }
 
-// ─── Sync a specific key (debounced via CloudDataLayer) ────────────────
+// ─── Sync a specific key through the canonical aggregate record ───────
 
 export function syncKey(email: string, key: string, data: SyncData): void {
-  localCache.set(email, key, data); // immediate local cache for fast reads
-  // Fire-and-forget cloud save — CloudDataLayer handles queue/debounce internally
-  cloudDataLayer.save<SyncData>('sync_user', `${email}_${key}`, data, 'persistent').catch(() => {});
+  localCache.set(email, key, data);
+
+  // Keep the server shape aligned with loadUserData(). The previous bridge
+  // wrote `sync_user/${email}_${key}` while login hydration read
+  // `sync_user/${email}`, so migrated domains could be written successfully
+  // and still disappear on the next device.
+  const aggregate = localCache.get<Record<string, SyncData>>(email, '__aggregate') ?? {};
+  const nextAggregate = { ...aggregate, [key]: data };
+  localCache.set(email, '__aggregate', nextAggregate);
+  void cloudDataLayer.save<SyncData>('sync_user', email, nextAggregate, 'persistent');
 }
 
-// ─── Login sync — load all data from CloudDataLayer into local cache ───
+// ─── Login sync — load the canonical aggregate record into the cache ───
 
 export async function syncOnLogin(email: string): Promise<void> {
   try {
     const remote = await loadUserData(email);
     if (remote) {
+      localCache.set(email, '__aggregate', remote);
       for (const [key, value] of Object.entries(remote)) {
         const local = localCache.get(email, key);
         if (!local || (value as SyncData)?.['updatedAt'] > (local as SyncData)?.['updatedAt']) {

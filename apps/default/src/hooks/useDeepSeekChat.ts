@@ -120,19 +120,18 @@ export function useDeepSeekChat(options: UseDeepSeekChatOptions = {}): UseDeepSe
         setStatus('ready');
       }
     } catch (err) {
-      console.error('[useDeepSeekChat] Error:', err);
+      console.warn('[useDeepSeekChat] Request unavailable:', err);
 
       if (!mountedRef.current) return;
 
-      setError(err instanceof Error ? err : new Error('Failed to get response from AI'));
-      setStatus('error');
-
-      const errorMessage: Message = {
+      const fallbackMessage: Message = {
         id: generateId(),
         role: 'assistant',
-        content: 'I apologize, but I encountered an error processing your request. Please try again.',
+        content: 'I could not reach the live assistant right now. I am still here in offline mode. Please try again in a moment, or ask a general question and I will give you the guidance available in the app.',
       };
-      setMessages(prev => [...prev, errorMessage]);
+      setMessages(prev => [...prev, fallbackMessage]);
+      setError(new Error('The live assistant is temporarily unavailable.'));
+      setStatus('error');
     }
   }, [messages]);
 

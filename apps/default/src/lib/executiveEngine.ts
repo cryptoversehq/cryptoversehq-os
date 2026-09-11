@@ -238,6 +238,14 @@ class ExecutiveEngine {
 
   getAll(): ExecutiveReport[] { return [...this.reports]; }
 
+  getLatestSnapshot(): ExecutiveSnapshot | null {
+    return this.snapshots.length > 0 ? this.snapshots[this.snapshots.length - 1] : null;
+  }
+
+  getActiveAlerts(): ExecutiveAlert[] {
+    return this.alerts.filter(alert => !alert.acknowledged);
+  }
+
   getRecommendations() {
     return this.getLatestSnapshot()?.recommendations || [];
   }
@@ -279,7 +287,18 @@ class ExecutiveEngine {
       initialize: async () => { this.registered = true; },
       execute: (ctx) => this.execute(ctx),
       shutdown: async () => { this.registered = false; },
-      health: () => ({ status: this.registered ? 'healthy' : 'degraded', lastRun: null, lastDuration: 0, errorCount: 0, totalRuns: 0, avgDuration: 0 }),
+      health: () => ({ status: this.registered ? 'healthy' : 'degraded', lifecycle: this.registered ? 'ready' : 'degraded', lastRun: null, lastDuration: 0, errorCount: 0, totalRuns: 0, avgDuration: 0 }),
+    };
+  }
+
+  getExecutiveIntelligenceContract(): EngineContract {
+    return {
+      name: 'executiveIntelligence', priority: 16,
+      dependencies: ['executiveEngine'],
+      initialize: async () => undefined,
+      execute: async () => { this.getLatest(); },
+      shutdown: async () => undefined,
+      health: () => ({ status: this.registered ? 'healthy' : 'degraded', lifecycle: this.registered ? 'ready' : 'degraded', lastRun: null, lastDuration: 0, errorCount: 0, totalRuns: 0, avgDuration: 0 }),
     };
   }
 

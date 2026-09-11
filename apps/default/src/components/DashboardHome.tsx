@@ -35,6 +35,7 @@ import { OnboardingChecklist } from '@/components/OnboardingChecklist';
 import { AnimatedNumber } from '@/components/AnimatedNumber';
 import { DailyReward } from '@/components/portfolio/DailyReward';
 import { AgentAutomationPanel } from '@/components/AgentAutomationPanel';
+import { InfoTooltip } from '@/components/common/InfoTooltip';
 
 // ── Live market sources ───────────────────────────────────────────────────────
 const MARKET_COINS = [
@@ -124,6 +125,22 @@ function SectionHeader({ icon: Icon, title, linkTo, linkLabel, collapsible, coll
         </Link>
       )}
     </div>
+  );
+}
+
+function DataStatusBadge({ type, explanation }: { type: 'live' | 'simulated'; explanation: string }) {
+  const isLive = type === 'live';
+  return (
+    <span className={cn(
+      'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.12em] whitespace-nowrap',
+      isLive
+        ? 'border-emerald-400/25 bg-emerald-400/10 text-emerald-400'
+        : 'border-amber-400/25 bg-amber-400/10 text-amber-400',
+    )}>
+      <span className={cn('h-1.5 w-1.5 rounded-full', isLive ? 'bg-emerald-400' : 'bg-amber-400')} aria-hidden="true" />
+      {isLive ? 'Live Data' : 'Simulated'}
+      <InfoTooltip text={explanation} side="bottom" />
+    </span>
   );
 }
 
@@ -546,12 +563,56 @@ export function DashboardHome() {
         {/* ── Onboarding Checklist ── */}
         <OnboardingChecklist />
 
+        {/* ── Core Journey ── */}
+        <section className="rounded-3xl border border-primary/20 bg-gradient-to-br from-primary/10 via-card to-card p-5 sm:p-6">
+          <div className="max-w-2xl">
+            <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-primary">Your CryptoVerse path</p>
+            <h2 className="mt-2 text-xl sm:text-2xl font-black text-foreground">Learn, practice, then improve.</h2>
+            <p className="mt-2 text-sm leading-6 text-muted-foreground">
+              Build market confidence without risking real money: learn the basics, place simulated trades, and review your results in one clear loop.
+            </p>
+          </div>
+          <div className="mt-5 grid grid-cols-1 md:grid-cols-3 gap-3">
+            <Link to="/academy" className="group flex items-center gap-3 rounded-2xl border border-border bg-background/40 p-4 transition-all hover:border-primary/40 hover:bg-primary/5">
+              <div className="h-10 w-10 shrink-0 rounded-xl bg-amber-400/10 flex items-center justify-center">
+                <BookOpen className="h-5 w-5 text-amber-400" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-bold text-foreground">1. Learn</p>
+                <p className="mt-0.5 text-xs text-muted-foreground">Start with Academy Lesson 1</p>
+              </div>
+              <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+            </Link>
+            <Link to="/trading" className="group flex items-center gap-3 rounded-2xl border border-primary/30 bg-primary/10 p-4 transition-all hover:border-primary/50 hover:bg-primary/15">
+              <div className="h-10 w-10 shrink-0 rounded-xl bg-primary/15 flex items-center justify-center">
+                <Activity className="h-5 w-5 text-primary" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-bold text-foreground">2. Practice</p>
+                <p className="mt-0.5 text-xs text-muted-foreground">Place your first simulated trade</p>
+              </div>
+              <ArrowRight className="h-4 w-4 shrink-0 text-primary transition-transform group-hover:translate-x-0.5" />
+            </Link>
+            <Link to="/portfolio" className="group flex items-center gap-3 rounded-2xl border border-border bg-background/40 p-4 transition-all hover:border-primary/40 hover:bg-primary/5">
+              <div className="h-10 w-10 shrink-0 rounded-xl bg-emerald-400/10 flex items-center justify-center">
+                <BarChart2 className="h-5 w-5 text-emerald-400" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-bold text-foreground">3. Review</p>
+                <p className="mt-0.5 text-xs text-muted-foreground">See what worked in Portfolio</p>
+              </div>
+              <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+            </Link>
+          </div>
+        </section>
+
         {/* ── Account Summary Cards ── */}
         <CollapsibleSection id="account" icon={Wallet} title="Account Summary" defaultOpen>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {[
             {
               label: 'Total Balance', value: `${balance.toLocaleString(undefined, { maximumFractionDigits: 0 })}`,
+              status: 'simulated' as const,
               sub: `${positions.length} open position${positions.length !== 1 ? 's' : ''}`,
               icon: Wallet, color: '#6366f1', link: '/trading',
             },
@@ -572,7 +633,7 @@ export function DashboardHome() {
               sub: `${completedLessons.length} lesson${completedLessons.length !== 1 ? 's' : ''} done`,
               icon: Star, color: '#f59e0b', link: '/academy',
             },
-          ].map(({ label, value, sub, icon: Icon, color, link }, i) => (
+          ].map(({ label, value, status, sub, icon: Icon, color, link }, i) => (
             <motion.div key={label} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.07 }}>
               <Link to={link}
                 className="block bg-card border border-border rounded-2xl p-4 hover:border-border hover:shadow-lg transition-all group">
@@ -583,7 +644,15 @@ export function DashboardHome() {
                   <ArrowUpRight className="h-3.5 w-3.5 text-muted-foreground/40 group-hover:text-muted-foreground transition-colors" />
                 </div>
                 <p className="text-2xl font-black text-foreground font-mono leading-none" style={{ color }}>{value}</p>
-                <p className="text-[11px] text-muted-foreground mt-1">{label}</p>
+                <div className="mt-1 flex items-center justify-center gap-1.5 flex-wrap">
+                  <p className="text-[11px] text-muted-foreground">{label}</p>
+                  {status === 'simulated' && (
+                    <DataStatusBadge
+                      type="simulated"
+                      explanation="This is a practice balance used for simulated trading. It is not real money or an exchange account balance."
+                    />
+                  )}
+                </div>
                 <p className="text-[10px] text-muted-foreground/50 mt-0.5">{sub}</p>
               </Link>
             </motion.div>
@@ -618,7 +687,13 @@ export function DashboardHome() {
           {/* Moving Markets */}
           <div className="lg:col-span-3 bg-card border border-border rounded-2xl overflow-hidden">
             <div className="px-5 pt-4 pb-2">
-              <SectionHeader icon={BarChart2} title="Moving Markets" linkTo="/" linkLabel="Trade" />
+              <div className="flex items-center justify-between gap-3">
+                <SectionHeader icon={BarChart2} title="Moving Markets" linkTo="/" linkLabel="Trade" />
+                <DataStatusBadge
+                  type="live"
+                  explanation="These market prices come from the live price feed. If the feed is unavailable, the row clearly shows that no live price is available."
+                />
+              </div>
             </div>
             <div className="divide-y divide-white/4">
               {loading

@@ -1,0 +1,76 @@
+{
+  "version": "2",
+  "flowTitle": "CryptoVerse Weekly Summary",
+  "trigger": {
+    "valid": true,
+    "displayName": "Run Weekly Summary",
+    "type": "MANUAL",
+    "settings": {
+      "inputUiInfo": {},
+      "paramsSchema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
+    }
+  },
+  "actions": [
+    {
+      "name": "f6675b92-5df3-4f88-a76a-43654c82d5e8",
+      "valid": true,
+      "displayName": "Read Weekly Reports",
+      "type": "PIECE",
+      "settings": {
+        "pieceName": "@taskade/automade-internalpiece-taskade",
+        "pieceVersion": "1.0.0",
+        "actionName": "project.export",
+        "input": {
+          "format": "markdown",
+          "projectId": "SNBvoyLt9Le9Xr9s"
+        }
+      }
+    },
+    {
+      "name": "d1b64805-f2e4-44bd-86a4-5d8b3ed239c2",
+      "valid": true,
+      "displayName": "Summarize CryptoVerse Activity",
+      "type": "PIECE",
+      "settings": {
+        "pieceName": "@taskade/automade-internalpiece-openai",
+        "pieceVersion": "1.0.0",
+        "actionName": "ai.ask",
+        "input": {
+          "prompt": "Create a concise weekly CryptoVerse summary with shipped work, notable activity, risks, and next actions. Use only this report content: {{ f6675b92-5df3-4f88-a76a-43654c82d5e8[\"content\"] }}",
+          "outputType": "plaintext"
+        }
+      }
+    },
+    {
+      "name": "d1b7177d-21b7-4f76-8c81-10dcdeb5e995",
+      "valid": false,
+      "displayName": "File Weekly Summary",
+      "type": "PIECE",
+      "settings": {
+        "pieceName": "@taskade/automade-internalpiece-taskade",
+        "pieceVersion": "1.0.0",
+        "actionName": "task.create",
+        "input": {
+          "content": "Weekly Summary: {{ d1b64805-f2e4-44bd-86a4-5d8b3ed239c2[\"result\"] }}",
+          "position": "beforeend",
+          "projectId": {
+            "type": "flow-template-variable-input-type",
+            "id": "SNBvoyLt9Le9Xr9s"
+          }
+        }
+      }
+    }
+  ],
+  "variables": {
+    "SNBvoyLt9Le9Xr9s": {
+      "id": "SNBvoyLt9Le9Xr9s",
+      "rank": "V",
+      "type": "string",
+      "format": "taskade-project-id"
+    }
+  }
+}

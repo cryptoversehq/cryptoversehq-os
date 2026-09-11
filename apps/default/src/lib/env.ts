@@ -91,15 +91,13 @@ export const onChainEnv = {
   /** Optional base URL for a self-hosted Mempool.space instance */
   get mempoolBaseUrl()     { return getEnv('MEMPOOL_API_BASE_URL'); },
 
-  /** True if at least one on-chain key is configured. */
-  get hasAnyKey() {
-    return (
-      isConfigured('ETHERSCAN_API_KEY') ||
-      isConfigured('BSCSCAN_API_KEY')   ||
-      isConfigured('POLYGONSCAN_API_KEY') ||
-      isConfigured('SOLANA_RPC_URL')
-    );
-  },
+  /**
+   * EVM chains are served through the Taskade secret proxy with the shared
+   * `etherscan` workspace secret (Etherscan V2, one key for every chain), so
+   * they count as configured without any browser-side key. A Genesis build
+   * defines import.meta.env as {}, so a VITE_* check can never be true here.
+   */
+  get hasAnyKey() { return true; },
 
   /** Mempool.space is always available (no key required) */
   get hasMempoolAccess() { return true; },
@@ -107,10 +105,10 @@ export const onChainEnv = {
   /** Map of chain → configured status */
   get chainSupport(): Record<string, boolean> {
     return {
-      ethereum: isConfigured('ETHERSCAN_API_KEY'),
-      bnb:      isConfigured('BSCSCAN_API_KEY'),
-      polygon:  isConfigured('POLYGONSCAN_API_KEY'),
-      arbitrum: isConfigured('ARBISCAN_API_KEY'),
+      ethereum: true,   // Etherscan V2 via the Taskade proxy
+      bnb:      true,
+      polygon:  true,
+      arbitrum: true,
       bitcoin:  true,   // Mempool.space — always free
       solana:   isConfigured('SOLANA_RPC_URL'),
     };
@@ -184,10 +182,10 @@ export const env = {
   /** Returns a human-readable integration status report. */
   get statusReport(): Record<string, { configured: boolean; keys: string[] }> {
     return {
-      'On-Chain (Ethereum)': { configured: isConfigured('ETHERSCAN_API_KEY'),   keys: ['VITE_ETHERSCAN_API_KEY'] },
-      'On-Chain (BSC)':      { configured: isConfigured('BSCSCAN_API_KEY'),     keys: ['VITE_BSCSCAN_API_KEY'] },
-      'On-Chain (Polygon)':  { configured: isConfigured('POLYGONSCAN_API_KEY'), keys: ['VITE_POLYGONSCAN_API_KEY'] },
-      'On-Chain (Arbitrum)': { configured: isConfigured('ARBISCAN_API_KEY'),    keys: ['VITE_ARBISCAN_API_KEY'] },
+      'On-Chain (Ethereum)': { configured: true, keys: ['workspace secret: etherscan'] },
+      'On-Chain (BSC)':      { configured: true, keys: ['workspace secret: etherscan'] },
+      'On-Chain (Polygon)':  { configured: true, keys: ['workspace secret: etherscan'] },
+      'On-Chain (Arbitrum)': { configured: true, keys: ['workspace secret: etherscan'] },
       'On-Chain (Bitcoin)':  { configured: true /* Mempool.space — no key */,  keys: [] },
       'On-Chain (Solana)':   { configured: isConfigured('SOLANA_RPC_URL'),      keys: ['VITE_SOLANA_RPC_URL'] },
       'On-Chain (Mempool)':  { configured: true,                                keys: ['VITE_MEMPOOL_API_BASE_URL (optional)'] },

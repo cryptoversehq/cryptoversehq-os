@@ -16,6 +16,12 @@ import { LynxLogo } from './LynxLogo';
 import { LanguageSelector } from './LanguageSelector';
 import { lynxULE } from '@/lib/lynxUniversalLanguage';
 import { useUserLanguage } from '@/hooks/useUserLanguage';
+import {
+  detectActionProposal,
+  executeAssistantAction,
+  topicBoundaryReply,
+  type ActionProposal,
+} from '@/lib/assistantActions';
 
 interface LynxChatProps {
   isOpen: boolean;
@@ -71,6 +77,7 @@ export function LynxChat({ isOpen, onClose }: LynxChatProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [agentName, setAgentName] = useState('Lynx AI Router');
   const [agentEmoji, setAgentEmoji] = useState('🤖');
+  const [pendingAction, setPendingAction] = useState<ActionProposal | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const hasWelcomed = useRef(false);
   const respondingRef = useRef(false);
@@ -104,6 +111,23 @@ export function LynxChat({ isOpen, onClose }: LynxChatProps) {
     const userMsg: UIMessage = { id: crypto.randomUUID(), role: 'user', content: trimmed, timestamp: new Date() };
     setLocalAnswers((prev) => [...prev, userMsg]);
     setInput('');
+
+    const boundaryReply = topicBoundaryReply(trimmed);
+    if (boundaryReply) {
+      setLocalAnswers((prev) => [...prev, {
+        id: crypto.randomUUID(),
+        role: 'assistant',
+        content: boundaryReply,
+        timestamp: new Date(),
+      }]);
+      return;
+    }
+
+    const proposal = detectActionProposal(trimmed, user);
+    if (proposal) {
+      setPendingAction(proposal);
+      return;
+    }
 
     respondingRef.current = true;
     setIsLoading(true);
@@ -158,6 +182,41 @@ export function LynxChat({ isOpen, onClose }: LynxChatProps) {
     }
   }, [isLoading, user, userLanguage]);
 
+  const confirmAction = useCallback(async () => {
+    if (!pendingAction || isLoading) return;
+    setIsLoading(true);
+    try {
+      const reply = await executeAssistantAction(pendingAction, user, true);
+      setLocalAnswers((prev) => [...prev, {
+        id: crypto.randomUUID(),
+        role: 'assistant',
+        content: reply,
+        timestamp: new Date(),
+      }]);
+      setPendingAction(null);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'The assistant action could not be completed.';
+      setLocalAnswers((prev) => [...prev, {
+        id: crypto.randomUUID(),
+        role: 'assistant',
+        content: message,
+        timestamp: new Date(),
+      }]);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [isLoading, pendingAction, user]);
+
+  const cancelAction = useCallback(() => {
+    setPendingAction(null);
+    setLocalAnswers((prev) => [...prev, {
+      id: crypto.randomUUID(),
+      role: 'assistant',
+      content: 'No changes were made.',
+      timestamp: new Date(),
+    }]);
+  }, []);
+
   const pathname = typeof window !== 'undefined' ? window.location.pathname : '/';
   const quickActions = getQuickActions(pathname);
   const showQuickActions = quickActions.length > 0 && displayMessages.length <= 1;
@@ -198,6 +257,23 @@ export function LynxChat({ isOpen, onClose }: LynxChatProps) {
               {action.icon} {action.label}
             </button>
           ))}
+        </div>
+      )}
+
+      {pendingAction && (
+        <div className="flex-shrink-0 border-t border-border bg-secondary/30 p-4 space-y-3">
+          <div>
+            <p className="font-semibold text-sm">{pendingAction.title}</p>
+            <p className="text-xs text-muted-foreground mt-1">{pendingAction.description}</p>
+          </div>
+          <div className="flex gap-2">
+            <button onClick={confirmAction} disabled={isLoading} className="min-h-11 flex-1 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50">
+              Confirm
+            </button>
+            <button onClick={cancelAction} disabled={isLoading} className="min-h-11 rounded-lg border border-border px-3 py-2 text-sm hover:bg-secondary disabled:opacity-50">
+              Cancel
+            </button>
+          </div>
         </div>
       )}
 

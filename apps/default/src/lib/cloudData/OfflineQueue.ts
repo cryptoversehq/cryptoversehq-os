@@ -17,6 +17,14 @@ export class OfflineQueue<T = unknown> {
   private deadLetters: OfflineQueueEntry<T>[] = this.load(DEAD_KEY);
 
   enqueue(entry: Omit<OfflineQueueEntry<T>, 'id' | 'queuedAt' | 'attempts' | 'nextAttemptAt'>): string {
+    const signature = JSON.stringify({ operation: entry.operation, payload: entry.payload });
+    const existing = this.entries.find(item => JSON.stringify({ operation: item.operation, payload: item.payload }) === signature);
+    if (existing) {
+      existing.priority = Math.max(existing.priority, entry.priority);
+      existing.nextAttemptAt = Date.now();
+      this.persist();
+      return existing.id;
+    }
     const item: OfflineQueueEntry<T> = { ...entry, id: crypto.randomUUID(), queuedAt: new Date().toISOString(), attempts: 0, nextAttemptAt: Date.now() };
     this.entries.push(item);
     this.persist();

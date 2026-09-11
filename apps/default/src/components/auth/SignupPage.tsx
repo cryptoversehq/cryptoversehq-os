@@ -13,7 +13,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Eye, EyeOff } from 'lucide-react';
 import { AuthLayout, Alert, Field, SubmitButton } from './AuthLayout';
 import {
-  sha256, generateOtp, emailExists, createPendingUser,
+  sha256, generateOtp, createPendingUser,
   sendOtpEmail, savePendingSignup,
 } from '../../lib/authApi';
 import { referralService } from '@/lib/referralService';
@@ -81,23 +81,10 @@ export function SignupPage() {
     setSuccess('');
 
     try {
-      // 1. Check duplicate email
-      const exists = await emailExists(email.toLowerCase().trim());
-      if (exists) {
-        setError(
-          <span>
-            <span>This email is already registered.</span>{' '}
-            <Link to="/login" className="text-primary underline font-medium">Log in instead</Link>.
-          </span>,
-        );
-        setLoading(false);
-        return;
-      }
-
-      // 2. Hash password
+      // Duplicate-email protection lives inside createPendingUser so the
+      // registration path does not fetch the full roster twice.
       const passwordHash = await sha256(password);
 
-      // 3. Generate OTP (10 min expiry)
       const otpCode      = generateOtp();
       const otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
       console.info('[SignupPage] OTP generated and stored for delivery', { email: email.toLowerCase().trim() });

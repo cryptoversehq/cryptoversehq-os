@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import './api/index';
 import { motion, AnimatePresence } from 'framer-motion';
 import { BrowserRouter as Router, Routes, Route, Link, useLocation, useNavigate } from 'react-router-dom';
 import {
@@ -7,6 +8,7 @@ import {
   Wallet, Crown, Gem, Award, ShieldCheck, LayoutDashboard,
   ChevronDown, Coins, Star,
 } from 'lucide-react';
+import { FloatingAgentChat as WorkspaceAssistantChat } from './components/blocks';
 import { AgentChat }             from './components/AgentChat';
 import { CryptoVerseLogo }       from './components/CryptoVerseLogo';
 // leaderboard: PERIODS fix applied
@@ -43,7 +45,6 @@ import { useBotMonitor }         from './lib/botMonitor';
 import { BotBacktestProvider }   from './lib/botBacktestContext';
 
 
-import { LoginPage }             from './components/auth/LoginPage';
 import {
   SentimentNotificationProvider,
   SentimentDigestBanner,
@@ -51,18 +52,57 @@ import {
 import { getLoginStats } from './lib/loginHistoryStore';
 import { AIErrorMonitor } from './hooks/useAIErrorMonitor';
 import ContextAwareGuidance from './components/features/ContextAwareGuidance';
-import AllFeaturesTest from './components/debug/AllFeaturesTest';
-import SecretsDebugPage from './components/debug/SecretsDebugPage';
-import WhatsNewPage from './components/features/WhatsNewPage';
+import { LoginPage } from './components/auth/LoginPage';
 import WelcomeProMessage from './components/features/WelcomeProMessage';
 import QuickTour from './components/features/QuickTour';
-import FeedbackAdminPage from './components/features/FeedbackAdminPage';
-import HelpPage from './components/features/HelpPage';
-import ChangelogPage from './components/features/ChangelogPage';
 import { AdminRoutes } from './routes/AdminRoutes';
 import { AuthRoutes } from './routes/AuthRoutes';
 import { MainRoutes } from './routes/MainRoutes';
 import { PublicRoutes, PUBLIC_PATHS } from './routes/PublicRoutes';
+import { trackProductEventInBackground } from './lib/productAnalytics';
+import { useBinanceLiveFeed } from './hooks/useBinanceLiveFeed';
+import { pushBinancePrice, clearBinancePrice, subscribePrices } from './lib/globalPriceEngine';
+
+const DEFAULT_BINANCE_FEEDS = [
+  { coinId: 'bitcoin', symbol: 'btcusdt' },
+  { coinId: 'ethereum', symbol: 'ethusdt' },
+  { coinId: 'solana', symbol: 'solusdt' },
+] as const;
+
+function DefaultBinanceFeedBootstrap() {
+  const btc = useBinanceLiveFeed('btcusdt', true);
+  const eth = useBinanceLiveFeed('ethusdt', true);
+  const sol = useBinanceLiveFeed('solusdt', true);
+
+  useEffect(() => {
+    const unsubscribe = subscribePrices(
+      DEFAULT_BINANCE_FEEDS.map(feed => feed.coinId),
+      () => undefined,
+    );
+    return unsubscribe;
+  }, []);
+
+  useEffect(() => {
+    if (!btc.ticker) return;
+    pushBinancePrice('bitcoin', btc.ticker.price, btc.ticker.changePct24h, btc.ticker.high24h, btc.ticker.low24h, btc.ticker.volumeQuote);
+  }, [btc.ticker]);
+
+  useEffect(() => {
+    if (!eth.ticker) return;
+    pushBinancePrice('ethereum', eth.ticker.price, eth.ticker.changePct24h, eth.ticker.high24h, eth.ticker.low24h, eth.ticker.volumeQuote);
+  }, [eth.ticker]);
+
+  useEffect(() => {
+    if (!sol.ticker) return;
+    pushBinancePrice('solana', sol.ticker.price, sol.ticker.changePct24h, sol.ticker.high24h, sol.ticker.low24h, sol.ticker.volumeQuote);
+  }, [sol.ticker]);
+
+  useEffect(() => () => {
+    for (const feed of DEFAULT_BINANCE_FEEDS) clearBinancePrice(feed.coinId);
+  }, []);
+
+  return null;
+}
 
 // ─── Sidebar Item ─────────────────────────────────────────────────────────────
 const SidebarItem = ({
@@ -795,6 +835,11 @@ function LynxAIIntegration() {
 
       {/* Chat Window — always available. */}
       <LynxChat isOpen={lynx.isChatOpen} onClose={lynx.closeChat} />
+
+      <WorkspaceAssistantChat
+        agentId="01KZ4MPA7J99A8HZQPCVZSVM0E"
+        publicAgentId="01KZ4MPA7QSFHNR4KWZT74EKC7"
+      />
     </>
   );
 }
@@ -1032,6 +1077,7 @@ export default function App() {
           offset={{ bottom: 88, right: 16 }}
           mobileOffset={{ bottom: 152, right: 12 }}
         />
+        <DefaultBinanceFeedBootstrap />
         <AppInner />
       </Router>
     </BotBacktestProvider>

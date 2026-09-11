@@ -14,6 +14,8 @@ import { useExchangeStore } from '../../lib/exchangeStore';
 import { riskManager } from '../../lib/exchangeRiskManager';
 import { ExchangeConnection, EXCHANGE_META, OrderType } from '../../lib/exchangeTypes';
 import { toast } from 'sonner';
+import { useAuthStore } from '../../lib/authStore';
+import { trackProductEventOnce } from '../../lib/productAnalytics';
 
 // ── Data ───────────────────────────────────────────────────────────────────────
 

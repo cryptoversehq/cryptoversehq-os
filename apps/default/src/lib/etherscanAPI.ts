@@ -20,7 +20,6 @@
  *   Optimism  → https://api-optimistic.etherscan.io/api
  */
 
-import { onChainEnv } from './env';
 import { isApiEnabled, markApiUsed } from './apiStatusService';
 import { proxySecretFetch } from './taskadeSecretsService';
 
@@ -41,7 +40,8 @@ export async function fetchLatestTransactions(
     const params = address
       ? `module=account&action=txlist&address=${address}&startblock=0&endblock=99999999&page=1&offset=10&sort=desc`
       : `module=account&action=txlist&address=0xbe0eb53f46cd790cd13851d5eff43d12404d33e8&startblock=0&endblock=99999999&page=1&offset=10&sort=desc`;
-    const url = `https://api.etherscan.io/api?${params}`;
+    // Etherscan V2: one endpoint for every chain, keyed through the Taskade proxy.
+    const url = `${ETHERSCAN_V2_URL}?chainid=${chainId}&${params}&apikey={{secret}}`;
     const res = await proxySecretFetch('etherscan', { url });
     if (!res.ok) {
       console.warn('[Etherscan] Proxy request failed:', res.status);
@@ -77,7 +77,7 @@ export async function fetchLatestTransactions(
 export async function testEtherscanConnection(): Promise<{ success: boolean; message: string; latencyMs?: number }> {
   const start = Date.now();
   try {
-    const url = 'https://api.etherscan.io/api?module=account&action=balance&address=0x0000000000000000000000000000000000000000&tag=latest';
+    const url = `${ETHERSCAN_V2_URL}?chainid=1&module=account&action=balance&address=0x0000000000000000000000000000000000000000&tag=latest&apikey={{secret}}`;
     const res = await proxySecretFetch('etherscan', { url });
     const latencyMs = Date.now() - start;
     if (!res.ok) {
@@ -155,17 +155,27 @@ export interface EtherscanGasPrices {
 export interface EtherscanChainConfig {
   name:    string;
   baseUrl: string;
+  /** Etherscan V2 `chainid` query value. */
+  chainId: string;
   symbol:  string;
   /** Optional: different API key for this chain */
   apiKey?: string;
 }
 
+/**
+ * Etherscan V2: a single endpoint and a single API key serve every supported
+ * chain, selected by `chainid`. The per-chain V1 hosts were retired and now
+ * answer every call with a deprecation error. The key itself is the workspace
+ * secret `etherscan`, injected server-side by the Taskade proxy.
+ */
+export const ETHERSCAN_V2_URL = 'https://api.etherscan.io/v2/api';
+
 export const ETHERSCAN_CHAINS: Record<string, EtherscanChainConfig> = {
-  ethereum: { name: 'Ethereum', baseUrl: 'https://api.etherscan.io/api',           symbol: 'ETH' },
-  bnb:      { name: 'BNB Chain', baseUrl: 'https://api.bscscan.com/api',            symbol: 'BNB' },
-  polygon:  { name: 'Polygon',   baseUrl: 'https://api.polygonscan.com/api',        symbol: 'MATIC' },
-  arbitrum: { name: 'Arbitrum',  baseUrl: 'https://api.arbiscan.io/api',            symbol: 'ETH' },
-  optimism: { name: 'Optimism',  baseUrl: 'https://api-optimistic.etherscan.io/api',symbol: 'ETH' },
+  ethereum: { name: 'Ethereum',  baseUrl: ETHERSCAN_V2_URL, chainId: '1',     symbol: 'ETH' },
+  bnb:      { name: 'BNB Chain', baseUrl: ETHERSCAN_V2_URL, chainId: '56',    symbol: 'BNB' },
+  polygon:  { name: 'Polygon',   baseUrl: ETHERSCAN_V2_URL, chainId: '137',   symbol: 'MATIC' },
+  arbitrum: { name: 'Arbitrum',  baseUrl: ETHERSCAN_V2_URL, chainId: '42161', symbol: 'ETH' },
+  optimism: { name: 'Optimism',  baseUrl: ETHERSCAN_V2_URL, chainId: '10',    symbol: 'ETH' },
 };
 
 // ── Simple rate limiter ───────────────────────────────────────────────────────
@@ -203,6 +213,7 @@ export class EtherscanError extends Error {
 export class EtherscanAPI {
   private apiKey:    string;
   private baseUrl:   string;
+  private chainId:   string;
   private symbol:    string;
   private limiter:   RateLimiter;
   private chainName: string;
@@ -211,19 +222,13 @@ export class EtherscanAPI {
     const cfg = ETHERSCAN_CHAINS[chain] ?? ETHERSCAN_CHAINS['ethereum'];
     this.chainName = cfg.name;
     this.baseUrl   = cfg.baseUrl;
+    this.chainId   = cfg.chainId;
     this.symbol    = cfg.symbol;
-    this.limiter   = new RateLimiter(apiKey ? 4 : 0.2);   // 5 req/s with key, 1/5s without
-
-    // Auto-select API key based on chain
-    if (apiKey) {
-      this.apiKey = apiKey;
-    } else if (chain === 'ethereum') {
-      this.apiKey = onChainEnv.etherscanApiKey;
-    } else if (chain === 'bnb') {
-      this.apiKey = onChainEnv.bscscanApiKey;
-    } else {
-      this.apiKey = '';
-    }
+    // Every call is keyed through the proxy, so the keyed rate applies on all chains.
+    this.limiter   = new RateLimiter(4);
+    // Kept for callers that pass an explicit key. The browser build has no
+    // VITE_* env, so there is nothing to read here; the proxy path supplies the key.
+    this.apiKey    = apiKey ?? '';
   }
 
   // ── Internal fetch helper ────────────────────────────────────────────────
@@ -238,14 +243,13 @@ export class EtherscanAPI {
       await this.limiter.throttle();
       markApiUsed('etherscan');
 
-      const qs = new URLSearchParams({
-        ...params,
-        ...(this.apiKey ? { apikey: this.apiKey } : {}),
-      });
+      const qs = new URLSearchParams({ ...params, chainid: this.chainId });
 
-      const res = await fetch(`${this.baseUrl}?${qs.toString()}`, {
+      // `{{secret}}` is appended raw: URLSearchParams would percent-encode it and
+      // the proxy substitutes the literal token only.
+      const res = await proxySecretFetch('etherscan', {
+        url:     `${this.baseUrl}?${qs.toString()}&apikey={{secret}}`,
         headers: { 'Accept': 'application/json' },
-        signal:  AbortSignal.timeout(10_000),
       });
 
       if (!res.ok) throw new EtherscanError('HTTP_ERROR', `HTTP ${res.status}`);
@@ -449,7 +453,8 @@ export class EtherscanAPI {
   }
 
   get chain() { return this.chainName; }
-  get configured() { return this.apiKey.length > 0; }
+  /** Keyed through the Taskade proxy; there is no browser-side key to check. */
+  get configured() { return true; }
 }
 
 // ── Pre-built instances for common chains ─────────────────────────────────────

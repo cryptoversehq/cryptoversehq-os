@@ -7,7 +7,8 @@
 
 import { useState, useEffect } from 'react';
 
-const CG_BASE = 'https://api.coingecko.com/api/v3';
+import { coinGeckoProxyUrl } from '@/lib/coinGeckoProxy';
+
 const FALLBACK_MCAP = 2_480_000_000_000;
 const FALLBACK_VOL = 98_300_000_000;
 
@@ -31,11 +32,9 @@ export function useMarketOverview(): MarketOverview {
 
     async function fetchData() {
       try {
-        const key = (import.meta as Record<string, Record<string, string>>).env?.VITE_COINGECKO_API_KEY || '';
-        const headers: Record<string, string> = { Accept: 'application/json' };
-        if (key) headers['x-cg-demo-api-key'] = key;
-
-        const res = await fetch(`${CG_BASE}/global`, { headers });
+        const res = await fetch(coinGeckoProxyUrl('global'), {
+          headers: { Accept: 'application/json' },
+        });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const json = await res.json() as { data?: { total_market_cap?: { usd?: number }; total_volume?: { usd?: number } } };
 

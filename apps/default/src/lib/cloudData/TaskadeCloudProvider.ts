@@ -16,6 +16,7 @@ export class TaskadeCloudProvider implements CloudProvider {
   private nodesCacheAt = 0;
   private nodesRequest: Promise<TaskadeNode[]> | null = null;
   private emailToIndexMap: Map<string, TaskadeNode> = new Map();
+  private saveRequests = new Map<string, Promise<void>>();
 
   constructor(email: string | null = null) {
     this.email = email;
@@ -157,9 +158,23 @@ export class TaskadeCloudProvider implements CloudProvider {
   }
 
   private async saveNode(nodeId: string | null, data: Record<string, unknown>, userId?: string): Promise<void> {
-    const email = userId ?? this.email;
-    const body = { '/attributes/@cv_email': email, '/attributes/@cv_data': JSON.stringify(data), '/attributes/@cv_updated': new Date().toISOString() };
-    await this.request(nodeId ? `/nodes/${nodeId}` : '/nodes', { method: nodeId ? 'PATCH' : 'POST', body: JSON.stringify(nodeId ? body : { content: email ?? 'cloud-user', ...body }) });
+    const email = (userId ?? this.email)?.trim().toLowerCase();
+    if (!email) throw new Error('Cloud user email is required before saving user data');
+    const fields = { Email: email, 'User Data (JSON)': JSON.stringify(data) };
+    const payload = nodeId ? fields : { '/text': email, ...fields };
+    const previous = this.saveRequests.get(email) ?? Promise.resolve();
+    const next = previous.catch(() => undefined).then(async () => {
+      await this.request(nodeId ? `/nodes/${nodeId}` : '/nodes', {
+        method: nodeId ? 'PATCH' : 'POST',
+        body: JSON.stringify(payload),
+      });
+    });
+    this.saveRequests.set(email, next);
+    try {
+      await next;
+    } finally {
+      if (this.saveRequests.get(email) === next) this.saveRequests.delete(email);
+    }
   }
 
   private async requestRoot(path: string, options?: RequestInit): Promise<Record<string, unknown>> {

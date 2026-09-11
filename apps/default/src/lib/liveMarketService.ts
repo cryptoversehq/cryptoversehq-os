@@ -1,5 +1,5 @@
 import axios from 'axios';
-const BASE = 'https://api.coingecko.com/api/v3';
+import { coinGeckoProxyUrl } from './coinGeckoProxy';
 
 export interface LiveCoin { id: string; symbol: string; name: string; }
 export interface OHLCCandle { time: number; open: number; high: number; low: number; close: number; }
@@ -19,7 +19,7 @@ export async function fetchCoinList(): Promise<LiveCoin[]> {
     }
   } catch { /**/ }
   _coinListPromise = axios.get<{ id: string; symbol: string; name: string }[]>(
-    BASE + '/coins/list', { timeout: 15000 }
+    coinGeckoProxyUrl('coins/list'), { timeout: 15000 }
   ).then(r => {
     const data: LiveCoin[] = r.data.map(c => ({ id: c.id, symbol: c.symbol.toUpperCase(), name: c.name }));
     try { localStorage.setItem(COIN_LIST_KEY, JSON.stringify({ data, ts: Date.now() })); } catch { /**/ }
@@ -55,7 +55,7 @@ export async function fetchLivePrices(coinIds: string[]): Promise<Record<string,
 
   try {
     const r = await axios.get<Record<string, { usd: number; usd_24h_change: number; usd_24h_vol: number; usd_market_cap: number; }>>(
-      BASE + '/simple/price',
+      coinGeckoProxyUrl('simple/price'),
       { params: { ids: coinIds.join(','), vs_currencies: 'usd', include_24hr_change: true, include_24hr_vol: true, include_market_cap: true }, timeout: 8000 }
     );
     const data = r.data as Record<string, LivePrice>;
@@ -86,7 +86,7 @@ export async function fetchOHLC(coinId: string, timeframe: string): Promise<OHLC
   if (cached && Date.now() - cached.ts < 60000) return cached.data;
   const days = DAYS_FOR_TF[timeframe] ?? 7;
   try {
-    const r = await axios.get<number[][]>(BASE + '/coins/' + coinId + '/ohlc', { params: { vs_currency: 'usd', days }, timeout: 10000 });
+    const r = await axios.get<number[][]>(coinGeckoProxyUrl('coins/' + coinId + '/ohlc'), { params: { vs_currency: 'usd', days }, timeout: 10000 });
     const seen = new Set<number>();
     const candles = r.data.map(a => ({ time: Math.floor(a[0] / 1000), open: a[1], high: a[2], low: a[3], close: a[4] }))
       .filter(c => { if (seen.has(c.time)) return false; seen.add(c.time); return true; })

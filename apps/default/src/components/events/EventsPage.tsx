@@ -14,7 +14,9 @@
 import React, { useEffect } from 'react';
 import { Routes, Route, useLocation, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Calendar, Bell } from 'lucide-react';
+import { RefreshCw } from 'lucide-react';
+import { useState } from 'react';
+import { toast } from 'sonner';
 import { cn } from '../../lib/utils';
 import { useEventsStore, startEventsTicker, stopEventsTicker } from './eventStore';
 import { EventNotificationBell, EventAlertToasts } from './EventNotificationsPanel';
@@ -39,7 +41,8 @@ const NAV_ITEMS = [
 function EventsNav() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { getLiveEvents, getUnreadCount, myEntries } = useEventsStore();
+  const { getLiveEvents, getUnreadCount, myEntries, refreshFromServer } = useEventsStore();
+  const [refreshing, setRefreshing] = useState(false);
   const liveCount      = getLiveEvents().length;
   const unread         = getUnreadCount();
   const myEventsCount  = Object.keys(myEntries).length;
@@ -69,7 +72,23 @@ function EventsNav() {
             </span>
           )}
         </div>
-        <EventNotificationBell />
+        <div className="flex items-center gap-2">
+          <button
+            onClick={async () => {
+              setRefreshing(true);
+              const result = await refreshFromServer();
+              setRefreshing(false);
+              (result.ok ? toast.success : toast.info)(result.message);
+            }}
+            disabled={refreshing}
+            className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl border border-border text-muted-foreground transition-colors hover:text-foreground disabled:cursor-wait disabled:opacity-60"
+            aria-label="Refresh events from server"
+            title="Refresh events from server"
+          >
+            <RefreshCw className={cn('h-4 w-4', refreshing && 'animate-spin')} />
+          </button>
+          <EventNotificationBell />
+        </div>
       </div>
 
       {/* Nav tabs */}
@@ -114,10 +133,13 @@ function PageWrap({ children }: { children: React.ReactNode }) {
 // ── Shell ─────────────────────────────────────────────────────────────────────
 
 export function EventsPage() {
+  const refreshFromServer = useEventsStore(state => state.refreshFromServer);
+
   useEffect(() => {
+    void refreshFromServer();
     startEventsTicker();
     return () => stopEventsTicker();
-  }, []);
+  }, [refreshFromServer]);
 
   return (
     <div className="flex flex-col h-full overflow-hidden">

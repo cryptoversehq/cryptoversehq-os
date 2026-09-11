@@ -102,7 +102,7 @@ export function SentimentPage() {
   const navigate = useNavigate();
 
   const {
-    seedHistory, startPolling, stopPolling, runTick,
+    seedHistory, startPolling, stopPolling, runTick, refreshFromServer,
     getMarketFearGreed, getAllAggregates,
   } = useSentimentStore();
 
@@ -133,14 +133,20 @@ export function SentimentPage() {
     setShowGuide(false);
   }
 
-  function handleRefresh() {
+  async function handleRefresh() {
     setRefreshing(true);
-    setTimeout(() => {
-      const result = runTick();
+    const serverResult = await refreshFromServer('BTC');
+    if (serverResult.ok) {
       setLastUpdate(new Date());
       setRefreshing(false);
-      toast.success(`Updated — ${result.generated} snapshots, ${result.triggered} alerts`);
-    }, 600);
+      toast.success(serverResult.message);
+      return;
+    }
+
+    const result = runTick();
+    setLastUpdate(new Date());
+    setRefreshing(false);
+    toast.info(`Local simulation update — ${result.generated} snapshots, ${result.triggered} alerts`);
   }
 
   function navigateTo(tab: typeof TABS[number]) {

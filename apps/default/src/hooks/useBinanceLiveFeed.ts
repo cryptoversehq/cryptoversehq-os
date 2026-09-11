@@ -1,8 +1,8 @@
 /**
  * useBinanceLiveFeed.ts
  *
- * Optional, opt-in real-time price + order-book feed via Binance's public
- * WebSocket streams (no API key required — this is public market data).
+ * Always-on real-time price + order-book feed via Binance's public WebSocket
+ * streams (no API key required - this is public market data).
  *
  * This is intentionally the FIRST real-time data source added to the app:
  * every other "live" number in the trading terminal is either a polled
@@ -11,14 +11,13 @@
  * no polling interval to drift out of sync with anything else.
  *
  * Design constraints, matching the rest of the app's data philosophy:
- *   - OFF by default. The caller passes `enabled` — nothing connects until
- *     the user explicitly opts in via a UI toggle.
+ *   - ON by default. The active trading surface connects automatically when
+ *     the selected coin has a Binance USDT market.
  *   - Fails silently and falls back. If the socket can't connect (network
- *     policy, firewall, symbol not listed, etc.) `connected` simply stays
- *     false forever and the caller keeps using its existing simulated/
- *     polled price — exactly like the CoinGecko fallback pattern.
- *   - Bounded reconnect attempts with backoff, so a permanently-blocked
- *     environment doesn't retry forever in the background.
+ *     policy, firewall, symbol not listed, etc.) the caller keeps using its
+ *     existing simulated or polled price.
+ *   - Reconnects automatically with capped exponential backoff while the
+ *     trading surface is mounted.
  */
 import { useEffect, useRef, useState } from 'react';
 import type { OrderBook as OBType, OrderBookLevel } from '@/lib/marketEngine';
@@ -37,8 +36,8 @@ export interface UseBinanceLiveFeedResult {
   book:      OBType | null;
 }
 
-const MAX_RECONNECT_ATTEMPTS = 5;
 const RECONNECT_BASE_DELAY_MS = 1_500;
+const MAX_RECONNECT_DELAY_MS = 30_000;
 
 /** Converts raw Binance depth20 levels ([priceStr, qtyStr][]) into the app's OrderBook shape. */
 function convertDepth(rawBids: [string, string][], rawAsks: [string, string][]): OBType {
@@ -78,9 +77,9 @@ function convertDepth(rawBids: [string, string][], rawAsks: [string, string][]):
 }
 
 /**
- * Opts into a live Binance ticker + top-20 depth feed for `symbol`
- * (e.g. "btcusdt"). Pass `enabled={false}` or `symbol={null}` to stay
- * fully disconnected — the default, safe state.
+ * Connects a live Binance ticker + top-20 depth feed for `symbol`
+ * (e.g. "btcusdt") whenever the caller mounts it with a symbol. The enabled
+ * flag remains available for deliberate teardown and test isolation.
  */
 export function useBinanceLiveFeed(symbol: string | null, enabled: boolean): UseBinanceLiveFeedResult {
   const [connected, setConnected] = useState(false);
@@ -155,11 +154,16 @@ export function useBinanceLiveFeed(symbol: string | null, enabled: boolean): Use
     }
 
     function scheduleReconnect() {
-      if (cancelled) return;
-      if (attemptsRef.current >= MAX_RECONNECT_ATTEMPTS) return; // give up quietly
-      const delay = RECONNECT_BASE_DELAY_MS * Math.pow(2, attemptsRef.current);
+      if (cancelled || reconnectTimerRef.current) return;
+      const delay = Math.min(
+        RECONNECT_BASE_DELAY_MS * Math.pow(2, attemptsRef.current),
+        MAX_RECONNECT_DELAY_MS,
+      );
       attemptsRef.current += 1;
-      reconnectTimerRef.current = setTimeout(connect, delay);
+      reconnectTimerRef.current = setTimeout(() => {
+        reconnectTimerRef.current = null;
+        connect();
+      }, delay);
     }
 
     connect();

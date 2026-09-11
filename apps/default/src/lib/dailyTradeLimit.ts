@@ -1,21 +1,24 @@
 import { useAuthStore } from './authStore';
+import { cloudRecordStore } from './cloudData';
 
 const MAX_FREE_TRADES = 10;
 
-function getTodayKey() {
-  return `cv_daily_trades_${new Date().toISOString().slice(0, 10)}`;
+function getDailyKey(email: string): string {
+  return `${email.toLowerCase()}:${new Date().toISOString().slice(0, 10)}`;
 }
 
 function getDailyTradeCount(): number {
-  try {
-    return parseInt(localStorage.getItem(getTodayKey()) || '0', 10) || 0;
-  } catch { return 0; }
+  const email = useAuthStore.getState().user?.email;
+  if (!email) return 0;
+  return cloudRecordStore.get<number>('daily_trade_limit', getDailyKey(email), 0);
 }
 
 function incrementDailyTradeCount(): number {
-  const key = getTodayKey();
+  const email = useAuthStore.getState().user?.email;
+  if (!email) return 0;
+  const key = getDailyKey(email);
   const count = getDailyTradeCount() + 1;
-  localStorage.setItem(key, String(count));
+  cloudRecordStore.set('daily_trade_limit', key, count);
   return count;
 }
 

@@ -15,6 +15,7 @@ import {
   VIRTUAL_PKG_PRICE_USDT,
 } from './subscriptionStore';
 import { UserProfile } from './authStore';
+import { cloudRecordStore } from './cloudData';
 
 // ── Shared localStorage keys (must match subscriptionStore / authStore) ───────
 const SUB_KEY     = 'cryptoverse_subscriptions_v2';
@@ -23,10 +24,10 @@ const SESSION_KEY = 'cryptoverse_session';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function loadAllPayments(): Record<string, PaymentRecord[]> {
-  try { return JSON.parse(localStorage.getItem(SUB_KEY) || '{}'); } catch { return {}; }
+  return cloudRecordStore.get<Record<string, PaymentRecord[]>>('subscription', SUB_KEY, {});
 }
 function saveAllPayments(data: Record<string, PaymentRecord[]>) {
-  localStorage.setItem(SUB_KEY, JSON.stringify(data));
+  cloudRecordStore.set('subscription', SUB_KEY, data);
 }
 
 function loadUsers(): Record<string, { password: string; profile: UserProfile }> {

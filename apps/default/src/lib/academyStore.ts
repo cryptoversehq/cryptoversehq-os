@@ -160,6 +160,8 @@ export const useAcademyStore = create<AcademyState>()(
 
         const updatedLessons = [...completedLessons, lessonId];
         set({ completedLessons: updatedLessons });
+        const user = useAuthStore.getState().user;
+        trackProductEventOnce({ type: 'lesson_completed', user: user ? { id: user.id, email: user.email } : null, feature: 'academy' });
 
         // Earn the XP via earnXP (which records history + syncs)
         get().earnXP(xp, `Completed lesson: ${lessonId}`);

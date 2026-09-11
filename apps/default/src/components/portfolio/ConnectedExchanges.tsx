@@ -2,6 +2,7 @@ import React from 'react';
 import { ExternalLink } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { EXCHANGE_META, type ExchangeConnection, type RealPortfolioSnapshot, type ExchangeId } from '@/lib/exchangeTypes';
+import { DataStatusBadge } from '@/components/common/DataStatusBadge';
 
 interface ConnectedExchangesProps {
   connections: ExchangeConnection[];
@@ -24,9 +25,15 @@ export function ConnectedExchanges({ connections, portfolios, realExchangeTotal 
             ({connectedExchanges.length})
           </span>
         </h3>
-        <span className="text-sm font-mono font-bold text-green-400">
-          ${realExchangeTotal.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-        </span>
+        <div className="flex items-center gap-2">
+          <DataStatusBadge
+            type="livePortfolio"
+            explanation="This total is read from connected exchange accounts and represents real portfolio data."
+          />
+          <span className="text-sm font-mono font-bold text-green-400">
+            ${realExchangeTotal.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+          </span>
+        </div>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {connectedExchanges.map(conn => {

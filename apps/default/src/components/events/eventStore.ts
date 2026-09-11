@@ -12,6 +12,8 @@ import { persist } from 'zustand/middleware';
 import { toast } from 'sonner';
 import { createCloudStorage } from '@/lib/cloudData';
 import { useAuthStore } from '@/lib/authStore';
+import { request } from '@/api/client';
+import type { ListEventsResponse, RegisterForEventResponse } from '@/api/types';
 
 import {
   LiveEvent,
@@ -69,7 +71,9 @@ interface EventsStore extends EventsState {
 
   // Actions — Registration
   joinEvent:          (eventId: string, userId: string, displayName: string, teamId?: string) => boolean;
+  registerWithServer: (eventId: string, userId: string, displayName: string) => Promise<{ ok: boolean; message: string }>;
   leaveEvent:         (eventId: string, userId: string) => void;
+  refreshFromServer:  () => Promise<{ ok: boolean; message: string }>;
 
   // Actions — Team (§4.4)
   createTeam:         (eventId: string, teamName: string, emoji: string, captainId: string) => EventTeam | null;
@@ -272,6 +276,48 @@ export const useEventsStore = create<EventsStore>()(
         prizeHistory:    [],
         activeTab:       'browse',
         selectedEventId: null,
+
+        // ── Server-authoritative refresh and registration ─────────────────────
+
+        async refreshFromServer() {
+          try {
+            const [active, upcoming] = await Promise.all([
+              request<ListEventsResponse>('GET', '/api/events/active'),
+              request<ListEventsResponse>('GET', '/api/events/upcoming'),
+            ]);
+            const serverEvents = [...active.events, ...upcoming.events];
+            const byId = new Map(serverEvents.map(event => [event.id, event]));
+            const events = get().events.map(event => {
+              const server = byId.get(event.id);
+              if (!server) return event;
+              return {
+                ...event,
+                status: server.status as EventStatus,
+                startAt: server.startTime,
+                endAt: server.endTime,
+                prizePool: server.prizePool,
+                maxParticipants: server.maxParticipants || null,
+                currentParticipants: server.currentParticipants,
+              };
+            });
+            set({ events });
+            return { ok: true, message: `${serverEvents.length} events refreshed from the server.` };
+          } catch {
+            return { ok: false, message: 'Server event data is unavailable.' };
+          }
+        },
+
+        async registerWithServer(eventId, userId, displayName) {
+          try {
+            await request<RegisterForEventResponse>('POST', `/api/events/${encodeURIComponent(eventId)}/register`, {});
+            const joined = get().joinEvent(eventId, userId, displayName);
+            return joined
+              ? { ok: true, message: 'Registration confirmed by the server.' }
+              : { ok: false, message: 'Registration was confirmed, but the local view could not update.' };
+          } catch {
+            return { ok: false, message: 'Registration failed. The server did not confirm this event entry.' };
+          }
+        },
 
         // ── §4.1 Explicit lifecycle triggers (for admin / testing) ────────────
 

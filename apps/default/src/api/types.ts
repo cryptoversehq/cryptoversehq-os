@@ -39,6 +39,35 @@ export interface ApiError {
 
 export type ApiResponse<T = unknown> = ApiSuccess<T> | ApiError;
 
+// A browser may cache these records, but it is never the authority for a live
+// mutation or a sensitive exchange value.
+export type ServerDataSource = 'render-api' | 'supabase';
+
+export interface ServerAuthority {
+  authority: 'server';
+  source: ServerDataSource;
+  requestId: string;
+  issuedAt: string;
+}
+
+export interface ServerAuthoritative<T> {
+  data: T;
+  authority: ServerAuthority;
+}
+
+export interface ServerMutationReceipt {
+  mutationId: string;
+  committedAt: string;
+  authority: ServerAuthority;
+}
+
+export interface MaskedSecret {
+  present: boolean;
+  last4?: string;
+}
+
+export type ExchangeConnectionMode = 'live' | 'demo';
+
 // ─────────────────────────────────────────────────────────────────────────────
 // META (pagination, timing, versioning)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -601,4 +630,81 @@ export interface GetExchangeBalanceResponse {
   balances:     { asset: string; free: number; locked: number; total: number; usdValue: number }[];
   totalUsdValue: number;
   updatedAt:    string;
+}
+
+export interface SyncExchangeResponse {
+  connectionId: string;
+  syncedAt: string;
+  balance?: GetExchangeBalanceResponse;
+  trades?: ExchangeTradeItem[];
+}
+
+export interface ExchangeTradeItem {
+  id: string;
+  connectionId: string;
+  exchange?: string;
+  symbol: string;
+  side: 'buy' | 'sell';
+  orderType?: 'market' | 'limit' | 'stop_limit';
+  quantity: number;
+  filledQuantity?: number;
+  price: number;
+  filledPrice?: number;
+  fee?: number;
+  feeCurrency?: string;
+  pnl?: number;
+  pnlPct?: number;
+  status: string;
+  createdAt: string;
+  filledAt?: string | null;
+}
+
+export interface DeployExchangeStrategyRequest {
+  connectionId: string;
+  strategyId: string;
+  strategyName: string;
+  strategyInfo: {
+    isBacktested: boolean;
+    winRate: number;
+    backtestMonths: number;
+    maxDrawdown: number;
+    riskLevel: 'low' | 'medium' | 'high';
+  };
+  symbol: string;
+  mode: 'spot' | 'margin' | 'futures';
+  allocatedUSD: number;
+  userLevel: number;
+  pairs: string[];
+  maxDailyLoss: number;
+}
+
+export interface DeployExchangeStrategyResponse {
+  deployId: string;
+  status: 'pending' | 'running' | 'stopped' | 'failed';
+  strategyId?: string;
+  connectionId?: string;
+  message?: string;
+}
+
+export interface ExecuteExchangeOrderRequest {
+  connectionId: string;
+  symbol: string;
+  side: 'buy' | 'sell';
+  quantity: number;
+  orderType: 'market' | 'limit' | 'stop_limit';
+  price?: number;
+}
+
+export interface ExecuteExchangeOrderResponse {
+  orderId: string;
+  connectionId: string;
+  status: string;
+  symbol: string;
+  side: 'buy' | 'sell';
+  quantity: number;
+  filledQuantity?: number;
+  price?: number;
+  filledPrice?: number;
+  createdAt: string;
+  trade?: ExchangeTradeItem;
 }

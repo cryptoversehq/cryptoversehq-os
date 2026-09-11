@@ -27,6 +27,7 @@ import { COIN_BASE_PRICES } from './backtestTypes';
 import type { Timeframe } from './marketEngine';
 import { BacktestError } from './backtestErrors';
 import { isApiEnabled, markApiUsed } from './apiStatusService';
+import { coinGeckoProxyUrl } from './coinGeckoProxy';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TYPES
@@ -106,8 +107,6 @@ loadCacheFromStorage();
 // COINGECKO FETCH HELPERS
 // ─────────────────────────────────────────────────────────────────────────────
 
-const BASE = 'https://api.coingecko.com/api/v3';
-
 /**
  * Fetches OHLC candles from CoinGecko.
  * /coins/{id}/ohlc returns [[timestamp, open, high, low, close], ...]
@@ -119,12 +118,12 @@ async function fetchOhlc(coinId: string, days: number): Promise<OHLCVCandle[]> {
     throw new BacktestError('NETWORK_ERROR', 'CoinGecko is disabled by the administrator');
   }
   markApiUsed('coingecko');
-  const url = `${BASE}/coins/${coinId}/ohlc?vs_currency=usd&days=${days}`;
+  const url = coinGeckoProxyUrl(`coins/${coinId}/ohlc`, { vs_currency: 'usd', days });
   let res: Response;
   try {
-    res = await fetch(url, { signal: AbortSignal.timeout(12_000) });
+    res = await fetch(url, { signal: globalThis.AbortSignal.timeout(12_000) });
   } catch (e) {
-    if (e instanceof DOMException && e.name === 'AbortError') throw new BacktestError('TIMEOUT');
+    if (e instanceof globalThis.DOMException && e.name === 'AbortError') throw new BacktestError('TIMEOUT');
     throw new BacktestError('NETWORK_ERROR');
   }
   if (res.status === 429) throw new BacktestError('RATE_LIMIT');
@@ -154,12 +153,12 @@ async function fetchMarketChartRange(
     throw new BacktestError('NETWORK_ERROR', 'CoinGecko is disabled by the administrator');
   }
   markApiUsed('coingecko');
-  const url = `${BASE}/coins/${coinId}/market_chart/range?vs_currency=usd&from=${fromUnix}&to=${toUnix}`;
+  const url = coinGeckoProxyUrl(`coins/${coinId}/market_chart/range`, { vs_currency: 'usd', from: fromUnix, to: toUnix });
   let res: Response;
   try {
-    res = await fetch(url, { signal: AbortSignal.timeout(14_000) });
+    res = await fetch(url, { signal: globalThis.AbortSignal.timeout(14_000) });
   } catch (e) {
-    if (e instanceof DOMException && e.name === 'AbortError') throw new BacktestError('TIMEOUT');
+    if (e instanceof globalThis.DOMException && e.name === 'AbortError') throw new BacktestError('TIMEOUT');
     throw new BacktestError('NETWORK_ERROR');
   }
   if (res.status === 429) throw new BacktestError('RATE_LIMIT');

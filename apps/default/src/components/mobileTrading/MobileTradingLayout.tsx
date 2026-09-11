@@ -34,6 +34,7 @@ import { MobileTradeHistory } from './MobileTradeHistory';
 import { MobilePortfolio } from './MobilePortfolio';
 import { MobileOrderSheet } from './MobileOrderSheet';
 import { OrderBook } from '@/components/trading/OrderBook';
+import { DataStatusBadge } from '@/components/common/DataStatusBadge';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 export type CoinInfo = { id: string; symbol: string; name: string; color: string };
@@ -207,6 +208,18 @@ export function MobileTradingLayout() {
             <span className={cn('w-1.5 h-1.5 rounded-full', wsConnected ? 'bg-emerald-400' : liveCg ? 'bg-cyan-400' : 'bg-amber-400')} />
             <span className="text-white/30">{wsConnected ? 'Live' : liveCg ? 'CG' : 'Sim'}</span>
           </div>
+        </div>
+        <div className="flex items-center gap-2 mt-3 flex-wrap">
+          <DataStatusBadge
+            type="simulated"
+            explanation="Orders and positions in this Trading terminal use the virtual practice account. They do not place trades with real money."
+          />
+          {wsConnected && (
+            <DataStatusBadge
+              type="liveExchange"
+              explanation="This confirms the Binance market feed is connected. Your orders, positions, and balance remain simulated practice data."
+            />
+          )}
         </div>
       </header>
 
