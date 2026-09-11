@@ -726,7 +726,16 @@ app.post('/api/auth/verify-otp', async (req, res) => {
     return res.status(400).json({ error: 'VALIDATION_ERROR', message: 'Invalid verification request.', requestId: req.requestId });
   }
   try {
-    let { data, error } = await supabaseAuth.auth.verifyOtp({ email, token, type: 'signup' });
+    // Try 'email' type first (the modern Supabase OTP type)
+    let { data, error } = await supabaseAuth.auth.verifyOtp({ email, token, type: 'email' });
+
+    // Fallback: some Supabase projects still use 'magiclink' for existing users
+    if (error || !data.session) {
+      const fallback = await supabaseAuth.auth.verifyOtp({ email, token, type: 'magiclink' });
+      data = fallback.data;
+      error = fallback.error;
+    }
+
     if (error || !data.session) {
       return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Invalid or expired verification code.', requestId: req.requestId });
     }
@@ -740,6 +749,7 @@ app.post('/api/auth/verify-otp', async (req, res) => {
     return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Invalid or expired verification code.', requestId: req.requestId });
   }
 });
+
 
 app.post('/api/auth/refresh', async (req, res) => {
   const refreshToken = req.cookies[refreshCookieName];
