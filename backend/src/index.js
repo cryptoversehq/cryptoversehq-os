@@ -72,6 +72,9 @@ const auth = betterAuth({
       secure: true,
       httpOnly: true,
     },
+    ipAddress: {
+      ipAddressHeaders: ['x-forwarded-for', 'cf-connecting-ip', 'x-real-ip'],
+    },
   },
   trustedOrigins: allowedOrigins,
   plugins: [
