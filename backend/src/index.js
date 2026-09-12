@@ -762,6 +762,139 @@ app.post('/api/admin/users/:userId/role', authenticate, requireAdminWrite, async
   }
 });
 
+// ==================== ADMIN USER DELETE ====================
+app.delete('/api/admin/users/:userId', authenticate, requireAdminWrite, async (req, res) => {
+  const { userId } = req.params;
+  const ipAddress = req.ip;
+  const userAgent = req.get('User-Agent');
+
+  // Prevent self-deletion
+  if (userId === req.user.id) {
+    return res.status(400).json({
+      error: 'FORBIDDEN',
+      message: 'You cannot delete your own account.',
+      requestId: req.requestId,
+    });
+  }
+
+  try {
+    // Check user exists
+    const { rows: userRows } = await pgPool.query(
+      'select id, email, role, plan from public.users where id = $1',
+      [userId]
+    );
+    if (userRows.length === 0) {
+      return res.status(404).json({
+        error: 'NOT_FOUND',
+        message: 'User not found.',
+        requestId: req.requestId,
+      });
+    }
+    const targetUser = userRows[0];
+
+    // Prevent deleting the last developer
+    if (targetUser.role === 'developer') {
+      const { rows: devCount } = await pgPool.query(
+        `select count(*)::int as count from public.users where role = 'developer' and id != $1`,
+        [userId]
+      );
+      if (devCount[0].count === 0) {
+        return res.status(400).json({
+          error: 'FORBIDDEN',
+          message: 'Cannot delete the last developer account.',
+          requestId: req.requestId,
+        });
+      }
+    }
+
+    // Delete related records in transaction
+    const client = await pgPool.connect();
+    try {
+      await client.query('BEGIN');
+
+      // 1. Delete Better Auth related records (by email)
+      await client.query(
+        `delete from public.session 
+         where "userId" in (select id from public."user" where lower(email) = lower($1))`,
+        [targetUser.email]
+      );
+      await client.query(
+        `delete from public.account 
+         where "userId" in (select id from public."user" where lower(email) = lower($1))`,
+        [targetUser.email]
+      );
+      await client.query(
+        'delete from public."user" where lower(email) = lower($1)',
+        [targetUser.email]
+      );
+
+      // 2. Delete subscriptions and audit entries
+      await client.query(
+        'delete from public.subscriptions where user_id = $1',
+        [userId]
+      );
+
+      // 3. Delete the user record itself
+      await client.query(
+        'delete from public.users where id = $1',
+        [userId]
+      );
+
+      await client.query('COMMIT');
+    } catch (txError) {
+      await client.query('ROLLBACK');
+      throw txError;
+    } finally {
+      client.release();
+    }
+
+    // Clear cache
+    neonUserCache.delete(targetUser.email.toLowerCase());
+
+    // Audit log (after delete, so use target_user_id which no longer exists — acceptable for audit)
+    await writeAuditLog({
+      actor_id: req.user.id,
+      actor_email: req.user.email,
+      actor_role: req.user.role,
+      target_user_id: null, // User deleted, no FK reference
+      plan_id: null,
+      action: 'payment',
+      result: 'success',
+      note: `User deleted: ${targetUser.email} (role was ${targetUser.role})`,
+      before_state: { 
+        email: targetUser.email, 
+        role: targetUser.role, 
+        plan: targetUser.plan 
+      },
+      after_state: { deleted: true },
+      ip_address: ipAddress,
+      user_agent: userAgent,
+      request_id: req.requestId,
+      idempotency_key: null,
+      entitlement_id: null,
+    });
+
+    return res.json({
+      success: true,
+      deleted_user_id: userId,
+      deleted_email: targetUser.email,
+      requestId: req.requestId,
+    });
+  } catch (error) {
+    console.error(JSON.stringify({
+      event: 'user_delete_failed',
+      requestId: req.requestId,
+      userId,
+      error: error?.message,
+    }));
+    return res.status(500).json({
+      error: 'SERVER_ERROR',
+      message: 'Failed to delete user.',
+      requestId: req.requestId,
+    });
+  }
+});
+
 // ==================== PAYMENTS (Supabase - unchanged) ====================
 function normalizeDecimal(value) {
   const text = String(value ?? '').trim();
