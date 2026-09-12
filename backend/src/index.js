@@ -543,6 +543,112 @@ app.get('/api/admin/subscriptions/user/:userId', authenticate, requireAdminRead,
   }
 });
 
+// ==================== ADMIN BALANCE ADJUSTMENT ====================
+app.post('/api/admin/users/:userId/balance', authenticate, requireAdminWrite, async (req, res) => {
+  const { userId } = req.params;
+  const { delta, reason } = req.body || {};
+  const idempotencyKey = req.get('Idempotency-Key');
+  const ipAddress = req.ip;
+  const userAgent = req.get('User-Agent');
+
+  // Validation
+  if (typeof delta !== 'number' || !Number.isInteger(delta) || delta === 0) {
+    return res.status(400).json({ 
+      error: 'VALIDATION_ERROR', 
+      message: 'delta must be a non-zero integer.', 
+      requestId: req.requestId 
+    });
+  }
+  if (Math.abs(delta) > 1000000) {
+    return res.status(400).json({ 
+      error: 'VALIDATION_ERROR', 
+      message: 'delta magnitude too large (max 1,000,000).', 
+      requestId: req.requestId 
+    });
+  }
+  if (!reason || typeof reason !== 'string' || reason.trim().length < 3) {
+    return res.status(400).json({ 
+      error: 'VALIDATION_ERROR', 
+      message: 'reason required (min 3 chars).', 
+      requestId: req.requestId 
+    });
+  }
+
+  try {
+    // Check user exists
+    const { rows: userRows } = await pgPool.query(
+      'select id, email, balance from public.users where id = $1',
+      [userId]
+    );
+    if (userRows.length === 0) {
+      return res.status(404).json({ 
+        error: 'NOT_FOUND', 
+        message: 'User not found.', 
+        requestId: req.requestId 
+      });
+    }
+    const user = userRows[0];
+    const beforeBalance = Number(user.balance || 0);
+    const afterBalance = beforeBalance + delta;
+
+    if (afterBalance < 0) {
+      return res.status(400).json({ 
+        error: 'VALIDATION_ERROR', 
+        message: 'Insufficient balance for this debit.', 
+        requestId: req.requestId 
+      });
+    }
+
+    // Update balance
+    await pgPool.query(
+      'update public.users set balance = $1, updated_at = now() where id = $2',
+      [afterBalance, userId]
+    );
+
+    // Audit log (reuse the same table but with action = 'balance_adjust')
+    // Note: The audit table's `action` check constraint only allows grant/revoke/expire/payment.
+    // We'll use `payment` as action for balance adjustments with note explaining.
+    await writeAuditLog({
+      actor_id: req.user.id,
+      actor_email: req.user.email,
+      actor_role: req.user.role,
+      target_user_id: userId,
+      plan_id: null,
+      action: 'payment', // closest allowed action
+      result: 'success',
+      note: `Balance adjustment: ${delta > 0 ? '+' : ''}${delta} | Reason: ${reason.trim()}`,
+      before_state: { balance: beforeBalance },
+      after_state: { balance: afterBalance },
+      ip_address: ipAddress,
+      user_agent: userAgent,
+      request_id: req.requestId,
+      idempotency_key: idempotencyKey,
+      entitlement_id: null,
+    });
+
+    return res.json({
+      success: true,
+      user_id: userId,
+      before_balance: beforeBalance,
+      after_balance: afterBalance,
+      delta,
+      requestId: req.requestId,
+    });
+  } catch (error) {
+    console.error(JSON.stringify({ 
+      event: 'balance_adjust_failed', 
+      requestId: req.requestId, 
+      userId, 
+      error: error?.message 
+    }));
+    return res.status(500).json({ 
+      error: 'SERVER_ERROR', 
+      message: 'Balance adjustment failed.', 
+      requestId: req.requestId 
+    });
+  }
+});
+
 // ==================== PAYMENTS (Supabase - unchanged) ====================
 function normalizeDecimal(value) {
   const text = String(value ?? '').trim();
