@@ -208,6 +208,18 @@ async function authenticate(req, res, next) {
       });
     }
 
+    // 🔥 NEW: Update last_seen_at and last_seen_ip (fire-and-forget, don't block)
+    const clientIp = req.get('x-forwarded-for')?.split(',')[0]?.trim() 
+      || req.get('x-real-ip') 
+      || req.ip 
+      || null;
+    pgPool.query(
+      'update public.users set last_seen_at = now(), last_seen_ip = $1 where id = $2',
+      [clientIp, appUser.id]
+    ).catch(err => {
+      console.error(JSON.stringify({ event: 'last_seen_update_failed', error: err?.message }));
+    });
+
     req.user = {
       id: appUser.id,
       email: appUser.email,
@@ -322,7 +334,10 @@ app.get('/api/admin/users', authenticate, requireAdminRead, async (req, res) => 
     const limit = Math.min(Number(req.query.limit) || 50, 100);
     const offset = Number(req.query.offset) || 0;
     const result = await pgPool.query(
-      `select id, email, role, plan, created_at from public.users order by created_at desc limit $1 offset $2`,
+      `select id, email, role, plan, balance, last_seen_at, last_seen_ip, created_at
+       from public.users
+       order by created_at desc
+       limit $1 offset $2`,
       [limit, offset]
     );
     const { rows: countRows } = await pgPool.query('select count(*)::int as total from public.users');
