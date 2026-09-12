@@ -649,6 +649,119 @@ app.post('/api/admin/users/:userId/balance', authenticate, requireAdminWrite, as
   }
 });
 
+// ==================== ADMIN ROLE MANAGEMENT ====================
+const ALLOWED_ADMIN_ROLES = new Set([
+  'developer', 'founder', 'super_admin', 
+  'subscription_admin', 'support_admin', 'user'
+]);
+
+app.post('/api/admin/users/:userId/role', authenticate, requireAdminWrite, async (req, res) => {
+  const { userId } = req.params;
+  const { role } = req.body || {};
+  const idempotencyKey = req.get('Idempotency-Key');
+  const ipAddress = req.ip;
+  const userAgent = req.get('User-Agent');
+
+  // Validation
+  if (!role || typeof role !== 'string' || !ALLOWED_ADMIN_ROLES.has(role)) {
+    return res.status(400).json({
+      error: 'VALIDATION_ERROR',
+      message: `role must be one of: ${Array.from(ALLOWED_ADMIN_ROLES).join(', ')}`,
+      requestId: req.requestId,
+    });
+  }
+
+  // Prevent self-demotion of the last developer
+  if (userId === req.user.id && role !== req.user.role) {
+    // Check if there are other developers
+    const { rows: devCount } = await pgPool.query(
+      `select count(*)::int as count from public.users where role = 'developer' and id != $1`,
+      [req.user.id]
+    );
+    if (devCount[0].count === 0) {
+      return res.status(400).json({
+        error: 'FORBIDDEN',
+        message: 'Cannot demote the last developer account.',
+        requestId: req.requestId,
+      });
+    }
+  }
+
+  try {
+    // Check user exists
+    const { rows: userRows } = await pgPool.query(
+      'select id, email, role from public.users where id = $1',
+      [userId]
+    );
+    if (userRows.length === 0) {
+      return res.status(404).json({
+        error: 'NOT_FOUND',
+        message: 'User not found.',
+        requestId: req.requestId,
+      });
+    }
+    const targetUser = userRows[0];
+    const beforeRole = targetUser.role;
+
+    if (beforeRole === role) {
+      return res.json({
+        success: true,
+        duplicate: true,
+        message: 'User already has this role.',
+        requestId: req.requestId,
+      });
+    }
+
+    // Update role
+    await pgPool.query(
+      'update public.users set role = $1, updated_at = now() where id = $2',
+      [role, userId]
+    );
+
+    // Clear cache for this user
+    neonUserCache.delete(targetUser.email.toLowerCase());
+
+    // Audit log
+    await writeAuditLog({
+      actor_id: req.user.id,
+      actor_email: req.user.email,
+      actor_role: req.user.role,
+      target_user_id: userId,
+      plan_id: null,
+      action: 'payment', // closest allowed action in audit schema
+      result: 'success',
+      note: `Role change: ${beforeRole} → ${role}`,
+      before_state: { role: beforeRole },
+      after_state: { role },
+      ip_address: ipAddress,
+      user_agent: userAgent,
+      request_id: req.requestId,
+      idempotency_key: idempotencyKey,
+      entitlement_id: null,
+    });
+
+    return res.json({
+      success: true,
+      user_id: userId,
+      before_role: beforeRole,
+      after_role: role,
+      requestId: req.requestId,
+    });
+  } catch (error) {
+    console.error(JSON.stringify({
+      event: 'role_change_failed',
+      requestId: req.requestId,
+      userId,
+      error: error?.message,
+    }));
+    return res.status(500).json({
+      error: 'SERVER_ERROR',
+      message: 'Role change failed.',
+      requestId: req.requestId,
+    });
+  }
+});
+
 // ==================== PAYMENTS (Supabase - unchanged) ====================
 function normalizeDecimal(value) {
   const text = String(value ?? '').trim();
