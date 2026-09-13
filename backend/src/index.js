@@ -111,7 +111,7 @@ const auth = betterAuth({
 
 // ==================== APP CONFIG ====================
 app.disable('x-powered-by');
-app.set('trust proxy', 1);
+app.set('trust proxy', true);
 app.use(helmet({ contentSecurityPolicy: false }));
 
 app.use(cors({
