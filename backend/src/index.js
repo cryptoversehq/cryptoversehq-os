@@ -886,39 +886,38 @@ app.post('/api/me/xp/update', authenticate, async (req, res) => {
     const before = await currentState();
 
     // One atomic statement: per-type cap + global daily cap → dedupe insert → xp update.
-    const { rows } = await pgPool.query(
+        const { rows } = await pgPool.query(
       `with today as (
-         select coalesce(sum(amount), 0) as total
+         select coalesce(sum(amount), 0)::integer as total
            from public.xp_events
           where user_id = $1 and created_at >= date_trunc('day', now())
        ), today_type as (
-         select coalesce(sum(amount), 0) as total
+         select coalesce(sum(amount), 0)::integer as total
            from public.xp_events
           where user_id = $1 and type = $2 and created_at >= date_trunc('day', now())
        ), ins as (
          insert into public.xp_events (user_id, type, ref, amount)
-         select $1, $2, $3, $4
-          where (select total from today) + $4 <= $5
-            and (select total from today_type) + $4 <= $6
+         select $1, $2, $3, $4::integer
+          where (select total from today) + $4::integer <= $5::integer
+            and (select total from today_type) + $4::integer <= $6::integer
          on conflict (user_id, type, ref) where ref is not null do nothing
          returning amount
        ), upd as (
          update public.users u
-            set xp = u.xp + (select coalesce(sum(amount), 0) from ins),
+            set xp = u.xp + (select coalesce(sum(amount), 0)::integer from ins),
                 updated_at = now()
           where u.id = $1 and exists (select 1 from ins)
          returning u.xp, u.skill_level, u.level_label
        )
        select
-         (select count(*) from ins)     as applied,
-         (select total from today)      as xp_today,
-         (select total from today_type) as xp_today_type,
-         (select xp from upd)           as xp,
-         (select skill_level from upd)  as skill_level,
-         (select level_label from upd)  as level_label`,
+         (select count(*) from ins)::integer     as applied,
+         (select total from today)::integer      as xp_today,
+         (select total from today_type)::integer as xp_today_type,
+         (select xp from upd)                    as xp,
+         (select skill_level from upd)           as skill_level,
+         (select level_label from upd)           as level_label`,
       [userId, type, ref, spec.amount, DAILY_XP_CAP, spec.amount * spec.dailyCap]
     );
-
     const row = rows[0] || {};
     const applied = Number(row.applied) > 0;
     userCache.delete(String(req.user.email).toLowerCase());
