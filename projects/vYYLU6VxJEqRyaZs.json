@@ -2342,7 +2342,320 @@
                 },
                 "collapsed": false,
                 "completed": false,
-                "children": []
+                "children": [
+                  {
+                    "type": "text",
+                    "id": "90aa623c-f963-4dbc-8639-4bf42444c400",
+                    "text": {
+                      "ops": [
+                        {
+                          "insert": "SWEEP RESULTS (owner-run, GitHub Codespace · apps/default/src) — authoritative counts for Batch 2"
+                        },
+                        {
+                          "insert": "\n",
+                          "attributes": {
+                            "paragraph": true
+                          }
+                        }
+                      ]
+                    },
+                    "format": {
+                      "node": "text",
+                      "children": "text"
+                    },
+                    "collapsed": false,
+                    "completed": false,
+                    "children": []
+                  },
+                  {
+                    "type": "text",
+                    "id": "86ad9789-0a84-4c0b-94fb-b91004ab5866",
+                    "text": {
+                      "ops": [
+                        {
+                          "insert": "useAuthStore — 339 MATCHES across 148 FILES (145 of them contain an import statement)."
+                        },
+                        {
+                          "insert": "\n",
+                          "attributes": {
+                            "paragraph": true
+                          }
+                        }
+                      ]
+                    },
+                    "format": {
+                      "node": "text",
+                      "children": "text"
+                    },
+                    "collapsed": false,
+                    "completed": false,
+                    "children": []
+                  },
+                  {
+                    "type": "text",
+                    "id": "11bcb930-8643-4bc1-8f76-fcfc487df1ff",
+                    "text": {
+                      "ops": [
+                        {
+                          "insert": "authApi. — 7 matches in 4 files (comments only; that pattern misses named imports — use grep -rl \"from '.*authApi'\" for the real importer list of 8 files)."
+                        },
+                        {
+                          "insert": "\n",
+                          "attributes": {
+                            "paragraph": true
+                          }
+                        }
+                      ]
+                    },
+                    "format": {
+                      "node": "text",
+                      "children": "text"
+                    },
+                    "collapsed": false,
+                    "completed": false,
+                    "children": []
+                  },
+                  {
+                    "type": "text",
+                    "id": "bdcce48a-fcbe-4a19-8f52-36dd830f8fa5",
+                    "text": {
+                      "ops": [
+                        {
+                          "insert": "loginFromSession | refreshAdminCacheFromDb | userMigrationService — 21 matches in 6 files."
+                        },
+                        {
+                          "insert": "\n",
+                          "attributes": {
+                            "paragraph": true
+                          }
+                        }
+                      ]
+                    },
+                    "format": {
+                      "node": "text",
+                      "children": "text"
+                    },
+                    "collapsed": false,
+                    "completed": false,
+                    "children": []
+                  },
+                  {
+                    "type": "text",
+                    "id": "e196ea10-63e9-4df7-88e5-3b2b382ddb1c",
+                    "text": {
+                      "ops": [
+                        {
+                          "insert": "cryptoverse_* localStorage keys — 55 matches in 15 files → T1 (Cline)."
+                        },
+                        {
+                          "insert": "\n",
+                          "attributes": {
+                            "paragraph": true
+                          }
+                        }
+                      ]
+                    },
+                    "format": {
+                      "node": "text",
+                      "children": "text"
+                    },
+                    "collapsed": false,
+                    "completed": false,
+                    "children": []
+                  },
+                  {
+                    "type": "text",
+                    "id": "8e4403e2-a54d-4dda-9192-432ab027ffeb",
+                    "text": {
+                      "ops": [
+                        {
+                          "insert": "passwordHash | verifyPassword | updatePassword | generateOtp | updateUserOtp — 54 matches in 12 files."
+                        },
+                        {
+                          "insert": "\n",
+                          "attributes": {
+                            "paragraph": true
+                          }
+                        }
+                      ]
+                    },
+                    "format": {
+                      "node": "text",
+                      "children": "text"
+                    },
+                    "collapsed": false,
+                    "completed": false,
+                    "children": []
+                  },
+                  {
+                    "type": "text",
+                    "id": "2908d57f-9ddf-4f18-acf8-f2b49b9fc318",
+                    "text": {
+                      "ops": [
+                        {
+                          "insert": "academyStore | useXPSystem | useSectionAccess — 47 matches in 31 files → level contract T1 (Cline), remaining files per-file T2 in Phase 2."
+                        },
+                        {
+                          "insert": "\n",
+                          "attributes": {
+                            "paragraph": true
+                          }
+                        }
+                      ]
+                    },
+                    "format": {
+                      "node": "text",
+                      "children": "text"
+                    },
+                    "collapsed": false,
+                    "completed": false,
+                    "children": []
+                  },
+                  {
+                    "type": "text",
+                    "id": "3c46d034-6cb1-484b-b6fe-9ed4204b440b",
+                    "text": {
+                      "ops": [
+                        {
+                          "insert": "Onboarding (WelcomeGuide | WelcomeProMessage | QuickTour | OnboardingChecklist | isFirstLogin) — 22 matches in 7 files → T2 (Taskade AI), consolidating to 2 components. NOTE: FirstTradeGuide.tsx was NOT in the grep pattern and also needs folding in."
+                        },
+                        {
+                          "insert": "\n",
+                          "attributes": {
+                            "paragraph": true
+                          }
+                        }
+                      ]
+                    },
+                    "format": {
+                      "node": "text",
+                      "children": "text"
+                    },
+                    "collapsed": false,
+                    "completed": false,
+                    "children": []
+                  },
+                  {
+                    "type": "text",
+                    "id": "9ad021cb-ac05-4cf1-8158-f0732c8453bf",
+                    "text": {
+                      "ops": [
+                        {
+                          "insert": "CORRECTION — 339 is a MATCH count, not 339 files. Ownership is assigned per FILE (148). Anyone acting on \"339 files\" would over-scope the phase by ~2x."
+                        },
+                        {
+                          "insert": "\n",
+                          "attributes": {
+                            "paragraph": true
+                          }
+                        }
+                      ]
+                    },
+                    "format": {
+                      "node": "text",
+                      "children": "text"
+                    },
+                    "collapsed": false,
+                    "completed": false,
+                    "children": []
+                  },
+                  {
+                    "type": "text",
+                    "id": "0762bc1d-0ac2-4bcd-9c27-8ea62be5bbcf",
+                    "text": {
+                      "ops": [
+                        {
+                          "insert": "DIRECTIVE — 148 files touching useAuthStore → T2, expected to work UNCHANGED because the facade preserves the public shape (user, isAuthenticated, isAdmin, login, logout, updateProfile...)."
+                        },
+                        {
+                          "insert": "\n",
+                          "attributes": {
+                            "paragraph": true
+                          }
+                        }
+                      ]
+                    },
+                    "format": {
+                      "node": "text",
+                      "children": "text"
+                    },
+                    "collapsed": false,
+                    "completed": false,
+                    "children": []
+                  },
+                  {
+                    "type": "text",
+                    "id": "3072af1c-e550-4321-bad5-285a0671b402",
+                    "text": {
+                      "ops": [
+                        {
+                          "insert": "DIRECTIVE — 8 files importing authApi → T1 (Cline)."
+                        },
+                        {
+                          "insert": "\n",
+                          "attributes": {
+                            "paragraph": true
+                          }
+                        }
+                      ]
+                    },
+                    "format": {
+                      "node": "text",
+                      "children": "text"
+                    },
+                    "collapsed": false,
+                    "completed": false,
+                    "children": []
+                  },
+                  {
+                    "type": "text",
+                    "id": "19c61f0d-24c5-43e3-86b1-86e544c75081",
+                    "text": {
+                      "ops": [
+                        {
+                          "insert": "DIRECTIVE — 15 files using cryptoverse_* keys → T1 (Cline)."
+                        },
+                        {
+                          "insert": "\n",
+                          "attributes": {
+                            "paragraph": true
+                          }
+                        }
+                      ]
+                    },
+                    "format": {
+                      "node": "text",
+                      "children": "text"
+                    },
+                    "collapsed": false,
+                    "completed": false,
+                    "children": []
+                  },
+                  {
+                    "type": "text",
+                    "id": "a9c2e2eb-5a15-43c1-96d9-59fa52f12af3",
+                    "text": {
+                      "ops": [
+                        {
+                          "insert": "DIRECTIVE — 7 onboarding files → T2 (Taskade AI)."
+                        },
+                        {
+                          "insert": "\n",
+                          "attributes": {
+                            "paragraph": true
+                          }
+                        }
+                      ]
+                    },
+                    "format": {
+                      "node": "text",
+                      "children": "text"
+                    },
+                    "collapsed": false,
+                    "completed": false,
+                    "children": []
+                  }
+                ]
               },
               {
                 "type": "text",
@@ -3013,6 +3326,30 @@
                 "format": {
                   "node": "bullet",
                   "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "b8b575aa-1995-4c58-ae73-c6f26a37b880",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "0.5 · Batch 2 (SQL + contracts + designs) · FINAL SQL delivered with pre-flight corrections applied (targets users/uuid, session camelCase preserved, order = columns → cleanup → unique index, FKs → users.id, level thresholds encoded as SQL functions + auto history) · Awaiting owner: backup → run → paste verification output · Blockers for Batch 3: subscriptions column list, ip vs ipAddress confirmation, orphan Better Auth user policy."
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "text",
+                  "children": "text"
                 },
                 "collapsed": false,
                 "completed": false,
