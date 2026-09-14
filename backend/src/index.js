@@ -1,3 +1,28 @@
+/**
+ * CryptoVerse HQ API — index.js
+ * Phase 0.5 "Identity Freeze" — Batch 3
+ * CommonJS. Express + Better Auth (Neon Postgres).
+ *
+ * What Batch 3 adds
+ *   · authenticate() is now a real session guard: it checks the DB session row for
+ *     revocation/expiry, blocks banned/suspended accounts, and auto-provisions the
+ *     app user (orphan policy). Every existing route keeps working through it, so
+ *     the whole API is revocation-aware without touching any route definition.
+ *   · GET/PATCH /api/me, POST /api/me/xp/update, POST /api/me/onboarding,
+ *     GET /api/me/sessions, POST /api/me/sessions/revoke-all
+ *   · POST /api/admin/users/:userId/level, POST /api/admin/users/:userId/sessions/revoke,
+ *     GET /api/admin/notifications, POST /api/admin/notifications/read
+ *   · Better Auth databaseHooks: single-session (revoke-then-insert) + banned refusal.
+ *   · Payment provider failures now log the upstream status/body (diagnostics).
+ *
+ * Response shape is backwards compatible: { error, message, requestId } and now also
+ * carries a machine-readable `code`:
+ *   401 unauthenticated | session_revoked | session_expired
+ *   403 account_banned  | account_suspended | forbidden
+ *
+ * REQUIRES the idempotent DDL in BATCH3_DDL.sql (see handoff notes).
+ */
+
 require('dotenv').config();
 
 const crypto = require('node:crypto');
@@ -12,6 +37,16 @@ const { Resend } = require('resend');
 const { betterAuth } = require('better-auth');
 const { emailOTP } = require('better-auth/plugins');
 const { toNodeHandler } = require('better-auth/node');
+
+// Optional: only needed so the login hook can refuse banned accounts with a typed
+// error. If this subpath is not require-able in the installed version we fall back
+// to a plain Error (the ban is still enforced by the session guard on every route).
+let APIError = null;
+try {
+  ({ APIError } = require('better-auth/api'));
+} catch (err) {
+  console.warn(JSON.stringify({ event: 'better_auth_api_error_unavailable' }));
+}
 
 const app = express();
 const port = Number(process.env.PORT || 3000);
@@ -49,6 +84,145 @@ const tursoClient = (process.env.TURSO_DATABASE_URL && process.env.TURSO_AUTH_TO
 // ==================== RESEND ====================
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 
+// ==================== BATCH 3: CONSTANTS ====================
+const TIER_RANK = { free: 0, pro: 1, pro_plus: 2 };
+
+const REVOKE = {
+  NEW_LOGIN: 'new_login',
+  ADMIN: 'admin_revoked',
+  USER: 'user_revoked',
+  BANNED: 'banned',
+  EXPIRED: 'expired',
+};
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// Academy rank names already shipped in the client (academyStore). Display only.
+const RANKS = [
+  [120000, 'Transcendent'], [80000, 'Mythic'], [55000, 'Legend'], [35000, 'Grandmaster'],
+  [20000, 'Master'], [10000, 'Elite'], [5000, 'Pro Trader'], [2500, 'Analyst'],
+  [1000, 'Apprentice'], [0, 'Novice'],
+];
+
+function rankForXp(xp) {
+  const value = Number(xp) || 0;
+  for (const [min, name] of RANKS) if (value >= min) return name;
+  return 'Novice';
+}
+
+// Server-authoritative XP. The client names an event; it never sends an amount.
+const XP_EVENTS = {
+  daily_login: { amount: 10, dailyCap: 1 },
+  lesson_completed: { amount: 100, dailyCap: 10 },
+  quiz_passed: { amount: 50, dailyCap: 10 },
+  trade_opened: { amount: 5, dailyCap: 20 },
+  profile_completed: { amount: 20, dailyCap: 1 },
+  watchlist_added: { amount: 5, dailyCap: 10 },
+};
+const DAILY_XP_CAP = 500;
+
+const ONBOARDING_KEYS = ['profile', 'watchlist', 'first_trade', 'first_lesson'];
+
+// ==================== BATCH 3: RESPONSE HELPERS ====================
+// Keeps the legacy { error, message, requestId } contract and adds `code` so the
+// frontend can tell "signed in elsewhere" apart from "network blip".
+function apiError(req, res, status, error, code, message, extra) {
+  return res.status(status).json({
+    error,
+    code,
+    message,
+    requestId: req.requestId,
+    ...(extra || {}),
+  });
+}
+
+function unauthenticated(req, res) {
+  return apiError(req, res, 401, 'UNAUTHORIZED', 'unauthenticated', 'Authentication required.');
+}
+
+function clientIpFrom(req) {
+  return req.get('x-forwarded-for')?.split(',')[0]?.trim()
+    || req.get('x-real-ip')
+    || req.ip
+    || null;
+}
+
+function deviceLabelFrom(req) {
+  const ua = req.get('user-agent');
+  return ua ? String(ua).slice(0, 120) : null;
+}
+
+// Presence writes are best-effort and throttled in memory, so a missing
+// last_seen_at column can never break authentication.
+const presenceThrottle = new Map();
+const PRESENCE_INTERVAL_MS = 60 * 1000;
+
+function shouldTouchPresence(sessionId) {
+  const last = presenceThrottle.get(sessionId) || 0;
+  if (Date.now() - last < PRESENCE_INTERVAL_MS) return false;
+  presenceThrottle.set(sessionId, Date.now());
+  if (presenceThrottle.size > 5000) presenceThrottle.clear();
+  return true;
+}
+
+// ==================== BATCH 3: SESSION + ENTITLEMENT HELPERS ====================
+function revokeSessionsByAuthUserId(authUserId, reason, exceptSessionId = null) {
+  return pgPool.query(
+    `update public.session
+        set revoked_at = now(), revoked_reason = $2
+      where "userId" = $1
+        and revoked_at is null
+        and ($3::text is null or id <> $3)
+      returning id`,
+    [authUserId, reason, exceptSessionId]
+  ).then((r) => r.rowCount ?? r.rows.length);
+}
+
+function revokeSessionsByAppUserId(appUserId, reason) {
+  return pgPool.query(
+    `update public.session s
+        set revoked_at = now(), revoked_reason = $2
+      where s.revoked_at is null
+        and s."userId" in (
+              select u.id
+                from public."user" u
+                join public.users a on lower(a.email) = lower(u.email)
+               where a.id = $1)
+      returning s.id`,
+    [appUserId, reason]
+  ).then((r) => r.rowCount ?? r.rows.length);
+}
+
+/**
+ * Entitlements are DERIVED from public.subscriptions — there is no parallel
+ * entitlements table. Shape: ['free', ...active plans]; `plan` is the best tier.
+ * If the table/columns are unavailable this degrades to free instead of 500-ing.
+ */
+async function loadEntitlements(appUserId) {
+  try {
+    const { rows } = await pgPool.query(
+      `select plan_id, ends_at
+         from public.subscriptions
+        where user_id = $1
+          and status = 'active'
+          and (ends_at is null or ends_at > now())`,
+      [appUserId]
+    );
+    const plans = [...new Set(rows.map((r) => r.plan_id).filter((p) => TIER_RANK[p] !== undefined))];
+    plans.sort((a, b) => TIER_RANK[b] - TIER_RANK[a]);
+    const best = plans[0] ?? 'free';
+    const bestRow = rows.find((r) => r.plan_id === best);
+    return {
+      entitlements: ['free', ...plans.filter((p) => p !== 'free')],
+      plan: best,
+      plan_expires_at: bestRow?.ends_at ?? null,
+    };
+  } catch (err) {
+    console.error(JSON.stringify({ event: 'entitlements_failed', appUserId, error: err?.message }));
+    return { entitlements: ['free'], plan: 'free', plan_expires_at: null };
+  }
+}
+
 // ==================== BETTER AUTH ====================
 const auth = betterAuth({
   secret: process.env.BETTER_AUTH_SECRET,
@@ -68,6 +242,65 @@ const auth = betterAuth({
     },
   },
   trustedOrigins: trustedOrigins,
+  /**
+   * BATCH 3 — single-session policy + banned refusal.
+   *
+   * Runs on EVERY session creation (email-OTP verify, token rotation, ...), so it
+   * covers every sign-in path without patching individual endpoints. The revoke
+   * happens BEFORE the insert, which is what makes
+   *   uq_session_one_live_per_user on session("userId") where revoked_at is null
+   * satisfiable. Requesting an OTP does not create a session, so asking for a code
+   * never signs the user out on another device.
+   */
+  databaseHooks: {
+    session: {
+      create: {
+        before: async (session) => {
+          try {
+            if (!pgPool || !session || !session.userId) return { data: session };
+
+            const { rows } = await pgPool.query(
+              `select a.status, a.email
+                 from public."user" u
+                 left join public.users a on lower(a.email) = lower(u.email)
+                where u.id = $1
+                limit 1`,
+              [session.userId]
+            );
+            const appUser = rows[0];
+
+            if (appUser && (appUser.status === 'banned' || appUser.status === 'suspended')) {
+              console.warn(JSON.stringify({
+                event: 'login_refused_account_status',
+                status: appUser.status,
+                email: appUser.email,
+              }));
+              const message = appUser.status === 'banned'
+                ? 'This account has been banned.'
+                : 'This account is suspended.';
+              if (APIError) throw new APIError('FORBIDDEN', { message });
+              throw new Error(message);
+            }
+
+            const revoked = await revokeSessionsByAuthUserId(session.userId, REVOKE.NEW_LOGIN);
+            if (revoked > 0) {
+              console.log(JSON.stringify({
+                event: 'single_session_enforced',
+                userId: session.userId,
+                revoked,
+              }));
+            }
+          } catch (err) {
+            // A ban refusal MUST propagate; anything else must not block a valid login.
+            const message = String(err && err.message ? err.message : '');
+            if ((err && err.status === 'FORBIDDEN') || /banned|suspended/i.test(message)) throw err;
+            console.error(JSON.stringify({ event: 'session_hook_failed', error: message }));
+          }
+          return { data: session };
+        },
+      },
+    },
+  },
   plugins: [
     emailOTP({
       async sendVerificationOTP({ email, otp, type }) {
@@ -155,31 +388,36 @@ function normalizeDecimal(value) {
 const userCache = new Map();
 const USER_CACHE_TTL = 30 * 1000;
 
-async function getOrCreateNeonUser(email) {
+/**
+ * BATCH 3 — auto-provisioning made schema-safe.
+ *
+ * The old insert named only (email, role, plan), which fails against the
+ * post-migration users table (NOT NULL columns such as status/skill_level) and
+ * never lowercased the email. Two-step insert: full column set first, then a
+ * minimal fallback, so a schema drift can never lock a new user out.
+ * Pass { fresh: true } to bypass the 30s cache (used by GET /api/me so XP/plan
+ * mutations are never masked by a stale cache entry).
+ */
+async function getOrCreateNeonUser(email, options) {
   if (!email || !pgPool) return null;
+  const fresh = Boolean(options && options.fresh);
   const key = email.toLowerCase();
-  const cached = userCache.get(key);
-  if (cached && Date.now() - cached.at < USER_CACHE_TTL) {
-    return cached.user;
+
+  if (!fresh) {
+    const cached = userCache.get(key);
+    if (cached && Date.now() - cached.at < USER_CACHE_TTL) {
+      return cached.user;
+    }
   }
+
   try {
     const { rows } = await pgPool.query(
-      'select id, email, role, plan, balance from public.users where lower(email) = lower($1) limit 1',
+      'select * from public.users where lower(email) = lower($1) limit 1',
       [email]
     );
-    let user;
-    if (rows.length > 0) {
-      user = rows[0];
-    } else {
-      const { rows: inserted } = await pgPool.query(
-        `insert into public.users (email, role, plan)
-         values ($1, 'user', 'free')
-         returning id, email, role, plan, balance`,
-        [email]
-      );
-      user = inserted[0];
-    }
-    userCache.set(key, { user, at: Date.now() });
+    let user = rows[0] || null;
+    if (!user) user = await provisionAppUser(key);
+    if (user) userCache.set(key, { user, at: Date.now() });
     return user;
   } catch (err) {
     console.error(JSON.stringify({ event: 'user_lookup_failed', error: err?.message }));
@@ -187,36 +425,150 @@ async function getOrCreateNeonUser(email) {
   }
 }
 
-// ==================== AUTH MIDDLEWARE ====================
+async function provisionAppUser(normalizedEmail) {
+  try {
+    const { rows } = await pgPool.query(
+      `insert into public.users (email, role, plan, status, xp, skill_level, level_label, onboarding)
+       select $1, 'user', 'free', 'active', 0, 1, public.level_label_for(1), '{}'::jsonb
+        where not exists (select 1 from public.users where lower(email) = $1)
+       returning *`,
+      [normalizedEmail]
+    );
+    if (rows.length > 0) {
+      console.log(JSON.stringify({ event: 'user_auto_provisioned', email: normalizedEmail }));
+      return rows[0];
+    }
+  } catch (err) {
+    console.error(JSON.stringify({ event: 'provision_full_failed', error: err?.message }));
+    try {
+      const { rows } = await pgPool.query(
+        `insert into public.users (email, role, plan)
+         select $1, 'user', 'free'
+          where not exists (select 1 from public.users where lower(email) = $1)
+         returning *`,
+        [normalizedEmail]
+      );
+      if (rows.length > 0) {
+        console.log(JSON.stringify({ event: 'user_auto_provisioned_minimal', email: normalizedEmail }));
+        return rows[0];
+      }
+    } catch (err2) {
+      console.error(JSON.stringify({ event: 'provision_min_failed', error: err2?.message }));
+    }
+  }
+
+  // Either we lost a race or the insert was refused — read back.
+  const { rows } = await pgPool.query(
+    'select * from public.users where lower(email) = $1 limit 1',
+    [normalizedEmail]
+  );
+  return rows[0] || null;
+}
+
+/** Drop the 30s user cache entry after any write to that user. */
+function invalidateUserCache(email) {
+  if (email) userCache.delete(String(email).toLowerCase());
+}
+
+// ==================== AUTH MIDDLEWARE (BATCH 3 SESSION GUARD) ====================
+/**
+ * authenticate() is the single authentication boundary of the API.
+ *
+ * Batch 3 upgrades it in place, so every existing route becomes revocation-aware
+ * without editing a single route definition:
+ *   1. Better Auth resolves the cookie session.
+ *   2. The DB session row is the authority for revocation/expiry.
+ *   3. The app user (public.users, uuid) is resolved by email — or auto-provisioned.
+ *   4. banned/suspended accounts are refused and their sessions revoked.
+ *   5. Session presence (ip / device / last_seen) is refreshed, throttled, best-effort.
+ *
+ * req.user keeps its old shape (id, email, role, plan, balance, betterAuthId) so
+ * nothing downstream breaks, and gains status/sessionId. req.auth carries the full
+ * rows for new endpoints.
+ *
+ * Failure codes returned: unauthenticated | session_revoked | session_expired |
+ * account_banned | account_suspended.
+ */
 async function authenticate(req, res, next) {
   try {
-    const session = await auth.api.getSession({ headers: req.headers });
-    if (!session || !session.user || !session.user.email) {
-      return res.status(401).json({
-        error: 'UNAUTHORIZED',
-        message: 'Authentication required.',
-        requestId: req.requestId,
-      });
+    if (!pgPool) return unauthenticated(req, res);
+
+    const authSession = await auth.api.getSession({ headers: req.headers });
+    if (!authSession || !authSession.user || !authSession.user.email || !authSession.session) {
+      return unauthenticated(req, res);
     }
 
-    const appUser = await getOrCreateNeonUser(session.user.email);
-    if (!appUser) {
-      return res.status(401).json({
-        error: 'UNAUTHORIZED',
-        message: 'User record unavailable.',
-        requestId: req.requestId,
-      });
+    // (2) DB session row — the authority, not the cookie.
+    // Wrapped separately: if the migration columns are missing we must NOT lock
+    // every user out of the app. We degrade to cookie-only auth and shout about it.
+    let dbSession = null;
+    try {
+      const { rows } = await pgPool.query(
+        `select id, "userId", "expiresAt", revoked_at, revoked_reason, device_name, ip, "createdAt"
+           from public.session
+          where id = $1
+          limit 1`,
+        [authSession.session.id]
+      );
+      dbSession = rows[0] || null;
+    } catch (err) {
+      console.error(JSON.stringify({
+        event: 'session_row_unavailable_degraded_auth',
+        error: err?.message,
+        hint: 'Apply BATCH3_DDL.sql (session.revoked_at / revoked_reason / device_name / ip / last_seen_at).',
+      }));
     }
 
-    // Update last_seen (fire-and-forget)
-    const clientIp = req.get('x-forwarded-for')?.split(',')[0]?.trim()
-      || req.get('x-real-ip')
-      || req.ip
-      || null;
-    pgPool.query(
-      'update public.users set last_seen_at = now(), last_seen_ip = $1 where id = $2',
-      [clientIp, appUser.id]
-    ).catch(() => {});
+    if (dbSession) {
+      if (dbSession.revoked_at) {
+        return apiError(req, res, 401, 'UNAUTHORIZED', 'session_revoked',
+          'This session was ended. Please sign in again.',
+          { reason: dbSession.revoked_reason || 'revoked' });
+      }
+      if (new Date(dbSession.expiresAt).getTime() <= Date.now()) {
+        pgPool.query(
+          'update public.session set revoked_at = now(), revoked_reason = $2 where id = $1',
+          [dbSession.id, REVOKE.EXPIRED]
+        ).catch(() => {});
+        return apiError(req, res, 401, 'UNAUTHORIZED', 'session_expired',
+          'Your session expired. Please sign in again.');
+      }
+    }
+
+    // (3) App user + orphan auto-provisioning.
+    const appUser = await getOrCreateNeonUser(authSession.user.email);
+    if (!appUser) return unauthenticated(req, res);
+
+    // (4) Account status beats everything.
+    if (appUser.status === 'banned' || appUser.status === 'suspended') {
+      if (dbSession) {
+        revokeSessionsByAuthUserId(authSession.user.id, REVOKE.BANNED).catch(() => {});
+      }
+      return apiError(req, res, 403,
+        appUser.status === 'banned' ? 'ACCOUNT_BANNED' : 'ACCOUNT_SUSPENDED',
+        appUser.status === 'banned' ? 'account_banned' : 'account_suspended',
+        appUser.status === 'banned'
+          ? 'This account has been banned.'
+          : 'This account is suspended.');
+    }
+
+    // (5) Presence — throttled, fire-and-forget, never blocking.
+    const clientIp = clientIpFrom(req);
+    if (dbSession && shouldTouchPresence(dbSession.id)) {
+      pgPool.query(
+        `update public.session
+            set last_seen_at = now(),
+                ip = coalesce(ip, $1),
+                device_name = coalesce(device_name, $2)
+          where id = $3`,
+        [clientIp, deviceLabelFrom(req), dbSession.id]
+      ).catch(() => {});
+
+      pgPool.query(
+        'update public.users set last_seen_at = now(), last_seen_ip = $1 where id = $2',
+        [clientIp, appUser.id]
+      ).catch(() => {});
+    }
 
     req.user = {
       id: appUser.id,
@@ -224,16 +576,25 @@ async function authenticate(req, res, next) {
       role: appUser.role,
       plan: appUser.plan,
       balance: Number(appUser.balance || 0),
-      betterAuthId: session.user.id,
+      betterAuthId: authSession.user.id,
+      status: appUser.status || 'active',
+      sessionId: dbSession ? dbSession.id : authSession.session.id,
+    };
+    req.auth = {
+      user: appUser,
+      session: {
+        id: dbSession ? dbSession.id : authSession.session.id,
+        betterAuthUserId: authSession.user.id,
+        device_name: dbSession ? dbSession.device_name : null,
+        ip: dbSession ? dbSession.ip : clientIp,
+        createdAt: dbSession ? dbSession.createdAt : authSession.session.createdAt,
+        expiresAt: dbSession ? dbSession.expiresAt : authSession.session.expiresAt,
+      },
     };
     return next();
   } catch (error) {
     console.error(JSON.stringify({ event: 'auth_lookup_failed', requestId: req.requestId, error: error?.message }));
-    return res.status(401).json({
-      error: 'UNAUTHORIZED',
-      message: 'Authentication required.',
-      requestId: req.requestId,
-    });
+    return unauthenticated(req, res);
   }
 }
 
@@ -241,17 +602,26 @@ async function authenticate(req, res, next) {
 const ADMIN_READ_ROLES = new Set(['developer', 'founder', 'super_admin', 'subscription_admin', 'support_admin']);
 const ADMIN_WRITE_ROLES = new Set(['developer', 'founder', 'super_admin', 'subscription_admin']);
 const ALLOWED_ADMIN_ROLES = new Set(['developer', 'founder', 'super_admin', 'subscription_admin', 'support_admin', 'user']);
+// Owner tier — security-sensitive actions (revoking ANOTHER user's sessions).
+const OWNER_ROLES = new Set(['developer', 'founder', 'super_admin']);
 
 function requireAdminRead(req, res, next) {
   if (!req.user || !ADMIN_READ_ROLES.has(req.user.role)) {
-    return res.status(403).json({ error: 'FORBIDDEN', message: 'Admin access required.', requestId: req.requestId });
+    return res.status(403).json({ error: 'FORBIDDEN', code: 'forbidden', message: 'Admin access required.', requestId: req.requestId });
   }
   next();
 }
 
 function requireAdminWrite(req, res, next) {
   if (!req.user || !ADMIN_WRITE_ROLES.has(req.user.role)) {
-    return res.status(403).json({ error: 'FORBIDDEN', message: 'Subscription admin access required.', requestId: req.requestId });
+    return res.status(403).json({ error: 'FORBIDDEN', code: 'forbidden', message: 'Subscription admin access required.', requestId: req.requestId });
+  }
+  next();
+}
+
+function requireOwner(req, res, next) {
+  if (!req.user || !OWNER_ROLES.has(req.user.role)) {
+    return res.status(403).json({ error: 'FORBIDDEN', code: 'forbidden', message: 'Owner access required.', requestId: req.requestId });
   }
   next();
 }
@@ -321,10 +691,369 @@ app.get('/api/turso-test', async (req, res) => {
   }
 });
 
-// ==================== CURRENT USER ====================
-app.get('/api/me', authenticate, (req, res) => {
-  res.setHeader('Cache-Control', 'no-store');
-  res.json({ user: req.user, requestId: req.requestId });
+// ==================== CURRENT USER (BATCH 3 CONTRACT) ====================
+/**
+ * GET /api/me — the single hydration endpoint for the client.
+ *
+ * Fresh read (bypasses the 30s user cache) so XP/plan/level changes are never
+ * masked. `entitlements` is derived from public.subscriptions and is THE
+ * authorization input for the frontend; `plan` is a convenience projection of the
+ * best active tier; skill_level/xp/rank are UX-only and must never gate access.
+ */
+app.get('/api/me', authenticate, async (req, res) => {
+  try {
+    const appUser = await getOrCreateNeonUser(req.user.email, { fresh: true });
+    if (!appUser) {
+      return apiError(req, res, 401, 'UNAUTHORIZED', 'unauthenticated', 'User record unavailable.');
+    }
+
+    const entitlements = await loadEntitlements(appUser.id);
+
+    // CP balance comes from the ledger (cp_ledger), which is the existing source.
+    let cpBalance = null;
+    try {
+      const { rows } = await pgPool.query(
+        'select coalesce(sum(amount), 0)::int as balance from public.cp_ledger where user_id = $1',
+        [appUser.id]
+      );
+      cpBalance = rows[0] ? rows[0].balance : null;
+    } catch (err) {
+      console.error(JSON.stringify({ event: 'cp_balance_failed', requestId: req.requestId, error: err?.message }));
+    }
+
+    // Session detail (device/ip/last_seen) — best effort, never blocks /api/me.
+    let session = {
+      id: req.auth.session.id,
+      device_name: req.auth.session.device_name ?? null,
+      ip: req.auth.session.ip ?? null,
+      created_at: req.auth.session.createdAt ?? null,
+      last_seen_at: null,
+      expires_at: req.auth.session.expiresAt ?? null,
+    };
+    try {
+      const { rows } = await pgPool.query(
+        `select device_name, ip, last_seen_at, "createdAt", "expiresAt"
+           from public.session where id = $1 limit 1`,
+        [req.auth.session.id]
+      );
+      if (rows[0]) {
+        session = {
+          id: req.auth.session.id,
+          device_name: rows[0].device_name ?? null,
+          ip: rows[0].ip ?? null,
+          created_at: rows[0].createdAt ?? null,
+          last_seen_at: rows[0].last_seen_at ?? null,
+          expires_at: rows[0].expiresAt ?? null,
+        };
+      }
+    } catch (err) {
+      console.error(JSON.stringify({ event: 'session_detail_failed', requestId: req.requestId, error: err?.message }));
+    }
+
+    res.setHeader('Cache-Control', 'no-store');
+    return res.json({
+      user: {
+        id: appUser.id,
+        email: appUser.email,
+        role: appUser.role,
+        display_name: appUser.display_name ?? null,
+        language: appUser.language ?? 'en',
+        plan: entitlements.plan,
+        plan_expires_at: entitlements.plan_expires_at,
+        entitlements: entitlements.entitlements,
+        skill_level: appUser.skill_level ?? 1,
+        level_label: appUser.level_label ?? null,
+        xp: appUser.xp ?? 0,
+        rank: rankForXp(appUser.xp),
+        status: appUser.status ?? 'active',
+        sections: Array.isArray(appUser.sections) ? appUser.sections : (appUser.sections ?? []),
+        balance: Number(appUser.balance || 0),
+        cp_balance: cpBalance,
+        onboarding: appUser.onboarding ?? {},
+        created_at: appUser.created_at ?? null,
+        last_seen_at: appUser.last_seen_at ?? null,
+      },
+      session,
+      requestId: req.requestId,
+    });
+  } catch (error) {
+    console.error(JSON.stringify({ event: 'me_failed', requestId: req.requestId, error: error?.message }));
+    return res.status(500).json({ error: 'SERVER_ERROR', code: 'internal_error', message: 'Failed to load profile.', requestId: req.requestId });
+  }
+});
+
+/**
+ * PATCH /api/me — display name + language only. Role, plan, level, xp and status
+ * are deliberately NOT writable here: they are server-authoritative.
+ */
+app.patch('/api/me', authenticate, async (req, res) => {
+  try {
+    const body = req.body || {};
+    const patch = {};
+
+    if (body.display_name !== undefined) {
+      const name = String(body.display_name ?? '').trim();
+      if (name.length < 2 || name.length > 60) {
+        return res.status(400).json({ error: 'VALIDATION_ERROR', code: 'invalid_display_name', message: 'display_name must be 2-60 characters.', requestId: req.requestId });
+      }
+      patch.display_name = name;
+    }
+
+    if (body.language !== undefined) {
+      const language = String(body.language ?? '').trim();
+      if (!/^[a-z]{2}(-[A-Za-z]{2,4})?$/.test(language)) {
+        return res.status(400).json({ error: 'VALIDATION_ERROR', code: 'invalid_language', message: 'language must look like "en" or "en-US".', requestId: req.requestId });
+      }
+      patch.language = language;
+    }
+
+    if (!Object.keys(patch).length) {
+      return res.status(400).json({ error: 'VALIDATION_ERROR', code: 'nothing_to_update', message: 'Nothing to update.', requestId: req.requestId });
+    }
+
+    const { rows } = await pgPool.query(
+      `update public.users
+          set display_name = coalesce($1, display_name),
+              language     = coalesce($2, language),
+              updated_at   = now()
+        where id = $3
+        returning id, display_name, language`,
+      [patch.display_name ?? null, patch.language ?? null, req.user.id]
+    );
+
+    userCache.delete(String(req.user.email).toLowerCase());
+    return res.json({ success: true, user: rows[0], requestId: req.requestId });
+  } catch (error) {
+    console.error(JSON.stringify({ event: 'me_patch_failed', requestId: req.requestId, error: error?.message }));
+    return res.status(500).json({ error: 'SERVER_ERROR', code: 'internal_error', message: 'Failed to update profile.', requestId: req.requestId });
+  }
+});
+
+// ==================== XP (BATCH 3) ====================
+/**
+ * POST /api/me/xp/update — { type, ref? }
+ *
+ * The client names an event; it NEVER sends an amount. Amounts, per-type daily
+ * caps and a global daily cap (500) are enforced here, so XP is unfarmable from
+ * devtools even though the trigger is client-driven. `ref` makes an event
+ * idempotent (lesson id, or the UTC date for daily_login).
+ *
+ * Level/label are computed by the DB triggers from xp — this endpoint only adds.
+ */
+app.post('/api/me/xp/update', authenticate, async (req, res) => {
+  try {
+    const type = req.body ? req.body.type : undefined;
+    const spec = XP_EVENTS[type];
+    if (!spec) {
+      return res.status(400).json({
+        error: 'VALIDATION_ERROR',
+        code: 'unknown_xp_event',
+        message: 'Unknown XP event type.',
+        allowed: Object.keys(XP_EVENTS),
+        requestId: req.requestId,
+      });
+    }
+
+    const userId = req.user.id;
+    let ref = req.body && req.body.ref != null ? String(req.body.ref).slice(0, 120) : null;
+    if (!ref && type === 'daily_login') ref = `day:${new Date().toISOString().slice(0, 10)}`;
+
+    const currentState = async () => {
+      const { rows } = await pgPool.query(
+        'select xp, skill_level, level_label from public.users where id = $1 limit 1',
+        [userId]
+      );
+      const row = rows[0] || { xp: 0, skill_level: 1, level_label: null };
+      return { xp: row.xp ?? 0, skill_level: row.skill_level ?? 1, level_label: row.level_label ?? null };
+    };
+
+    // Explicit duplicate check first, so the response can say WHY nothing changed.
+    if (ref) {
+      const { rows: dup } = await pgPool.query(
+        'select 1 from public.xp_events where user_id = $1 and type = $2 and ref = $3 limit 1',
+        [userId, type, ref]
+      );
+      if (dup.length > 0) {
+        const state = await currentState();
+        return res.json({
+          success: true, applied: false, reason: 'duplicate_event',
+          xp: state.xp, skill_level: state.skill_level, level_label: state.level_label,
+          rank: rankForXp(state.xp), requestId: req.requestId,
+        });
+      }
+    }
+
+    const before = await currentState();
+
+    // One atomic statement: per-type cap + global daily cap → dedupe insert → xp update.
+    const { rows } = await pgPool.query(
+      `with today as (
+         select coalesce(sum(amount), 0) as total
+           from public.xp_events
+          where user_id = $1 and created_at >= date_trunc('day', now())
+       ), today_type as (
+         select coalesce(sum(amount), 0) as total
+           from public.xp_events
+          where user_id = $1 and type = $2 and created_at >= date_trunc('day', now())
+       ), ins as (
+         insert into public.xp_events (user_id, type, ref, amount)
+         select $1, $2, $3, $4
+          where (select total from today) + $4 <= $5
+            and (select total from today_type) + $4 <= $6
+         on conflict (user_id, type, ref) where ref is not null do nothing
+         returning amount
+       ), upd as (
+         update public.users u
+            set xp = u.xp + (select coalesce(sum(amount), 0) from ins),
+                updated_at = now()
+          where u.id = $1 and exists (select 1 from ins)
+         returning u.xp, u.skill_level, u.level_label
+       )
+       select
+         (select count(*) from ins)     as applied,
+         (select total from today)      as xp_today,
+         (select total from today_type) as xp_today_type,
+         (select xp from upd)           as xp,
+         (select skill_level from upd)  as skill_level,
+         (select level_label from upd)  as level_label`,
+      [userId, type, ref, spec.amount, DAILY_XP_CAP, spec.amount * spec.dailyCap]
+    );
+
+    const row = rows[0] || {};
+    const applied = Number(row.applied) > 0;
+    userCache.delete(String(req.user.email).toLowerCase());
+
+    if (!applied) {
+      const state = await currentState();
+      const overGlobal = Number(row.xp_today || 0) + spec.amount > DAILY_XP_CAP;
+      return res.json({
+        success: true, applied: false,
+        reason: overGlobal ? 'daily_cap_reached' : 'event_cap_reached',
+        xp: state.xp, skill_level: state.skill_level, level_label: state.level_label,
+        rank: rankForXp(state.xp), xp_today: Number(row.xp_today || 0),
+        requestId: req.requestId,
+      });
+    }
+
+    return res.json({
+      success: true,
+      applied: true,
+      reason: null,
+      xp: row.xp,
+      skill_level: row.skill_level,
+      level_label: row.level_label,
+      rank: rankForXp(row.xp),
+      xp_today: Number(row.xp_today || 0),
+      awarded: spec.amount,
+      level_changed: before.skill_level !== row.skill_level,
+      requestId: req.requestId,
+    });
+  } catch (error) {
+    console.error(JSON.stringify({ event: 'xp_update_failed', requestId: req.requestId, error: error?.message }));
+    return res.status(500).json({ error: 'SERVER_ERROR', code: 'internal_error', message: 'Failed to record XP.', requestId: req.requestId });
+  }
+});
+
+/**
+ * POST /api/me/onboarding — { first_login_completed?, checklist? }
+ *
+ * Deep-merges into users.onboarding in a single statement, so a client that only
+ * knows about one checklist item can never wipe the others.
+ */
+app.post('/api/me/onboarding', authenticate, async (req, res) => {
+  try {
+    const body = req.body || {};
+    const top = {};
+    if (body.first_login_completed !== undefined) {
+      top.first_login_completed = Boolean(body.first_login_completed);
+    }
+
+    let checklist = null;
+    if (body.checklist && typeof body.checklist === 'object') {
+      checklist = {};
+      for (const key of ONBOARDING_KEYS) {
+        if (body.checklist[key] !== undefined) checklist[key] = Boolean(body.checklist[key]);
+      }
+    }
+
+    if (!Object.keys(top).length && !checklist) {
+      return res.status(400).json({ error: 'VALIDATION_ERROR', code: 'nothing_to_update', message: 'Nothing to update.', requestId: req.requestId });
+    }
+
+    const { rows } = await pgPool.query(
+      `update public.users
+          set onboarding = jsonb_set(
+                coalesce(onboarding, '{}'::jsonb) || $1::jsonb,
+                '{checklist}',
+                coalesce(onboarding -> 'checklist', '{}'::jsonb) || $2::jsonb,
+                true),
+              updated_at = now()
+        where id = $3
+        returning onboarding`,
+      [JSON.stringify(top), JSON.stringify(checklist || {}), req.user.id]
+    );
+
+    userCache.delete(String(req.user.email).toLowerCase());
+    return res.json({ success: true, onboarding: rows[0] ? rows[0].onboarding : {}, requestId: req.requestId });
+  } catch (error) {
+    console.error(JSON.stringify({ event: 'onboarding_failed', requestId: req.requestId, error: error?.message }));
+    return res.status(500).json({ error: 'SERVER_ERROR', code: 'internal_error', message: 'Failed to update onboarding.', requestId: req.requestId });
+  }
+});
+
+// ==================== SESSIONS (BATCH 3) ====================
+/** GET /api/me/sessions — live sessions for the signed-in user (single-session policy ⇒ normally one). */
+app.get('/api/me/sessions', authenticate, async (req, res) => {
+  try {
+    const { rows } = await pgPool.query(
+      `select s.id, s.device_name, s.ip, s."createdAt" as created_at, s."expiresAt" as expires_at,
+              s.last_seen_at
+         from public.session s
+         join public."user" u on u.id = s."userId"
+        where lower(u.email) = lower($1)
+          and s.revoked_at is null
+        order by s."createdAt" desc
+        limit 25`,
+      [req.user.email]
+    );
+
+    res.setHeader('Cache-Control', 'no-store');
+    return res.json({
+      success: true,
+      sessions: rows.map((row) => ({ ...row, current: row.id === req.auth.session.id })),
+      requestId: req.requestId,
+    });
+  } catch (error) {
+    console.error(JSON.stringify({ event: 'sessions_list_failed', requestId: req.requestId, error: error?.message }));
+    return res.status(500).json({ error: 'SERVER_ERROR', code: 'internal_error', message: 'Failed to list sessions.', requestId: req.requestId });
+  }
+});
+
+/**
+ * POST /api/me/sessions/revoke-all
+ *
+ * Default: sign out every OTHER device and keep the current one — revoking the
+ * current session would immediately 401 the user who asked to be signed out
+ * elsewhere. Pass ?include_current=true to end this session too.
+ */
+app.post('/api/me/sessions/revoke-all', authenticate, async (req, res) => {
+  try {
+    const includeCurrent = req.query.include_current === 'true';
+    const revoked = await revokeSessionsByAuthUserId(
+      req.auth.session.betterAuthUserId,
+      REVOKE.USER,
+      includeCurrent ? null : req.auth.session.id
+    );
+    return res.json({
+      success: true,
+      revoked,
+      include_current: includeCurrent,
+      requestId: req.requestId,
+    });
+  } catch (error) {
+    console.error(JSON.stringify({ event: 'revoke_all_failed', requestId: req.requestId, error: error?.message }));
+    return res.status(500).json({ error: 'SERVER_ERROR', code: 'internal_error', message: 'Failed to revoke sessions.', requestId: req.requestId });
+  }
 });
 
 // ==================== ADMIN: USERS ====================
@@ -444,6 +1173,243 @@ app.post('/api/admin/users/:userId/balance', authenticate, requireAdminWrite, as
   } catch (error) {
     console.error(JSON.stringify({ event: 'balance_adjust_failed', requestId: req.requestId, error: error?.message }));
     return res.status(500).json({ error: 'SERVER_ERROR', message: 'Balance adjustment failed.', requestId: req.requestId });
+  }
+});
+
+// ==================== ADMIN: LEVEL OVERRIDE (BATCH 3) ====================
+// Level labels are NOT hardcoded here: public.level_label_for() is the single
+// source of truth (confirmed: level_label_for(4) = 'Expert'). If the DB function
+// is ever absent, only this endpoint's label write is affected — the level itself
+// still applies.
+
+/**
+ * POST /api/admin/users/:userId/level — { skill_level, reason? }
+ *
+ * xp is left untouched, so the xp→level trigger does not fight this. The history
+ * row is attributed to the admin, and the automatic trigger row is suppressed for
+ * this transaction via the cv.skip_level_log flag, so the audit trail has exactly
+ * ONE row per change with the correct actor.
+ */
+app.post('/api/admin/users/:userId/level', authenticate, requireAdminWrite, async (req, res) => {
+  const { userId } = req.params;
+  const body = req.body || {};
+  const level = Number(body.skill_level);
+  const reason = typeof body.reason === 'string' && body.reason.trim().length >= 3
+    ? body.reason.trim().slice(0, 200)
+    : null;
+
+  if (!UUID_RE.test(String(userId))) {
+    return res.status(400).json({ error: 'VALIDATION_ERROR', code: 'invalid_user_id', message: 'userId must be a UUID.', requestId: req.requestId });
+  }
+  if (!Number.isInteger(level) || level < 1 || level > 4) {
+    return res.status(400).json({ error: 'VALIDATION_ERROR', code: 'invalid_level', message: 'skill_level must be 1-4.', requestId: req.requestId });
+  }
+
+  const client = await pgPool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const { rows: userRows } = await client.query(
+      'select id, email, skill_level, xp from public.users where id = $1 for update',
+      [userId]
+    );
+    if (userRows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'NOT_FOUND', code: 'not_found', message: 'User not found.', requestId: req.requestId });
+    }
+
+    const target = userRows[0];
+    const beforeLevel = target.skill_level ?? null;
+    if (beforeLevel === level) {
+      await client.query('ROLLBACK');
+      return res.json({ success: true, duplicate: true, skill_level: level, requestId: req.requestId });
+    }
+
+    // Suppress the automatic history row for this transaction, then log our own.
+    await client.query(`select set_config('cv.skip_level_log', '1', true)`);
+    const { rows: updated } = await client.query(
+      `update public.users
+          set skill_level = $1,
+              level_label = public.level_label_for($1),
+              updated_at = now()
+        where id = $2
+        returning skill_level, level_label, xp`,
+      [level, userId]
+    );
+
+    await client.query(
+      `insert into public.user_level_history
+         (user_id, from_level, to_level, xp_at_change, reason, actor_type, actor_id)
+       values ($1, $2, $3, $4, $5, 'admin', $6)`,
+      [userId, beforeLevel, level, target.xp ?? 0, reason || 'admin_level_override', req.user.id]
+    );
+
+    await client.query('COMMIT');
+    invalidateUserCache(target.email);
+
+    await writeAuditLog({
+      actor_id: req.user.id, actor_email: req.user.email, actor_role: req.user.role,
+      target_user_id: userId, plan_id: null, action: 'level_change', result: 'success',
+      note: `Level: ${beforeLevel} → ${level}${reason ? ` | ${reason}` : ''}`,
+      before_state: { skill_level: beforeLevel, xp: target.xp },
+      after_state: { skill_level: updated[0].skill_level, xp: updated[0].xp },
+      ip_address: req.ip, user_agent: req.get('User-Agent'),
+      request_id: req.requestId, idempotency_key: null, entitlement_id: null,
+    });
+
+    return res.json({
+      success: true,
+      user_id: userId,
+      before_level: beforeLevel,
+      after_level: updated[0].skill_level,
+      level_label: updated[0].level_label,
+      xp: updated[0].xp,
+      requestId: req.requestId,
+    });
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => {});
+    console.error(JSON.stringify({ event: 'level_change_failed', requestId: req.requestId, error: error?.message }));
+    return res.status(500).json({ error: 'SERVER_ERROR', code: 'internal_error', message: 'Level change failed.', requestId: req.requestId });
+  } finally {
+    client.release();
+  }
+});
+
+// ==================== ADMIN: REVOKE USER SESSIONS (BATCH 3) ====================
+/**
+ * POST /api/admin/users/:userId/sessions/revoke — owner tier only.
+ * Ends every live session the target has (users.id → session."userId" through the
+ * email join, because Better Auth user ids and app user ids are different).
+ */
+app.post('/api/admin/users/:userId/sessions/revoke', authenticate, requireOwner, async (req, res) => {
+  const { userId } = req.params;
+
+  if (!UUID_RE.test(String(userId))) {
+    return res.status(400).json({ error: 'VALIDATION_ERROR', code: 'invalid_user_id', message: 'userId must be a UUID.', requestId: req.requestId });
+  }
+
+  try {
+    const { rows } = await pgPool.query('select id, email from public.users where id = $1 limit 1', [userId]);
+    if (rows.length === 0) {
+      return res.status(404).json({ error: 'NOT_FOUND', code: 'not_found', message: 'User not found.', requestId: req.requestId });
+    }
+
+    const revoked = await revokeSessionsByAppUserId(userId, REVOKE.ADMIN);
+    invalidateUserCache(rows[0].email);
+
+    await writeAuditLog({
+      actor_id: req.user.id, actor_email: req.user.email, actor_role: req.user.role,
+      target_user_id: userId, plan_id: null, action: 'sessions_revoked', result: 'success',
+      note: `Admin revoked ${revoked} live session(s) for ${rows[0].email}`,
+      before_state: null, after_state: { revoked },
+      ip_address: req.ip, user_agent: req.get('User-Agent'),
+      request_id: req.requestId, idempotency_key: null, entitlement_id: null,
+    });
+
+    return res.json({ success: true, user_id: userId, revoked, requestId: req.requestId });
+  } catch (error) {
+    console.error(JSON.stringify({ event: 'admin_revoke_sessions_failed', requestId: req.requestId, error: error?.message }));
+    return res.status(500).json({ error: 'SERVER_ERROR', code: 'internal_error', message: 'Failed to revoke sessions.', requestId: req.requestId });
+  }
+});
+
+// ==================== ADMIN: NOTIFICATIONS (BATCH 3) ====================
+/**
+ * GET /api/admin/notifications — role-audience filtered inbox for the signed-in admin.
+ *
+ * Aligned to the EXISTING admin_notifications schema (type, severity, title, body,
+ * audience_roles, target_user_id, link, payload, expires_at, created_at) and to
+ * admin_notification_reads.admin_user_id.
+ *
+ * Audience rules:
+ *   · audience_roles = '{}'  → broadcast to every admin
+ *   · otherwise the caller's role must be in the array
+ *   · target_user_id, when set, must be the caller (user-specific notice)
+ * `audience_levels` is intentionally NOT used: the legacy admin-seniority levels no
+ * longer exist (the portal authorizes by server role) and skill_level is a USER
+ * gamification value, so filtering admins on it would be wrong.
+ */
+app.get('/api/admin/notifications', authenticate, requireAdminRead, async (req, res) => {
+  try {
+    const limit = Math.min(Number(req.query.limit) || 25, 100);
+    const unreadOnly = req.query.unread_only === 'true';
+    const sinceRaw = typeof req.query.since === 'string' ? req.query.since.trim() : '';
+    const since = /^\d{4}-\d{2}-\d{2}T/.test(sinceRaw) ? sinceRaw : null;
+
+    const { rows } = await pgPool.query(
+      `select n.id, n.type, n.severity, n.title, n.body, n.audience_roles,
+              n.target_user_id, n.link, n.payload, n.created_at, n.expires_at,
+              (r.read_at is not null) as read, r.read_at
+         from public.admin_notifications n
+         left join public.admin_notification_reads r
+                on r.notification_id = n.id and r.admin_user_id = $1
+        where (cardinality(coalesce(n.audience_roles, '{}'::text[])) = 0
+               or $2 = any(n.audience_roles))
+          and (n.target_user_id is null or n.target_user_id = $1)
+          and (n.expires_at is null or n.expires_at > now())
+          and ($3::timestamptz is null or n.created_at > $3::timestamptz)
+          and ($4::boolean = false or r.read_at is null)
+        order by n.created_at desc
+        limit $5`,
+      [req.user.id, req.user.role, since, unreadOnly, limit]
+    );
+
+    const { rows: counts } = await pgPool.query(
+      `select count(*)::int as unread
+         from public.admin_notifications n
+         left join public.admin_notification_reads r
+                on r.notification_id = n.id and r.admin_user_id = $1
+        where (cardinality(coalesce(n.audience_roles, '{}'::text[])) = 0
+               or $2 = any(n.audience_roles))
+          and (n.target_user_id is null or n.target_user_id = $1)
+          and (n.expires_at is null or n.expires_at > now())
+          and r.read_at is null`,
+      [req.user.id, req.user.role]
+    );
+
+    res.setHeader('Cache-Control', 'no-store');
+    return res.json({
+      success: true,
+      notifications: rows,
+      unread: counts[0] ? counts[0].unread : 0,
+      server_time: new Date().toISOString(),
+      requestId: req.requestId,
+    });
+  } catch (error) {
+    console.error(JSON.stringify({ event: 'admin_notifications_failed', requestId: req.requestId, error: error?.message }));
+    return res.status(500).json({ error: 'SERVER_ERROR', code: 'internal_error', message: 'Failed to fetch notifications.', requestId: req.requestId });
+  }
+});
+
+/** POST /api/admin/notifications/read — { ids: [uuid] } marks those read for the caller. */
+app.post('/api/admin/notifications/read', authenticate, requireAdminRead, async (req, res) => {
+  try {
+    const body = req.body || {};
+    const ids = Array.isArray(body.ids)
+      ? body.ids.filter((id) => UUID_RE.test(String(id))).slice(0, 200)
+      : [];
+
+    if (ids.length === 0) {
+      return res.status(400).json({ error: 'VALIDATION_ERROR', code: 'invalid_ids', message: 'ids must be a non-empty array of UUIDs.', requestId: req.requestId });
+    }
+
+    const { rows } = await pgPool.query(
+      `insert into public.admin_notification_reads (notification_id, admin_user_id)
+       select n.id, $1
+         from public.admin_notifications n
+        where n.id = any($2::uuid[])
+          and (cardinality(coalesce(n.audience_roles, '{}'::text[])) = 0
+               or $3 = any(n.audience_roles))
+          and (n.target_user_id is null or n.target_user_id = $1)
+       on conflict (notification_id, admin_user_id) do nothing
+       returning notification_id`,
+      [req.user.id, ids, req.user.role]
+    );
+
+    return res.json({ success: true, read: rows.length, requestId: req.requestId });
+  } catch (error) {
+    console.error(JSON.stringify({ event: 'admin_notifications_read_failed', requestId: req.requestId, error: error?.message }));
+    return res.status(500).json({ error: 'SERVER_ERROR', code: 'internal_error', message: 'Failed to mark notifications read.', requestId: req.requestId });
   }
 });
 
@@ -671,6 +1637,12 @@ const nowPaymentsBaseUrl = (process.env.NOWPAYMENTS_API_BASE_URL || 'https://api
 const nowPaymentsCallbackUrl = process.env.NOWPAYMENTS_IPN_CALLBACK_URL
   || `${process.env.PUBLIC_API_BASE_URL || ''}/api/webhooks/payment`;
 
+/**
+ * BATCH 3 diagnostics: the previous version collapsed every upstream failure into
+ * one opaque Error, which is why "Payment provider is temporarily unavailable" was
+ * a dead end for a whole session. The upstream status and a truncated body now
+ * travel with the error and are logged.
+ */
 async function nowPaymentsRequest(path, payload) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 10000);
@@ -688,8 +1660,11 @@ async function nowPaymentsRequest(path, payload) {
     let body;
     try { body = text ? JSON.parse(text) : null; } catch { body = null; }
     if (!response.ok) {
-      const providerError = body?.message || body?.error || 'NOWPayments request failed';
-      throw new Error(providerError);
+      const providerError = body?.message || body?.error || `Payment provider returned HTTP ${response.status}`;
+      const error = new Error(providerError);
+      error.providerStatus = response.status;
+      error.providerBody = text ? String(text).slice(0, 1000) : null;
+      throw error;
     }
     return body;
   } finally {
@@ -848,7 +1823,7 @@ app.post('/api/payments/create', authenticate, async (req, res) => {
     });
 
     const providerPaymentId = String(payment?.payment_id || '').trim();
-    if (!providerPaymentId) throw new Error('NOWPayments returned no payment identifier');
+    if (!providerPaymentId) throw new Error('Payment provider returned no payment identifier');
 
     await pgPool.query(
       `update public.payments set status = 'waiting', external_payment_id = $1, updated_at = now() where id = $2`,
@@ -867,8 +1842,27 @@ app.post('/api/payments/create', authenticate, async (req, res) => {
       requestId: req.requestId,
     });
   } catch (error) {
-    console.error(JSON.stringify({ event: 'payment_create_failed', requestId: req.requestId, userId: req.user.id, error: error?.message }));
-    return res.status(502).json({ error: 'PAYMENT_PROVIDER_ERROR', message: 'Payment provider is temporarily unavailable.', requestId: req.requestId });
+    // BATCH 3: log the upstream status/body so a provider misconfiguration is
+    // diagnosable from the server log instead of a blind 502.
+    const providerStatus = Number(error?.providerStatus) || null;
+    console.error(JSON.stringify({
+      event: 'payment_create_failed',
+      requestId: req.requestId,
+      userId: req.user.id,
+      providerStatus,
+      providerBody: error?.providerBody ?? null,
+      nowPaymentsBaseUrl,
+      hasApiKey: Boolean(process.env.NOWPAYMENTS_API_KEY),
+      hasIpnSecret: Boolean(process.env.NOWPAYMENTS_IPN_SECRET),
+      error: error?.message,
+    }));
+
+    const message = (providerStatus === 401 || providerStatus === 403)
+      ? 'Payment provider rejected our credentials. Please try again later.'
+      : (providerStatus === 400 || providerStatus === 404)
+        ? 'Payment provider rejected the request. Please try again later.'
+        : 'Payment provider is temporarily unavailable.';
+    return res.status(502).json({ error: 'PAYMENT_PROVIDER_ERROR', message, requestId: req.requestId });
   }
 });
 
@@ -901,7 +1895,7 @@ app.get('/api/payments/history', authenticate, async (req, res) => {
   }
 });
 
-// ==================== NOWPAYMENTS WEBHOOK ====================
+// ==================== PAYMENT WEBHOOK ====================
 function sortObject(value) {
   if (Array.isArray(value)) return value.map(sortObject);
   if (!value || typeof value !== 'object') return value;
@@ -959,6 +1953,9 @@ app.post('/api/webhooks/payment', async (req, res) => {
 
     if (nextStatus === 'completed') {
       await fulfillCompletedPayment(payment);
+      // The plan changed for this user — drop the cached row so /api/me reflects it.
+      const { rows: owner } = await pgPool.query('select email from public.users where id = $1', [payment.user_id]);
+      if (owner.length > 0) invalidateUserCache(owner[0].email);
     }
 
     await pgPool.query(
