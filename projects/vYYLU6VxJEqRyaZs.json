@@ -1,0 +1,3033 @@
+{
+  "root": {
+    "type": "root",
+    "children": [
+      {
+        "type": "text",
+        "id": "f8972892-f779-4961-af76-cd3df1e8dbc2",
+        "text": {
+          "ops": [
+            {
+              "insert": "OWNERSHIP.md"
+            },
+            {
+              "insert": "\n",
+              "attributes": {
+                "paragraph": true
+              }
+            }
+          ]
+        },
+        "format": {
+          "node": "h1",
+          "children": "text"
+        },
+        "collapsed": false,
+        "completed": false,
+        "children": [
+          {
+            "type": "text",
+            "id": "dfc84376-c949-4e65-ba50-5821f5366266",
+            "text": {
+              "ops": [
+                {
+                  "insert": "CryptoVerse HQ · Phase 0.5 (Identity Freeze) · v2 · Created in Batch 1 · Scope: Phase 0.5 → Phase 1"
+                },
+                {
+                  "insert": "\n",
+                  "attributes": {
+                    "paragraph": true
+                  }
+                }
+              ]
+            },
+            "format": {
+              "node": "bullet",
+              "children": "bullet"
+            },
+            "collapsed": false,
+            "completed": false,
+            "children": []
+          },
+          {
+            "type": "text",
+            "id": "c929e56a-2134-45b1-854c-2aa51bf12b85",
+            "text": {
+              "ops": [
+                {
+                  "insert": "Coordination contract between Cline (frontend) and Taskade AI (content/visual). One author per file per phase."
+                },
+                {
+                  "insert": "\n",
+                  "attributes": {
+                    "paragraph": true
+                  }
+                }
+              ]
+            },
+            "format": {
+              "node": "bullet",
+              "children": "bullet"
+            },
+            "collapsed": false,
+            "completed": false,
+            "children": []
+          },
+          {
+            "type": "text",
+            "id": "33b0131a-107e-40b3-816c-5795964d98db",
+            "text": {
+              "ops": [
+                {
+                  "insert": "A. RULES"
+                },
+                {
+                  "insert": "\n",
+                  "attributes": {
+                    "paragraph": true
+                  }
+                }
+              ]
+            },
+            "format": {
+              "node": "h2",
+              "children": "text"
+            },
+            "collapsed": false,
+            "completed": false,
+            "children": [
+              {
+                "type": "text",
+                "id": "5badb106-0652-45c9-9294-3cc6d19b0f89",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "A1. One author per file per phase. Two writers on one file = silent loss. If a file is not yours, add a Handoff row (Section C) — never edit it."
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "7b854074-bcfc-48ae-aa75-4fa6a905cc73",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "A2. Risk tiers — T1, T2, T3 (listed next)."
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "6952a685-6cbc-4e1e-9784-b016543712fc",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "T1 = Auth, Identity, Session, Payments, Data integrity → Cline only during a migration phase."
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "192b673f-46fb-490d-95cf-464dc137631d",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "T2 = Feature components that read auth / plan / role → one author per phase, agreed in advance."
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "8c32747f-7a00-4c65-a84f-814877d14b8f",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "T3 = Cosmetic, content, static pages, translations → Taskade AI, freely."
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "51b71a06-9bab-4a83-91f8-e32b9e12df62",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "A3. Re-read before writing; verify by re-reading after writing. Non-negotiable: a write can time out mid-edit and leave a half-migrated file with a live caller (this happened in an earlier session and broke the build until repaired)."
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "0bb81e66-b958-4bc5-8b4b-638442c8b3ec",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "A4. Handoff, not cross-editing. Format: date · file · exact change · requester · status."
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "6d66d075-84c4-4f3e-9311-35b923fa01d4",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "A5. Frozen set during 0.5 (nobody edits without explicit owner approval): every file that imports authStore or authApi, plus src/main.tsx, index.html, all of src/styles/, and all of src/components/ui/ (platform-owned)."
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "4191c08a-95f6-4ec9-821e-acb4ad1eac5c",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "A6. Definition of Done per file: re-read verified · no leftover references (retired symbols: authApi, loginFromSession, passwordHash, verifyPassword, generateOtp, cryptoverse_auth_session, cryptoverse_users) · no new type errors · changelog row."
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "6d11a8f9-dae9-4224-8959-fb84c9c1d2f3",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "A7. Phase boundary: write a \"modified files + verification status\" list into Section D before the next phase starts."
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "521112fb-9e11-4d66-a58b-43c6d27f182b",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "A8. Tooling rules: max 3 files per pass; re-read after every pass; the Taskade space has NO shell so grep cannot run in-space (accounting comes from the owner running the B5 script, or from my reading passes, marked unverified until then); if the Taskade tool drops mid-batch, STOP the batch, record it in Section D, wait for the tool, then resume."
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "1a8656f4-193a-409b-9450-7894f5308f50",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "A9. Batch 1 made no code changes. Only this document was created."
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              }
+            ]
+          },
+          {
+            "type": "text",
+            "id": "5fb57818-9031-40db-b5d6-42a8911034d2",
+            "text": {
+              "ops": [
+                {
+                  "insert": "B. FILE TABLE"
+                },
+                {
+                  "insert": "\n",
+                  "attributes": {
+                    "paragraph": true
+                  }
+                }
+              ]
+            },
+            "format": {
+              "node": "h2",
+              "children": "text"
+            },
+            "collapsed": false,
+            "completed": false,
+            "children": [
+              {
+                "type": "text",
+                "id": "b4f28642-3020-4887-992f-5c8e42c73402",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "Format: path — Owner · Tier · Status — note. Status: Frozen (0.5, Cline) · Shared-T2 · Taskade-T3 · Platform (never) · Pending sweep."
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "3670b65b-35f2-4d67-85e9-6936be421ef7",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "B1. T1 — Auth / Identity / Session / Payments / Data (Cline only, Frozen in 0.5)",
+                      "attributes": {
+                        "bold": true
+                      }
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "text",
+                  "children": "text"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "5a799d54-2e2c-4e5b-a37f-83966a76739a",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/App.tsx — Cline · T1 · Frozen — auth guard, inline login-page fallback, ViewOnlyGuard, app shell. Batch 5: server-verified boot + splash."
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "55c34533-7a24-4a08-ad50-9df70ddc78f6",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/lib/authStore.ts — Cline · T1 · Frozen — facade target in Batch 4. Owns user / session / viewState."
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "1da443c2-ae76-4628-a664-35c7e606061f",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/lib/authApi.ts — Cline · T1 · Frozen — Taskade identity layer; retired in Batch 6."
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "661de6a7-bba0-49fd-ad13-7fee96f03485",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/lib/loginHistoryStore.ts — Cline · T1 · Frozen — login events; feeds the admin \"last seen\" fallback."
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "e2464c9f-6f36-454b-b2e8-71843abe7ec9",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/lib/userMigrationService.ts — Cline · T1 · Frozen — legacy localStorage→Taskade migration; retired with authApi."
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "d36f96c4-2ae1-47cc-b170-42d3c9ba6dd6",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/lib/passwordHash.ts — Cline · T1 · Frozen — PBKDF2; unused after passwordless migration (verify before delete)."
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "5df491a3-af65-4d0e-89cd-d8217e54067a",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/lib/security/sessionManager.ts — Cline · T1 · Frozen — localStorage session record; retired in Batch 7."
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "86882c96-eb8d-4c03-8583-d07f6561bbfd",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/lib/security/authTypes.ts — Cline · T1 · Frozen — session metadata + constants (24h absolute, 2h idle)."
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "8f778c98-d689-4051-aad8-f966e757e356",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/lib/security/authEvents.ts — Cline · T1 · Frozen — auth event bus."
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "9985b726-530a-4af9-a1f6-f76d15859afa",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/lib/security/authAudit.ts — Cline · T1 · Frozen — auth audit trail."
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "240d8aa4-2ace-462a-a23f-825bf9946151",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/lib/security/rateLimiter.ts — Cline · T1 · Frozen — client-side lockout; REMOVE in Batch 6."
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "cb098c21-01bc-4601-a932-e996c73a8005",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/lib/security/cookieSessionTransport.ts — Cline · T1 · Frozen — gateway session proxy; CSRF already removed."
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "455906de-a290-4438-8db6-08dec96a69e3",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/lib/security/index.ts — Cline · T1 · Frozen — barrel exports."
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "48e9e977-af6b-4331-bfca-f8a712c7ec37",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/lib/adminApi.ts — Cline · T1 · Frozen — Render API client (Better Auth cookie, credentials: include). Canonical server auth surface."
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "c9c835de-8240-4c44-8081-07430ceb39fe",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/lib/adminAuthStore.ts — Cline · T1 · Frozen — legacy admin session (sessionStorage cryptoverse_admin_session, level-based); retire or align in 0.5."
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "fac60a6b-1f26-471a-a0eb-a51fde4c87de",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/lib/adminManagementStore.ts — Cline · T1 · Frozen — admin audit + notifications (level-based today → must become role/audience-based)."
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "18cae466-b15e-42ad-aea3-e9624b893f3d",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/lib/adminPortalStore.ts — Cline · T1 · Frozen — imports authApi.fetchAllUsers; writes cryptoverse_users; used by admin pages."
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "cafcbd36-40df-466e-9d53-dc2ce66dec7e",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/components/admin/portal/AdminPortalLayout.tsx — Cline · T1 · Frozen — admin shell, Back-to-App, sign-out teardown."
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "db09af63-3c5e-4231-8ea6-0e224bcbeef2",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/routes/AdminRoutes.tsx — Cline · T1 · Frozen — ServerAdminGuard + SectionGuard (legacy localStorage fallback = bypass window, see H-007)."
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "8db119b2-92a8-4010-aafb-55bef71129ae",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/routes/RouteWrappers.tsx — Cline · T1 · Frozen — Gate (plan level) → SubscriptionGatePage."
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "c2ad1c12-cb17-4a7d-9dbf-045a24487be4",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/routes/AuthRoutes.tsx — Cline · T1 · Frozen — /login /signup /verify-otp /forgot-password /reset-password."
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "316b8b4b-bf8d-4b0b-a276-6b6879630792",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/routes/ProfileRoutes.tsx — Cline · T1 · Frozen — /subscription /payment/checkout /wallet /buy-cp /profile."
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "d3a21e99-68f0-4fa9-b9e2-80b731dce744",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/routes/index.ts — Cline · T1 · Frozen — barrel only."
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "1f629863-989d-4b82-92d0-5ce6e5f3f3b3",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/components/auth/LoginPage.tsx — Cline · T1 · Frozen — Batch 5 rewrite (email → OTP)."
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "cc6afb16-eb71-4682-836a-9137f6b6f846",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/components/auth/SignupPage.tsx — Cline · T1 · Frozen — Batch 5 rewrite (email → OTP; drop pending-signup storage)."
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "c64dcec9-0a6d-4a20-a1ea-8db8ed01a14e",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/components/auth/VerifyOtpPage.tsx — Cline · T1 · Frozen — Batch 5 rewire; currently calls loginFromSession."
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "9a167b22-2ddd-43fd-953e-1b31fb773423",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/components/auth/ForgotPasswordPage.tsx — Cline · T1 · Frozen — REMOVE in Batch 5/6."
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "79e04ac1-9791-4a3c-9f80-378ad80dea93",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/components/auth/ResetPasswordPage.tsx — Cline · T1 · Frozen — REMOVE in Batch 5/6."
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "0d6cf0c8-4e19-47b5-b831-d88729a1fab6",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/components/auth/AuthLayout.tsx — Cline · T1 · Frozen — shared shell; check for password-specific copy."
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "c2124396-d17c-4524-8ad6-20b0546ba406",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/hooks/useSubscriptionAccess.ts — Cline · T1 · Frozen — reads authStore.user.plan; must read server entitlements (H-006)."
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "c50ac332-b94e-44b0-ac9c-1b8bc5fdd587",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/components/SubscriptionGate.tsx — Cline · T1 · Frozen — plan gate choke point (Gate + inline buttons)."
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "e3ce9983-b6e2-4b79-952e-76dd6b65a029",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/lib/identityEngine.ts — Cline · T1 · Frozen — Lynx identity; defects H-001 / H-002."
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "77320d59-da73-4e2e-9ee9-2e4d3db357f9",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/lib/permissionEngine.ts — Cline · T1 · Frozen — \"the ONLY authorization system\" (Lynx); overlaps admin guards."
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "5ef47095-3770-4243-99e7-ad4ef936bd5e",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/lib/accessControl.ts — Cline · T1 · Frozen — deprecated role whitelist; defect H-004; deletion candidate."
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "e72c4cf5-0469-4c71-9d67-0306e3d07626",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/lib/nowPaymentsClient.ts — Cline · T1 · Frozen — payments transport (no CSRF, Idempotency-Key, diagnostics)."
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "4db5b350-60c9-46d3-93be-1b59d2561ec1",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/lib/nowPaymentsStore.ts — Cline · T1 · Frozen — checkout state + history."
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "fd32bca7-2d4d-4e32-b518-f8612d032929",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/pages/PaymentPage.tsx — Cline · T1 · Frozen — internal checkout (currency → address/QR → Check Payment)."
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "8b488f0a-51ad-437e-8cee-c41b07801371",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/lib/cloudData/CloudRecordStore.ts — Cline · T1 · Frozen — every cloud save is keyed by authStore.user.email (load-bearing)."
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "a4033b3d-f064-4d6a-bdb2-284b2dee5f2a",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/lib/cloudData/index.ts — Cline · T1 · Frozen — CloudDataLayer + DEFAULT_CACHE_POLICIES (per-user object inventory)."
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "15faa602-a6c9-4f40-af3d-0977d4bedd82",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/lib/cloudData/TaskadeCloudProvider.ts — Cline · T1 · Frozen — node read/write for the per-user data blob."
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "a89a56d6-590a-474c-bfbe-51cc303ac758",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/lib/platformTransport.ts — Cline · T1 · Frozen — bridge-safe HTTP (withCredentials); Render base URL."
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "862464f6-4dfb-4704-acfa-8d55e9430013",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/lib/academyStore.ts — Cline · T1 · Frozen — XP + its own 10-tier level model (H-005); imports authStore."
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "1c4e2169-026d-4f7c-9dc7-c7230c5d9825",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/lib/useXPSystem.ts — Cline · T1 · Frozen — level hook used by useSectionAccess."
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "72def129-03e8-41dc-bbcf-c9d1fd8cd742",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/lib/useSectionAccess.ts — Cline · T1 · Frozen — existing Section→Level map; Phase 2 should remap, not rebuild."
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "217caeaa-b217-4c94-9612-6113633e3392",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "B2. T2 — Feature components that read auth / plan (one author per phase)",
+                      "attributes": {
+                        "bold": true
+                      }
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "text",
+                  "children": "text"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "7683c78c-8831-4a52-b1f5-f0e0f8a7f157",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/components/SubscriptionPage.tsx — Cline · T2 — payments adjacency."
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "d0508326-c961-4ae2-923f-33462e9fd712",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/components/BuyCPPage.tsx — Cline · T2 — payments adjacency."
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "b6aa2c81-8076-4bd6-bc4f-0231d5ffe8a4",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/components/NOWPaymentsButton.tsx — Cline · T2 — payments adjacency."
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "d447cb6b-8674-4273-a92e-dca0c2e95166",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/lib/subscriptionEntitlements.ts — Cline · T2 — entitlement engine."
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "a1de51b3-e473-4c52-bc0a-5857a73706db",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/lib/adminPaymentStore.ts — Cline · T2."
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "6945f40c-1985-44a7-8432-fada0fc4b620",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/lib/adminPricingStore.ts — Cline · T2."
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "2e221c86-bf24-4bd3-9f67-01859a21d897",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/lib/useAiPaymentVerification.ts — Cline · T2."
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "375d77b2-9e56-4fb5-9e5b-327188ebe6cc",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/lib/monetizationStore.ts — Cline · T2 — plan definitions + live pricing."
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "94c68cd6-4084-46cf-bad0-03e42ce01427",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/lib/subscriptionStore.ts — Cline · T2."
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "3f8b40f8-6cf0-43d8-a039-c004c19cb0f1",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/lib/trialStore.ts — Cline · T2 — trial grants pro access."
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "a448ac48-6c0c-4d13-94bc-1855c623e24d",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/lib/featurePreviewStore.ts — Cline · T2 — one-free-preview tracking."
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "d105d378-065e-46f4-84f9-2cc9f547dff2",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/lib/cpCoinsStore.ts — Cline · T2 — CP ledger/balance."
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "42e11bb7-12d6-4984-8123-991581b02db0",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/components/Profile.tsx — Pending sweep — likely T2 (reads user for name/plan)."
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "4cf7cfdd-0b89-4202-8487-5897072fcb70",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/components/WalletPage.tsx — Pending sweep — likely T2."
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "75e7d65a-173e-4232-a12f-cf3528a9522c",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/components/Dashboard.tsx — Pending sweep — likely T2."
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "0cb760ed-1496-4672-927b-37760e0232a9",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/components/DashboardHome.tsx — Pending sweep — likely T2."
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "c78932fd-277a-4589-9af4-c26e2579b487",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/components/WelcomeGuide.tsx — Pending sweep — onboarding (isFirstLogin); EXTEND one of these, do not add a fifth system."
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "7ed78a63-b299-49b9-8dba-c587a44f8cbd",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/components/QuickTour.tsx — Pending sweep — onboarding."
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "478888a5-465b-455d-94ab-f06085b0b5a8",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/components/OnboardingChecklist.tsx — Pending sweep — onboarding."
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "056095d9-feb2-4af1-a03b-83bf212dcb1d",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/components/WelcomeProMessage.tsx — Pending sweep — onboarding."
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "d6503632-2a39-4165-bdf6-2840b7b80520",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/components/LoginHistorySection.tsx — Pending sweep — login history UI."
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "669c318b-01b1-4795-949f-330123565a1e",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/components/Academy.tsx — Split: Taskade AI (lesson content) / Cline (data layer) — agree per file in Phase 2."
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "a39ee78f-a48a-4dea-908e-9ed826895c11",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "B3. T3 — Cosmetic / content / static (Taskade AI)",
+                      "attributes": {
+                        "bold": true
+                      }
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "text",
+                  "children": "text"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "de77d288-6a09-4f70-a8a9-635d6754515c",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/components/landing/* (LandingPage, AboutPage, PrivacyPage, TermsPage, ContactPage, HelpPage, CommunityPage, DeveloperPlatformPage, BlogPage, CareersPage, StatusPage, SecurityPage, CookiePolicyPage) — Taskade AI · T3."
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "1765ba5f-15df-47fa-a0b8-2f4043ac24ba",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/pages/NotFound.tsx — Taskade AI · T3."
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "4b48790f-3775-435e-b35d-0256517c4773",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "Legal page content (Terms, Privacy), Academy lesson copy, translations/i18n strings, visual polish — Taskade AI · T3."
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "7516daca-1bac-491e-8bce-542f8071479b",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "app/artifacts/* and app/docs/* — documentation. Do NOT treat the existing artifacts as measured evidence: several are templated sign-offs, not real runs."
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "bc27acef-68fe-4423-a183-f6ab80578101",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "B4. Platform-owned (never edit)",
+                      "attributes": {
+                        "bold": true
+                      }
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "text",
+                  "children": "text"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "bb639a88-3bcc-4912-a13d-0688b3a789b2",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/main.tsx — Platform — never edit."
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "2cd4dba8-c182-411f-b88e-1e2c9b9aac3b",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "index.html — Platform — never edit."
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "438d1bdb-ce12-47b0-9815-0bb5a256279d",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/styles/* — Platform — never edit."
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "68829cf9-0385-4045-bf75-40b21875b4da",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "src/components/ui/* and src/components/blocks/* — Platform — never edit."
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "334cd86f-5b3a-4ae9-9127-766b08d52a2b",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "B5. Sweep status + script",
+                      "attributes": {
+                        "bold": true
+                      }
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "text",
+                  "children": "text"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "a546e44e-a9b5-4a92-a216-2d6ed04476e9",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "Verified by direct read in Batch 1: 15 files import useAuthStore; 5 import authApi; plus the security / cloud / payments / admin / level clusters above (approx. 60 files read in total)."
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "48b7f51c-11a7-4a49-9983-085a1ca2e895",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "Still needed: exact repo-wide counts. Run the commands below in a local checkout of app/src and paste the output — I will fold it into B1–B4 and mark every row verified."
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "6c403382-e73e-4dfa-9dc0-c30d0c2389fa",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "grep -rn --include="
+                    },
+                    {
+                      "insert": ".ts --include=",
+                      "attributes": {
+                        "italic": true
+                      }
+                    },
+                    {
+                      "insert": ".tsx \"\\buseAuthStore\\b\" app/src"
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "155443dd-3928-4870-a8e7-4e1c3d99b432",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "grep -rn --include="
+                    },
+                    {
+                      "insert": ".ts --include=",
+                      "attributes": {
+                        "italic": true
+                      }
+                    },
+                    {
+                      "insert": ".tsx -E \"loginFromSession|refreshAdminCacheFromDb|userMigrationService\" app/src"
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "60556ab7-1015-4c1a-bc99-96966bd9bed8",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "grep -rn --include="
+                    },
+                    {
+                      "insert": ".ts --include=",
+                      "attributes": {
+                        "italic": true
+                      }
+                    },
+                    {
+                      "insert": ".tsx -E \"authApi.\" app/src"
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "73682512-62cd-4401-917b-ce1a5f27fe59",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "grep -rn --include="
+                    },
+                    {
+                      "insert": ".ts --include=",
+                      "attributes": {
+                        "italic": true
+                      }
+                    },
+                    {
+                      "insert": ".tsx -E \"cryptoverse_users|cryptoverse_session|cryptoverse_auth_session|cryptoverse_admin_session|cryptoverse_super_admins|cryptoverse_banned_users|cryptoverse_suspended_users|cryptoverse_admin_section_permissions|cryptoverse_user_view_state\" app/src"
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "77f93f2a-34ac-4e38-980f-02eaad2c5239",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "grep -rn --include="
+                    },
+                    {
+                      "insert": ".ts --include=",
+                      "attributes": {
+                        "italic": true
+                      }
+                    },
+                    {
+                      "insert": ".tsx -E \"passwordHash|verifyPassword|updatePassword|generateOtp|updateUserOtp\" app/src"
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "e3984f93-bc4d-4795-bac2-9b7546fa3ed1",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "grep -rn --include="
+                    },
+                    {
+                      "insert": ".ts --include=",
+                      "attributes": {
+                        "italic": true
+                      }
+                    },
+                    {
+                      "insert": ".tsx -E \"WelcomeGuide|WelcomeProMessage|QuickTour|OnboardingChecklist|isFirstLogin\" app/src"
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "407f2c87-a4ba-4f4b-bba5-85a9f17a92bb",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "grep -rn --include="
+                    },
+                    {
+                      "insert": ".ts --include=",
+                      "attributes": {
+                        "italic": true
+                      }
+                    },
+                    {
+                      "insert": ".tsx -E \"academyStore|useXPSystem\" app/src"
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "3faf43fb-cfec-4770-86f8-1058a783b3fc",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "grep -rn --include="
+                    },
+                    {
+                      "insert": ".ts --include=",
+                      "attributes": {
+                        "italic": true
+                      }
+                    },
+                    {
+                      "insert": ".tsx -E \"adminManagementStore|AdminNotifBell|getMyNotifications\" app/src"
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              }
+            ]
+          },
+          {
+            "type": "text",
+            "id": "09330357-1c39-4826-8940-c851b7e1c92a",
+            "text": {
+              "ops": [
+                {
+                  "insert": "C. HANDOFF LOG"
+                },
+                {
+                  "insert": "\n",
+                  "attributes": {
+                    "paragraph": true
+                  }
+                }
+              ]
+            },
+            "format": {
+              "node": "h2",
+              "children": "text"
+            },
+            "collapsed": false,
+            "completed": false,
+            "children": [
+              {
+                "type": "text",
+                "id": "e6a311d8-c942-44a7-b273-75cf7ed7100e",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "Format: date · file · requested change · requester · status"
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "254e2b1d-57ce-44cb-bea7-a4e4020234ed",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "2026-09-14 · src/lib/identityEngine.ts · ROLE_LEVEL is a Record<UserRole, IdentityLevel> missing the developer key, so the owner's role resolves to an undefined level (and capabilitiesFor tests for 'developer' it can never receive) · Cline · OPEN (owner: Cline)."
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "bd65d3fa-8bf0-41b4-8c05-d8c2095c405f",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "2026-09-14 · src/lib/identityEngine.ts · getIdentity() hardcodes status: 'active', so banned/suspended users read as active inside Lynx · Cline · OPEN."
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "1dcf5682-6c5e-4a07-9bde-18a3d3804f11",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "2026-09-14 · src/lib/security/sessionManager.ts + src/lib/authApi.ts · both write localStorage key cryptoverse_auth_session with DIFFERENT shapes, and readers dereference metadata.* → rename one key in Batch 6 · Cline · OPEN."
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "460c5e6e-b4b8-43dd-9a1d-14cf3f80bc56",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "2026-09-14 · src/lib/accessControl.ts · getAccessLevel() maps only admin/super_admin, so developer (owner) is treated as USER · Cline · OPEN (file is deprecated; deletion preferred)."
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "d2725ed3-56cc-4732-9abf-b86736c8d8fe",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "2026-09-14 · level model · academyStore (10 tiers Novice…Transcendent, floor(XP/1000)+1, clamp 1–10) plus useSectionAccess.SECTION_REQUIREMENTS (1–10) conflict with the planned skill_level 1..4 + level_label. One mapping decision needed BEFORE Batch 2/3 · OWNER · BLOCKING for the level contract."
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "2a5575da-60cf-4b26-a941-f4c930c5017d",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "2026-09-14 · src/hooks/useSubscriptionAccess.ts · reads authStore.user.plan; must switch to server entitlements (mapping: ['pro'] → PlanId 'pro') · Cline · Batch 4."
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "8f97f528-44f8-4313-920b-3754b59a50a5",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "2026-09-14 · src/routes/AdminRoutes.tsx · SectionGuard falls back to legacy localStorage (level + cryptoverse_super_admins) when the server identity is unresolved → bypass window · Cline · Batch 7."
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "fedbd109-5846-4ec5-9e08-e51be4c53770",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "2026-09-14 · payments · POST /api/payments/create returns \"Payment provider is temporarily unavailable\"; the Taskade IPN flow only LOGS the payment, so fulfilment must be server-side and the IPN URL must point at the Render API · OWNER · OPEN (server-side)."
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "d48a7fcf-5734-4235-8edc-0e53810aa95b",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "2026-09-14 · src/routes/RouteWrappers.tsx · Gate requires a PlanId; with the new entitlements[] contract, map entitlements → PlanId centrally in the matrix module · Cline · Batch 4."
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              }
+            ]
+          },
+          {
+            "type": "text",
+            "id": "0ee87d09-cde3-4ee5-a0cb-32a4b91dc8ad",
+            "text": {
+              "ops": [
+                {
+                  "insert": "D. PHASE LOG"
+                },
+                {
+                  "insert": "\n",
+                  "attributes": {
+                    "paragraph": true
+                  }
+                }
+              ]
+            },
+            "format": {
+              "node": "h2",
+              "children": "text"
+            },
+            "collapsed": false,
+            "completed": false,
+            "children": [
+              {
+                "type": "text",
+                "id": "c5d68757-a52f-4de0-871f-e35297c794ea",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "Format: phase · batch · modified files · verification · approval status"
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "7a3698de-2b48-4984-a9bf-f275eae217bb",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "0.5 · Batch 1 (sweep + ownership) · Created projects/memory/OWNERSHIP.md (no code files touched) · Sweep partially verified by reading; grep unavailable in-space (script in B5) · Awaiting owner approval before Batch 2."
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "9160a49e-e9cc-4996-ba77-0ca51e6fc63e",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "0.5 · Batch 2 (SQL) · Not started · — · Blocked on the level-model decision in Section C."
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "preferences": {
+    "avatar": {
+      "type": "emoji",
+      "value": "📔"
+    }
+  }
+}

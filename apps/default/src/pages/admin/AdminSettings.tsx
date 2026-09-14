@@ -23,11 +23,14 @@ import {
   useAdminPricingStore, DEFAULT_PLAN_PRICES, EDITABLE_PLAN_IDS, type EditablePlanId,
   DEFAULT_CP_PACKAGE_PRICES, EDITABLE_CP_PACKAGE_IDS, type EditableCpPackageId,
 } from '@/lib/adminPricingStore';
+import { hasFullAdminAccess, useAdminIdentity } from '@/lib/adminApi';
 
+// NOTE: the keys MUST match EditablePlanId ('pro' | 'pro_plus'). They previously
+// read silver/gold/platinum, so PLAN_META[planId] was undefined and every render
+// crashed with "Cannot read properties of undefined (reading 'color')".
 const PLAN_META: Record<EditablePlanId, { name: string; emoji: string; color: string }> = {
-  silver:   { name: 'Silver',   emoji: '🥈', color: '#94a3b8' },
-  gold:     { name: 'Gold',     emoji: '🥇', color: '#f59e0b' },
-  platinum: { name: 'Platinum', emoji: '💎', color: '#7c3aed' },
+  pro:      { name: 'Pro',  emoji: '⭐', color: '#3b82f6' },
+  pro_plus: { name: 'Pro+', emoji: '👑', color: '#f59e0b' },
 };
 
 const CP_PKG_META: Record<EditableCpPackageId, { name: string; emoji: string; color: string; cpAmount: number }> = {
@@ -300,9 +303,12 @@ function ChangeLog() {
 export function AdminSettings() {
   const { session }       = useAdminAuthStore();
   const { user: appUser } = useAuthStore();
+  const identity          = useAdminIdentity();
 
-  const isSuperAdmin = session?.level === 6 || appUser?.role === 'super_admin';
-  const actor = session?.displayName ?? appUser?.displayName ?? 'Super Admin';
+  const isSuperAdmin = hasFullAdminAccess(identity?.role)
+    || session?.level === 6
+    || appUser?.role === 'super_admin';
+  const actor = identity?.email || session?.displayName || appUser?.displayName || 'Super Admin';
 
   if (!isSuperAdmin) return <SuperAdminOnly403 />;
 
@@ -319,7 +325,7 @@ export function AdminSettings() {
               SUPER ADMIN
             </span>
           </h1>
-          <p className="text-[11px] text-white/35">Change what Silver / Gold / Platinum cost — no deploy needed</p>
+          <p className="text-[11px] text-white/35">Change what Pro / Pro+ cost — no deploy needed</p>
         </div>
       </div>
 

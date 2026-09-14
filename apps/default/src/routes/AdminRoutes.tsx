@@ -22,7 +22,6 @@ import { AdminSentiment } from '../components/admin/portal/pages/AdminSentiment'
 import { AdminExchangeManagement } from '../components/admin/portal/pages/AdminExchangeManagement';
 import { AdminSubscriptions } from '../components/admin/portal/pages/AdminSubscriptions';
 import { AdminRevenueDashboard } from '../components/admin/portal/pages/AdminRevenueDashboard';
-import { AdminRoleManagement } from '../components/admin/portal/pages/AdminRoleManagement';
 import { AdminApiManagement } from '../pages/admin/AdminApiManagement';
 import { AdminSettings } from '../pages/admin/AdminSettings';
 import { CloudDashboardPage } from '../pages/admin/CloudDashboardPage';
@@ -34,7 +33,7 @@ import { AdminAnalytics } from '../pages/admin/AdminAnalytics';
 import { useAdminAuthStore } from '../lib/adminAuthStore';
 import { useAuthStore } from '../lib/authStore';
 import { hasAccess, type AdminSectionId } from '../lib/adminPortalStore';
-import { ApiForbiddenError, fetchAdminRole, isAdminRole } from '../lib/adminApi';
+import { ALLOWED_ADMIN_ROLES, ApiForbiddenError, fetchAdminRole, isAdminRole, hasFullAdminAccess, useAdminIdentity } from '../lib/adminApi';
 
 export function Forbidden403() {
   return (
@@ -48,9 +47,26 @@ export function Forbidden403() {
   );
 }
 
+/**
+ * Section gate. Authorization is driven by the SERVER role (GET /api/me):
+ *   • developer         → every section
+ *   • other admin roles → only the Subscriptions tool (the nav hides the rest)
+ * The legacy adminAuthStore level / Taskade section grants remain as a fallback.
+ */
 function SectionGuard({ section, children }: { section: AdminSectionId; children: React.ReactElement }) {
+  const identity = useAdminIdentity();
   const { session } = useAdminAuthStore();
   const appUser = useAuthStore(state => state.user);
+
+  // Owner tier (developer / founder / super_admin) — unrestricted.
+  if (hasFullAdminAccess(identity?.role)) return children;
+
+  // A resolved non-developer server role is scoped to Subscriptions only.
+  if (identity) {
+    return section === 'subscriptions' ? children : <Navigate to="/admin/403" replace />;
+  }
+
+  // Server identity not resolved (or a legacy admin session) → legacy checks.
   const sharedRoleLevel = appUser?.role === 'super_admin' || appUser?.role === 'founder'
     ? 6
     : appUser?.role === 'senior_admin'
@@ -94,18 +110,27 @@ function ServerAdminGuard({ children }: { children: React.ReactElement }) {
 
   useEffect(() => {
     let canceled = false;
+    // Record WHY we bounce, then let the login page show it — a silent redirect
+    // makes an expired cookie and a role mismatch indistinguishable.
+    const deny = (reason: string) => {
+      try { sessionStorage.setItem('cv_admin_denied_reason', reason); } catch { /* ignore */ }
+      if (!canceled) { setDetail(reason); setState('denied'); }
+    };
+
     (async () => {
       try {
         const admin = await fetchAdminRole();
-        if (!isAdminRole(admin.role)) {
-          if (!canceled) setState('denied');
+        if (isAdminRole(admin.role)) {
+          if (!canceled) setState('ok');
           return;
         }
-        if (!canceled) setState('ok');
+        deny(admin.role
+          ? `Signed in, but your role "${admin.role}" is not allowed here. Allowed roles: ${ALLOWED_ADMIN_ROLES.join(', ')}.`
+          : 'Signed in, but GET /api/me returned no role — the session was probably not accepted (the auth cookie was not sent).');
       } catch (err) {
         if (canceled) return;
         if (err instanceof ApiForbiddenError) {
-          setState('denied');
+          deny('GET /api/me returned 401/403 — your admin session was not accepted (the auth cookie was missing or rejected).');
         } else {
           setDetail((err as Error).message);
           setState('error');
@@ -159,7 +184,8 @@ export function AdminRoutes() {
         <Route path="exchange" element={<AdminExchangeManagement />} />
         <Route path="subscriptions" element={<SubscriptionAdminGuard><AdminSubscriptions /></SubscriptionAdminGuard>} />
         <Route path="revenue" element={<AdminRevenueDashboard />} />
-        <Route path="role-management" element={<AdminRoleManagement />} />
+        {/* Role Management was merged into the Users section — keep old links working. */}
+        <Route path="role-management" element={<Navigate to="/admin/users" replace />} />
         <Route path="api-management" element={<AdminApiManagement />} />
         <Route path="settings" element={<AdminSettings />} />
         <Route path="cloud" element={<CloudDashboardPage />} />

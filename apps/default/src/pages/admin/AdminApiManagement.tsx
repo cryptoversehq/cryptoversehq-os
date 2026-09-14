@@ -39,6 +39,7 @@ import {
   getRecentAuditLog,
   type AuditAction, type AuditLogEntry,
 } from '@/lib/apiManagementService';
+import { hasFullAdminAccess, useAdminIdentity } from '@/lib/adminApi';
 
 // ─── Status meta ──────────────────────────────────────────────────────────────
 
@@ -638,9 +639,12 @@ export function AdminApiManagement() {
   const testAll  = useApiMgmtStore(s => s.testAll);
   const healthOf = useApiMgmtStore(s => s.healthOf);
 
-  // ── Access control: SUPER ADMIN ONLY (Level 6) ──
-  const isSuperAdmin = session?.level === 6 || appUser?.role === 'super_admin';
-  const actor = appUser?.email ?? session?.displayName ?? 'Super Admin';
+  // ── Access control: Developer (server role) or legacy Super Admin (Level 6) ──
+  const identity = useAdminIdentity();
+  const isSuperAdmin = hasFullAdminAccess(identity?.role)
+    || session?.level === 6
+    || appUser?.role === 'super_admin';
+  const actor = identity?.email || appUser?.email || session?.displayName || 'Super Admin';
 
   // ── Modal state ──
   const [modalOpen, setModalOpen]   = useState(false);

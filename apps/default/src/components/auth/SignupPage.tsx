@@ -121,17 +121,38 @@ export function SignupPage() {
       }, 800);
     } catch (err: any) {
       console.error('[SignupPage]', err);
-      const message = err?.message ?? 'Something went wrong. Please try again.';
-      if (message.toLowerCase().includes('already exists')) {
+      const message = String(err?.message ?? 'Something went wrong. Please try again.');
+
+      if (/already exists/i.test(message)) {
+        // A registered address can still be unusable (an interrupted signup, or
+        // a password state the account owner never finished). Offer both
+        // recoveries instead of a dead end.
         setError(
           <span>
             <span>This email is already registered.</span>{' '}
-            <Link to="/login" className="text-primary underline font-medium">Log in instead</Link>.
+            <Link to="/login" className="text-primary underline font-medium">Log in instead</Link>
+            {' '}— or{' '}
+            <Link to="/forgot-password" className="text-primary underline font-medium">reset your password</Link>
+            {' '}if you never completed the setup.
           </span>,
         );
-      } else {
-        setError(message);
+        return;
       }
+
+      // A transport/roster failure is neither the user's fault nor a validation
+      // problem: say what actually happened instead of leaking a platform error
+      // string, and make clear the account was NOT created so retrying is safe.
+      if (/platform transport|account service|failed to fetch|network|timed out|abort/i.test(message)) {
+        setError(
+          <span>
+            We couldn&apos;t reach the account service, so no account was created.
+            {' '}Please check your connection and try again in a moment.
+          </span>,
+        );
+        return;
+      }
+
+      setError(message);
     } finally {
       setLoading(false);
     }

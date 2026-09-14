@@ -6310,6 +6310,1139 @@
                 ]
               }
             ]
+          },
+          {
+            "type": "text",
+            "id": "d5af7ca8-45a4-4692-bb39-d8ad01d21edd",
+            "text": {
+              "ops": [
+                {
+                  "insert": "🏆 Weekly Highlights"
+                },
+                {
+                  "insert": "\n",
+                  "attributes": {
+                    "paragraph": true
+                  }
+                }
+              ]
+            },
+            "format": {
+              "node": "checkbox",
+              "children": null
+            },
+            "collapsed": false,
+            "completed": false,
+            "children": [
+              {
+                "type": "text",
+                "id": "42d5a26f-8ea8-49e2-8807-9aa1d247b602",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "Top performer: Alpha Republic",
+                      "attributes": {
+                        "bold": true
+                      }
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "text",
+                  "children": "text"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "96607f92-f130-434a-856f-e34ab995de4b",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "Alpha Republic takes the crown this week with the strongest "
+                    },
+                    {
+                      "insert": "weekly PnL at +18.4%",
+                      "attributes": {
+                        "bold": true
+                      }
+                    },
+                    {
+                      "insert": " and the "
+                    },
+                    {
+                      "insert": "highest win rate at 78.4%",
+                      "attributes": {
+                        "bold": true
+                      }
+                    },
+                    {
+                      "insert": ". Its "
+                    },
+                    {
+                      "insert": "quant trading style",
+                      "attributes": {
+                        "bold": true
+                      }
+                    },
+                    {
+                      "insert": " is clearly converting signal into consistent edge, giving it the best blend of performance and precision in the CryptoVerse."
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "text",
+                  "children": "text"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              }
+            ]
+          },
+          {
+            "type": "text",
+            "id": "1a800b61-2bdd-4b93-8438-142e3087748b",
+            "text": {
+              "ops": [
+                {
+                  "insert": "🟥 Alpha Republic"
+                },
+                {
+                  "insert": "\n",
+                  "attributes": {
+                    "paragraph": true
+                  }
+                }
+              ]
+            },
+            "format": {
+              "node": "h1",
+              "children": "text"
+            },
+            "collapsed": false,
+            "completed": false,
+            "children": [
+              {
+                "type": "text",
+                "id": "59221480-6ebe-4eda-8044-43dc5d150efe",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "Rank:",
+                      "attributes": {
+                        "bold": true
+                      }
+                    },
+                    {
+                      "insert": " #1"
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "c5a9783d-3dc2-4266-9517-8d84f69002c3",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "Win Rate:",
+                      "attributes": {
+                        "bold": true
+                      }
+                    },
+                    {
+                      "insert": " 78.4%"
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "0d769d7d-dc1f-469e-ace8-c4c04b7f4470",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "Weekly PnL:",
+                      "attributes": {
+                        "bold": true
+                      }
+                    },
+                    {
+                      "insert": " +18.4%"
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "83ed4b40-318f-4b1f-b40c-1368dd6ca25b",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "Members:",
+                      "attributes": {
+                        "bold": true
+                      }
+                    },
+                    {
+                      "insert": " 2,841"
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "c8061531-d9e2-4da2-bd40-ec56d308f22f",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "Style:",
+                      "attributes": {
+                        "bold": true
+                      }
+                    },
+                    {
+                      "insert": " Quant trading"
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "0871b9a5-1789-40b4-9550-b02b51402597",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "Read:",
+                      "attributes": {
+                        "bold": true
+                      }
+                    },
+                    {
+                      "insert": " Fast, disciplined, and algorithmically lethal. Alpha Republic is setting the pace for the entire season."
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "text",
+                  "children": "text"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              }
+            ]
+          },
+          {
+            "type": "text",
+            "id": "363542ac-c09f-443e-843c-071819beb696",
+            "text": {
+              "ops": [
+                {
+                  "insert": "🟦 Bull Empire"
+                },
+                {
+                  "insert": "\n",
+                  "attributes": {
+                    "paragraph": true
+                  }
+                }
+              ]
+            },
+            "format": {
+              "node": "h1",
+              "children": "text"
+            },
+            "collapsed": false,
+            "completed": false,
+            "children": [
+              {
+                "type": "text",
+                "id": "3e80f0cf-abe3-4801-acee-2a42379ae38e",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "Rank:",
+                      "attributes": {
+                        "bold": true
+                      }
+                    },
+                    {
+                      "insert": " #2"
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "370a3a79-b39a-439b-89d6-87f5cef04d7e",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "Win Rate:",
+                      "attributes": {
+                        "bold": true
+                      }
+                    },
+                    {
+                      "insert": " 74.1%"
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "2ebcc616-5dfc-4b5f-b435-a95094c5be3a",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "Weekly PnL:",
+                      "attributes": {
+                        "bold": true
+                      }
+                    },
+                    {
+                      "insert": " +14.2%"
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "5b089f98-a3c4-4e28-bcfd-f81d0523f5dd",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "Members:",
+                      "attributes": {
+                        "bold": true
+                      }
+                    },
+                    {
+                      "insert": " 3,102"
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "b016d115-d693-4179-bf25-3b12dac2d81c",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "Style:",
+                      "attributes": {
+                        "bold": true
+                      }
+                    },
+                    {
+                      "insert": " Long-only"
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "9fa74608-a891-40a4-9795-b9983728a235",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "Read:",
+                      "attributes": {
+                        "bold": true
+                      }
+                    },
+                    {
+                      "insert": " The largest nation by membership, Bull Empire is winning with scale and conviction. Strong upside exposure keeps them in striking distance."
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "text",
+                  "children": "text"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              }
+            ]
+          },
+          {
+            "type": "text",
+            "id": "5769c434-6e98-4317-a957-272cc1cc75fb",
+            "text": {
+              "ops": [
+                {
+                  "insert": "🟨 Sigma Order"
+                },
+                {
+                  "insert": "\n",
+                  "attributes": {
+                    "paragraph": true
+                  }
+                }
+              ]
+            },
+            "format": {
+              "node": "h1",
+              "children": "text"
+            },
+            "collapsed": false,
+            "completed": false,
+            "children": [
+              {
+                "type": "text",
+                "id": "9cd85a17-c0e5-4a10-a4e5-bc13bddbd028",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "Rank:",
+                      "attributes": {
+                        "bold": true
+                      }
+                    },
+                    {
+                      "insert": " #3"
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "760ff947-d657-4fee-af60-6e9fb425cf07",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "Win Rate:",
+                      "attributes": {
+                        "bold": true
+                      }
+                    },
+                    {
+                      "insert": " 70.8%"
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "c8caebce-9ebd-4499-a3b8-40b8230a3fc0",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "Weekly PnL:",
+                      "attributes": {
+                        "bold": true
+                      }
+                    },
+                    {
+                      "insert": " +9.7%"
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "5dc50504-562c-43dd-a798-35fe23a34b57",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "Members:",
+                      "attributes": {
+                        "bold": true
+                      }
+                    },
+                    {
+                      "insert": " 1,977"
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "57ac8722-1469-4205-919d-14d7151f4e2b",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "Style:",
+                      "attributes": {
+                        "bold": true
+                      }
+                    },
+                    {
+                      "insert": " Arbitrage"
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "2502a6d4-18ce-4b17-bd99-5a66262e879b",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "Read:",
+                      "attributes": {
+                        "bold": true
+                      }
+                    },
+                    {
+                      "insert": " Quietly dangerous. Sigma’s edge is efficiency—less flashy, but consistently grinding out gains."
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "text",
+                  "children": "text"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              }
+            ]
+          },
+          {
+            "type": "text",
+            "id": "450af9f5-7167-410b-9523-f0cf5aaf2a2b",
+            "text": {
+              "ops": [
+                {
+                  "insert": "🟩 Bear Collective"
+                },
+                {
+                  "insert": "\n",
+                  "attributes": {
+                    "paragraph": true
+                  }
+                }
+              ]
+            },
+            "format": {
+              "node": "h1",
+              "children": "text"
+            },
+            "collapsed": false,
+            "completed": false,
+            "children": [
+              {
+                "type": "text",
+                "id": "596b9a5e-5f23-4884-95b9-679f02084ce8",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "Rank:",
+                      "attributes": {
+                        "bold": true
+                      }
+                    },
+                    {
+                      "insert": " #4"
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "e0c49d11-d59c-40fc-8c3f-f83eb2a2a684",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "Win Rate:",
+                      "attributes": {
+                        "bold": true
+                      }
+                    },
+                    {
+                      "insert": " 65.3%"
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "ad466c5e-a914-4600-8092-a1e02141bb77",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "Weekly PnL:",
+                      "attributes": {
+                        "bold": true
+                      }
+                    },
+                    {
+                      "insert": " -3.2%"
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "b2366d0b-9b81-4c8b-81f1-154c534e7412",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "Members:",
+                      "attributes": {
+                        "bold": true
+                      }
+                    },
+                    {
+                      "insert": " 1,430"
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "346d5190-ee60-4ac6-b3f8-ccab974941d2",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "Style:",
+                      "attributes": {
+                        "bold": true
+                      }
+                    },
+                    {
+                      "insert": " Short-selling"
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "bullet",
+                  "children": "bullet"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "2f7f9e37-14ff-46f3-9e1b-a6b06ed9a7fe",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "Read:",
+                      "attributes": {
+                        "bold": true
+                      }
+                    },
+                    {
+                      "insert": " A rough week for the bears. Their downside calls missed the mark, and the negative PnL is a warning shot."
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "text",
+                  "children": "text"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              }
+            ]
+          },
+          {
+            "type": "text",
+            "id": "d23c45a0-4b59-4eed-87c4-6a67c7a37138",
+            "text": {
+              "ops": [
+                {
+                  "insert": "⚔️ Faction War Update"
+                },
+                {
+                  "insert": "\n",
+                  "attributes": {
+                    "paragraph": true
+                  }
+                }
+              ]
+            },
+            "format": {
+              "node": "h1",
+              "children": "text"
+            },
+            "collapsed": false,
+            "completed": false,
+            "children": [
+              {
+                "type": "text",
+                "id": "ffd34755-aeb1-4361-906a-594456e549cd",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "Alpha Republic leads Bull Empire 54.2% to 45.8% in Season 4.",
+                      "attributes": {
+                        "bold": true
+                      }
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "text",
+                  "children": "text"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              }
+            ]
+          },
+          {
+            "type": "text",
+            "id": "208fe7dc-310b-4783-9ff0-208df69614b9",
+            "text": {
+              "ops": [
+                {
+                  "insert": "🔮 Nation Oracle Prediction"
+                },
+                {
+                  "insert": "\n",
+                  "attributes": {
+                    "paragraph": true
+                  }
+                }
+              ]
+            },
+            "format": {
+              "node": "h1",
+              "children": "text"
+            },
+            "collapsed": false,
+            "completed": false,
+            "children": [
+              {
+                "type": "text",
+                "id": "2b13b777-204f-41d5-b638-a8956092b8e9",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "Winner: Alpha Republic.",
+                      "attributes": {
+                        "bold": true
+                      }
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "text",
+                  "children": "text"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "597bf73c-622d-4037-b9b1-9b490a5200a0",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "Why? Best win rate, best weekly PnL, and the most battle-tested trading engine. Bull Empire has the size to rally, but Alpha’s quant consistency gives them the cleaner path to victory."
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "text",
+                  "children": "text"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              }
+            ]
+          },
+          {
+            "type": "text",
+            "id": "43472afb-fe14-4f6c-afb3-729eee394438",
+            "text": {
+              "ops": [
+                {
+                  "insert": "💡 Trading Tip of the Week"
+                },
+                {
+                  "insert": "\n",
+                  "attributes": {
+                    "paragraph": true
+                  }
+                }
+              ]
+            },
+            "format": {
+              "node": "h1",
+              "children": "text"
+            },
+            "collapsed": false,
+            "completed": false,
+            "children": [
+              {
+                "type": "text",
+                "id": "18916200-a70a-4e5b-a7be-004e02af79dd",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "Follow performance, not hype.",
+                      "attributes": {
+                        "bold": true
+                      }
+                    },
+                    {
+                      "insert": " In volatile markets, the best nations win by controlling losses first and letting edge compound over time."
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "text",
+                  "children": "text"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              },
+              {
+                "type": "text",
+                "id": "68887ae8-cc5d-4de6-8837-40078cb3aff4",
+                "text": {
+                  "ops": [
+                    {
+                      "insert": "For the glory of your nation! ⚔️",
+                      "attributes": {
+                        "bold": true
+                      }
+                    },
+                    {
+                      "insert": "\n",
+                      "attributes": {
+                        "paragraph": true
+                      }
+                    }
+                  ]
+                },
+                "format": {
+                  "node": "text",
+                  "children": "text"
+                },
+                "collapsed": false,
+                "completed": false,
+                "children": []
+              }
+            ]
           }
         ]
       }

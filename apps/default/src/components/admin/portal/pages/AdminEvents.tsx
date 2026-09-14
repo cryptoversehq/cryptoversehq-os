@@ -19,6 +19,7 @@ import { useEventsStore } from '../../../events/eventStore';
 import { LiveEvent, EventType, EventStatus } from '../../../events/eventTypes';
 import { useAdminAuthStore } from '@/lib/adminAuthStore';
 import { useAuthStore } from '@/lib/authStore';
+import { hasFullAdminAccess, useAdminIdentity } from '@/lib/adminApi';
 import { toast } from 'sonner';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -562,8 +563,11 @@ export function AdminEvents() {
   // login form (adminAuthStore.session is null) isn't treated as Level 0
   // and blocked here — this was the root cause of superadmins seeing
   // "Level 4+ admin access required."
-  const adminLevel = session?.level
-    ?? (appUser?.role === 'super_admin' ? 6 : appUser?.role === 'admin' ? 3 : 1);
+  const identity = useAdminIdentity();
+  const adminLevel = hasFullAdminAccess(identity?.role)
+    ? 6
+    : (session?.level
+      ?? (appUser?.role === 'super_admin' ? 6 : appUser?.role === 'admin' ? 3 : 1));
   if (adminLevel < 4) {
     return (
       <div className="p-6 flex items-center gap-3 rounded-2xl bg-red-500/5 border border-red-500/20">

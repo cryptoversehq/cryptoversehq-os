@@ -15,7 +15,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { AlertCircle, ArrowLeft, ChevronRight, KeyRound, Loader2, Mail, RefreshCw, Shield } from 'lucide-react';
 import { CryptoVerseLogo } from '@/components/CryptoVerseLogo';
-import { ApiForbiddenError, RENDER_API_BASE, sendOtp, verifyOtp } from '@/lib/adminApi';
+import { ApiForbiddenError, RENDER_API_BASE, clearAdminSessionCache, sendOtp, verifyOtp } from '@/lib/adminApi';
 
 const RESEND_COOLDOWN_SECONDS = 30;
 
@@ -40,6 +40,18 @@ export function AdminLogin() {
     const t = setTimeout(() => setCooldown(c => c - 1), 1000);
     return () => clearTimeout(t);
   }, [cooldown]);
+
+  // Surface why the previous admin session was rejected (written by
+  // ServerAdminGuard just before it bounced us here), then clear it.
+  useEffect(() => {
+    try {
+      const reason = sessionStorage.getItem('cv_admin_denied_reason');
+      if (reason) {
+        setError(reason);
+        sessionStorage.removeItem('cv_admin_denied_reason');
+      }
+    } catch { /* ignore */ }
+  }, []);
 
   /** Request a code. Returns true only when the server confirmed the send. */
   const sendCode = async (): Promise<boolean> => {
@@ -85,7 +97,10 @@ export function AdminLogin() {
     setError(null);
     try {
       await verifyOtp(normalizedEmail, code.trim());
-      // Cookie session is set. The route guard re-verifies the role server-side.
+      // Drop any identity cached before login (e.g. a "not signed in" read from an
+      // earlier /admin page load) so the guard and the portal layout re-read the
+      // fresh session instead of a stale value.
+      clearAdminSessionCache();
       navigate('/admin/subscriptions', { replace: true });
     } catch (err) {
       setError(

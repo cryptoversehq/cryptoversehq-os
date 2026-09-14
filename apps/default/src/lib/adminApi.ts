@@ -48,7 +48,8 @@ async function request(path: string, init: RequestInit = {}): Promise<Response> 
     }
     throw new Error(
       `Could not reach the API at ${RENDER_API_BASE}. ` +
-      `This is usually a network/CORS problem or the service is asleep — please try again.`,
+      `The connection was refused or failed — the backend is most likely down, still deploying, ` +
+      `or the URL has changed. Check the Render service (Status + Logs), then try again.`,
     );
   } finally {
     clearTimeout(timer);
@@ -129,12 +130,37 @@ export interface AdminIdentity {
   email: string;
 }
 
-/** Roles permitted anywhere in the admin portal. */
-export const ALLOWED_ADMIN_ROLES = ['developer', 'subscription_admin', 'support_admin'] as const;
+/**
+ * Roles permitted anywhere in the admin portal. `founder` / `super_admin` are
+ * accepted so the project owner is never locked out at the door if the backend
+ * returns one of those owner-tier names instead of `developer`.
+ */
+export const ALLOWED_ADMIN_ROLES = ['developer', 'founder', 'super_admin', 'subscription_admin', 'support_admin'] as const;
+
+/** Owner-tier roles with UNRESTRICTED access to the whole admin panel. */
+export const FULL_ACCESS_ROLES = ['developer', 'founder', 'super_admin'] as const;
+
+/** True for an owner-tier role (every section + role/API/pricing tools). */
+export function hasFullAdminAccess(role: string | null | undefined): boolean {
+  return !!role && (FULL_ACCESS_ROLES as readonly string[]).includes(normalizeRole(role));
+}
+
+/** Normalize a role string: trim, lowercase, and "Support-Admin" → "support_admin". */
+export function normalizeRole(role: unknown): string {
+  return typeof role === 'string' ? role.trim().toLowerCase().replace(/[\s-]+/g, '_') : '';
+}
 
 /** True when the role may use the admin portal at all. */
 export function isAdminRole(role: string | null | undefined): boolean {
-  return !!role && (ALLOWED_ADMIN_ROLES as readonly string[]).includes(role);
+  return !!role && (ALLOWED_ADMIN_ROLES as readonly string[]).includes(normalizeRole(role));
+}
+
+/**
+ * True for the project Developer — the only server role with UNRESTRICTED admin
+ * panel access (every section, Role Management, API Management, Pricing).
+ */
+export function isDeveloperRole(role: string | null | undefined): boolean {
+  return normalizeRole(role) === 'developer';
 }
 
 /** Current user's role + email from GET /api/me. */
@@ -142,10 +168,25 @@ export async function fetchAdminRole(): Promise<AdminIdentity> {
   const res = await request('/api/me', { headers: { Accept: 'application/json' } });
   if (res.status === 401 || res.status === 403) throw new ApiForbiddenError();
   if (!res.ok) throw await readError(res, `Failed: ${res.status}`);
-  const data = await readJson<{ user?: { role?: string; email?: string } | null }>(res, '/api/me');
-  // Tolerate a missing user object: an empty role is not an admin role, so the
-  // caller denies rather than crashing on `data.user.role`.
-  return { role: data?.user?.role ?? '', email: data?.user?.email ?? '' };
+  const data = await readJson<{
+    role?: string;
+    email?: string;
+    user?: { role?: string; email?: string } | null;
+    session?: { user?: { role?: string; email?: string } | null } | null;
+  }>(res, '/api/me');
+  // Accept the role wherever the backend puts it: `user.role` (Better Auth
+  // shape), `session.user.role`, or a top-level `role`. Normalized so
+  // "Support-Admin" / "support admin" still match the allowlist.
+  const role  = data?.user?.role ?? data?.session?.user?.role ?? data?.role ?? '';
+  const email = data?.user?.email ?? data?.session?.user?.email ?? data?.email ?? '';
+  const identity: AdminIdentity = { role: normalizeRole(role), email: String(email) };
+  // Prime the shared cache so anything that reads it on the next render (the
+  // portal nav, ServerAdminGuard's children, SectionGuard, the pages) sees the
+  // real role on its FIRST paint instead of a transient "no role" that would
+  // flash a 403. ServerAdminGuard always calls this before rendering children.
+  _identity = identity;
+  _identityLoaded = true;
+  return identity;
 }
 
 let _identityLoaded = false;
@@ -192,6 +233,16 @@ export async function apiGet<T>(path: string): Promise<T> {
   if (res.status === 401 || res.status === 403) throw new ApiForbiddenError();
   if (!res.ok) throw await readError(res, `Failed: ${res.status}`);
   return readJson<T>(res, path);
+}
+
+/** Authenticated DELETE (cookie session). 401/403 → ApiForbiddenError. */
+export async function apiDelete<T = unknown>(path: string): Promise<T> {
+  const res = await request(path, { method: 'DELETE', headers: { Accept: 'application/json' } });
+  if (res.status === 401 || res.status === 403) throw new ApiForbiddenError();
+  if (!res.ok) throw await readError(res, `Failed: ${res.status}`);
+  const raw = await res.text().catch(() => '');
+  if (!raw.trim()) return undefined as unknown as T;   // 204 / empty body is fine
+  try { return JSON.parse(raw) as T; } catch { return undefined as unknown as T; }
 }
 
 /** Authenticated POST (cookie session). 401/403 → ApiForbiddenError. */

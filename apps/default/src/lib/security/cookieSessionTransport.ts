@@ -23,18 +23,11 @@ export interface EnterpriseSessionToken {
   expiresAt: number;
 }
 
-async function getCsrfToken(): Promise<string> {
-  const response = await fetch('/api/auth/csrf', {
-    method: 'GET',
-    credentials: 'include',
-    headers: { Accept: 'application/json' },
-  });
-  const body = await response.json().catch(() => ({})) as { csrfToken?: unknown };
-  if (!response.ok || typeof body.csrfToken !== 'string' || body.csrfToken.length < 16) {
-    throw new Error('Unable to establish a CSRF-protected session.');
-  }
-  return body.csrfToken;
-}
+// NOTE: no CSRF token is requested or sent anywhere in this module. Better Auth
+// (which replaced Supabase Auth) exposes no CSRF endpoint — probing it returns
+// 404 — and protects cookie session requests with Origin checking,
+// `SameSite=None; Secure` cookies and Fetch Metadata headers. Sending
+// `credentials: 'include'` is all that is required.
 
 class EnterpriseCookieSessionTransport {
   private inMemorySession: EnterpriseSessionToken | null = null;
@@ -51,11 +44,10 @@ class EnterpriseCookieSessionTransport {
 
     this.inMemorySession = session;
     try {
-      const csrfToken = await getCsrfToken();
       await fetch('/api/taskade/auth/session', {
         method: 'POST',
         credentials: 'include',
-        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(session),
       }).then((response) => {
         if (!response.ok) throw new Error('Gateway session rejected.');
@@ -101,11 +93,9 @@ class EnterpriseCookieSessionTransport {
   async clearSession(email: string): Promise<void> {
     this.inMemorySession = null;
     try {
-      const csrfToken = await getCsrfToken();
       await fetch('/api/taskade/auth/session', {
         method: 'DELETE',
         credentials: 'include',
-        headers: { 'X-CSRF-Token': csrfToken },
       }).then((response) => {
         if (!response.ok) throw new Error('Gateway logout rejected.');
       });

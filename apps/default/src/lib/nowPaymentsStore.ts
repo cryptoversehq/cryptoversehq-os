@@ -7,6 +7,7 @@ import {
   getPaymentHistory,
   verifyPayment,
   makeOrderId,
+  PaymentRequestError,
   type NowPaymentResponse,
   type PaymentHistoryRecord,
   type PaymentStatus as ApiPaymentStatus,
@@ -62,8 +63,8 @@ interface NowPaymentsState {
   payments: LocalPaymentRecord[];
   checkoutStatus: PaymentStatus;
   lastError: string | null;
-  initiateCheckout: (params: { userId: string; itemId: string; amountUSD?: number; itemLabel?: string; payCurrency?: string; successUrl?: string; cancelUrl?: string; userEmail?: string; userName?: string }) => Promise<{ ok: boolean; payAddress?: string; payAmount?: number; payCurrency?: string; paymentUrl?: string; error?: string }>;
-  initiateCpCheckout: (params: { userId: string; packageId: string; cpAmount?: number; amountUSD?: number; packageLabel?: string; payCurrency?: string; userEmail?: string; userName?: string }) => Promise<{ ok: boolean; payAddress?: string; payAmount?: number; payCurrency?: string; paymentUrl?: string; error?: string }>;
+  initiateCheckout: (params: { userId: string; itemId: string; amountUSD?: number; itemLabel?: string; payCurrency?: string; successUrl?: string; cancelUrl?: string; userEmail?: string; userName?: string }) => Promise<{ ok: boolean; payAddress?: string; payAmount?: number; payCurrency?: string; paymentUrl?: string; error?: string; errorStatus?: number; errorRequestId?: string }>;
+  initiateCpCheckout: (params: { userId: string; packageId: string; cpAmount?: number; amountUSD?: number; packageLabel?: string; payCurrency?: string; userEmail?: string; userName?: string }) => Promise<{ ok: boolean; payAddress?: string; payAmount?: number; payCurrency?: string; paymentUrl?: string; error?: string; errorStatus?: number; errorRequestId?: string }>;
   pollPayment: (paymentId: string) => Promise<PaymentStatus>;
   markCompleted: (paymentId: string, completedAt?: string) => void;
   markFailed: (paymentId: string, reason: 'failed' | 'expired') => void;
@@ -95,36 +96,49 @@ function paymentResult(payment: NowPaymentResponse, userId: string, itemId: stri
   };
 }
 
+/**
+ * Normalize a checkout failure into the error text plus the HTTP status and
+ * request id, so the UI can show a support reference for a provider outage
+ * instead of a message the user can do nothing with.
+ */
+function apiFailure(error: unknown): { error: string; errorStatus?: number; errorRequestId?: string } {
+  const message = error instanceof Error ? error.message : 'Checkout failed';
+  if (error instanceof PaymentRequestError) {
+    return { error: message, errorStatus: error.status, errorRequestId: error.requestId };
+  }
+  return { error: message };
+}
+
 export const useNowPaymentsStore = create<NowPaymentsState>((set, get) => ({
   payments: [],
   checkoutStatus: 'idle',
   lastError: null,
 
-  initiateCheckout: async ({ userId, itemId, itemLabel, payCurrency }) => {
+  initiateCheckout: async ({ userId, itemId, amountUSD, itemLabel, payCurrency }) => {
     set({ checkoutStatus: 'creating', lastError: null });
     try {
-      const payment = await createNowPayment({ purchaseType: 'subscription', productId: itemId, payCurrency: payCurrency ?? 'usdttrc20', idempotencyKey: makeOrderId(userId, itemId) });
+      const payment = await createNowPayment({ purchaseType: 'subscription', productId: itemId, priceAmount: amountUSD, payCurrency: payCurrency ?? 'usdttrc20', idempotencyKey: makeOrderId(userId, itemId) });
       const record = paymentResult(payment, userId, itemId, 'subscription', itemLabel);
       set({ payments: [record, ...get().payments], checkoutStatus: 'pending' });
       return { ok: true, payAddress: record.payAddress, payAmount: record.payAmount, payCurrency: record.payCurrency, paymentUrl: payment.checkoutUrl ?? undefined };
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Checkout failed';
-      set({ checkoutStatus: 'failed', lastError: message });
-      return { ok: false, error: message };
+      const failure = apiFailure(error);
+      set({ checkoutStatus: 'failed', lastError: failure.error });
+      return { ok: false, ...failure };
     }
   },
 
-  initiateCpCheckout: async ({ userId, packageId, packageLabel, payCurrency, cpAmount }) => {
+  initiateCpCheckout: async ({ userId, packageId, amountUSD, packageLabel, payCurrency, cpAmount }) => {
     set({ checkoutStatus: 'creating', lastError: null });
     try {
-      const payment = await createNowPayment({ purchaseType: 'cp_purchase', productId: packageId, payCurrency: payCurrency ?? 'usdttrc20', idempotencyKey: makeOrderId(userId, `cp_${packageId}`) });
+      const payment = await createNowPayment({ purchaseType: 'cp_purchase', productId: packageId, priceAmount: amountUSD, payCurrency: payCurrency ?? 'usdttrc20', idempotencyKey: makeOrderId(userId, `cp_${packageId}`) });
       const record = paymentResult(payment, userId, `cp_${packageId}`, 'cp_purchase', packageLabel, cpAmount);
       set({ payments: [record, ...get().payments], checkoutStatus: 'pending' });
       return { ok: true, payAddress: record.payAddress, payAmount: record.payAmount, payCurrency: record.payCurrency, paymentUrl: payment.checkoutUrl ?? undefined };
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Checkout failed';
-      set({ checkoutStatus: 'failed', lastError: message });
-      return { ok: false, error: message };
+      const failure = apiFailure(error);
+      set({ checkoutStatus: 'failed', lastError: failure.error });
+      return { ok: false, ...failure };
     }
   },
 

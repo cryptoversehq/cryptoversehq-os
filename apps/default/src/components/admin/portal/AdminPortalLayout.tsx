@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Link, useLocation, Outlet } from 'react-router-dom';
+import { Link, useLocation, Outlet, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard, Users, CreditCard, BookOpen, Trophy,
@@ -8,6 +8,7 @@ import {
   Zap, RefreshCw, Activity, Image, Brain, DollarSign, ShieldCheck, KeyRound, Settings,
   ArrowLeftCircle, Terminal,
 } from 'lucide-react';
+import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { useAdminAuthStore } from '@/lib/adminAuthStore';
 import { useAdminManagementStore, ADMIN_LEVEL_META, AdminNotifType } from '@/lib/adminManagementStore';
@@ -15,8 +16,18 @@ import { useAuthStore } from '@/lib/authStore';
 import { type AdminSectionId } from '@/lib/adminPortalStore';
 import { CryptoVerseLogo } from '@/components/CryptoVerseLogo';
 import { AdminLynxButton } from '@/components/admin/AdminLynxButton';
-import { destroySession } from '@/lib/security/sessionManager';
-import { useAdminIdentity, logoutAdminSession, clearAdminSessionCache } from '@/lib/adminApi';
+import { destroySession, loadAuthSession, refreshActivity } from '@/lib/security/sessionManager';
+import { useAdminIdentity, logoutAdminSession, clearAdminSessionCache, hasFullAdminAccess } from '@/lib/adminApi';
+
+/** Email from the app's own session cache (`cryptoverse_session`), if present. */
+function readCachedAppSessionEmail(): string | null {
+  try {
+    const raw = localStorage.getItem('cryptoverse_session');
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { email?: string } | null;
+    return parsed?.email ?? null;
+  } catch { return null; }
+}
 
 // ── Role-based nav config ─────────────────────────────────────────────────────
 interface NavItem {
@@ -58,7 +69,6 @@ const NAV_ITEMS: NavItem[] = [
   { path: '/admin/command-console', label: 'Command Console', icon: Terminal,    minLevel: 3,  color: 'text-amber-400' },
   // ── Admin Tools ─────────────────────────────────────────────────────────
   { path: '/admin/revenue',          label: 'Revenue',        icon: DollarSign,  minLevel: 4,  color: 'text-yellow-400'  },
-  { path: '/admin/role-management',  label: 'Role Management', icon: ShieldCheck, minLevel: 6,  color: 'text-amber-400'   },
   { path: '/admin/api-management',   label: 'API Management',  icon: KeyRound,    minLevel: 6,  color: 'text-amber-400'   },
   { path: '/admin/settings',         label: 'Pricing Settings', icon: Settings,   minLevel: 6,  color: 'text-amber-400'   },
   { path: '/admin/cloud',            label: 'Cloud Operations', icon: Activity,   minLevel: 1,  color: 'text-cyan-400'   },
@@ -185,9 +195,10 @@ function AdminNotifBell() {
 // ── Main Layout ───────────────────────────────────────────────────────────────
 export function AdminPortalLayout() {
   const { session, logout: adminLogout } = useAdminAuthStore();
-  const { user: appUser } = useAuthStore();
+  const { user: appUser, endUserView, loginFromSession } = useAuthStore();
   const { notifications }         = useAdminManagementStore();
   const location                  = useLocation();
+  const navigate                  = useNavigate();
   const [sidebarOpen, setSidebar] = useState(false);
 
   // Authorization: the admin role comes from the SERVER (GET /api/me).
@@ -196,18 +207,19 @@ export function AdminPortalLayout() {
   const identity  = useAdminIdentity();
   const adminRole = identity?.role ?? null;
 
-  const level: number = adminRole === 'developer' ? 6 : adminRole ? 3 : 1;
+  const ownerTier = hasFullAdminAccess(adminRole);
+  const level: number = ownerTier ? 6 : adminRole ? 3 : 1;
   const meta = ADMIN_LEVEL_META[Math.min(level, 6) as keyof typeof ADMIN_LEVEL_META]
     ?? ADMIN_LEVEL_META[1];
   const roleLabel = adminRole ? adminRole.replace(/_/g, ' ') : meta.role;
   const identityEmail = identity?.email || session?.email || appUser?.email || 'Admin account';
 
   // Nav is filtered purely by the server-provided admin role:
-  //   developer                          → everything
+  //   developer / founder / super_admin   → everything
   //   subscription_admin / support_admin  → only the Subscriptions tool
   //   anything else → nothing (ServerAdminGuard has already redirected)
   const allowedNav = React.useMemo(() => {
-    if (adminRole === 'developer') return NAV_ITEMS;
+    if (hasFullAdminAccess(adminRole)) return NAV_ITEMS;
     if (adminRole === 'subscription_admin' || adminRole === 'support_admin') {
       return NAV_ITEMS.filter(n => n.path === '/admin/subscriptions');
     }
@@ -232,6 +244,56 @@ export function AdminPortalLayout() {
   }, [session, adminLogout]);
 
   const handleExpiry = useCallback(() => { void logout(); }, [logout]);
+
+  /**
+   * "Back to App" — hand the admin over to the normal user app.
+   *
+   * Two auth systems are in play here: the portal authenticates against the
+   * server (Better Auth cookie, `/admin/login`), while the app keeps its own
+   * session in this browser. So this button:
+   *   1. ends any active "View as user" impersonation — otherwise /dashboard
+   *      would render as the viewed account, not as the admin;
+   *   2. refreshes the app session's activity clock — time spent working in the
+   *      portal is real work, and letting the app's idle validator count it as
+   *      idle logged admins out the moment they returned;
+   *   3. only falls back to an app sign-in when there genuinely is no app
+   *      session in this browser, and says so, instead of silently dropping the
+   *      admin on a login page that looks like a forced logout.
+   */
+  const backToApp = useCallback(async () => {
+    const wasViewing = useAuthStore.getState().viewState.isViewing;
+    try { endUserView(); } catch { /* no active view */ }
+
+    let appSession: ReturnType<typeof loadAuthSession> = null;
+    try { appSession = loadAuthSession(); } catch { appSession = null; }
+    const cachedEmail = appSession?.email ?? readCachedAppSessionEmail();
+
+    if (cachedEmail) {
+      if (appSession) refreshActivity(appSession);
+      // A hard reload is only needed when impersonation was active: that is the
+      // one case where stale view state must not survive. A plain in-app
+      // navigation otherwise, so the app session is left completely untouched.
+      if (wasViewing) window.location.assign('/dashboard');
+      else navigate('/dashboard');
+      return;
+    }
+
+    // No app session in this browser. When the admin's identity is
+    // server-verified, ask the app for the SAME account's session before
+    // prompting a sign-in — loginFromSession re-checks the account exists and is
+    // active, so this cannot walk into someone else's account.
+    const email = identity?.email ?? '';
+    if (email) {
+      await loginFromSession({ id: email, email, fullName: appUser?.displayName ?? email, role: 'user' });
+      if (useAuthStore.getState().isAuthenticated) {
+        navigate('/dashboard');
+        return;
+      }
+    }
+
+    toast.error('Your app session has ended. Sign in with your app account to continue.');
+    navigate('/login');
+  }, [endUserView, loginFromSession, identity?.email, appUser?.displayName, navigate]);
 
   useEffect(() => { setSidebar(false); }, [location.pathname]);
 
@@ -298,15 +360,14 @@ export function AdminPortalLayout() {
 
         {/* Bottom actions */}
         <div className="p-3 border-t border-white/5 space-y-1">
-          {/* Return to the normal user app without ending the session — the
-              admin portal previously had no way back except a full sign-out. */}
-          <Link
-            to="/dashboard"
-            className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-white/50 hover:text-white hover:bg-white/5 text-sm transition-all"
+          {/* Return to the normal user app WITHOUT ending the admin session. */}
+          <button
+            onClick={() => { void backToApp(); }}
+            className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-white/50 hover:text-white hover:bg-white/5 text-sm transition-all text-left"
           >
             <ArrowLeftCircle className="h-4 w-4" />
             <span>Back to App</span>
-          </Link>
+          </button>
           <button
             onClick={() => { void logout(); }}
             className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-red-400/70 hover:text-red-400 hover:bg-red-500/8 text-sm transition-all"

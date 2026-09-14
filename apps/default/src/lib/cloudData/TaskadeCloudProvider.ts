@@ -79,7 +79,17 @@ export class TaskadeCloudProvider implements CloudProvider {
 
   async projectNodes(projectId: string): Promise<Record<string, unknown>[]> {
     const payload = await this.requestRoot(`/projects/${projectId}/nodes`);
-    return ((payload.payload as { nodes?: Record<string, unknown>[] } | undefined)?.nodes ?? []);
+    const nodes = (payload.payload as { nodes?: Record<string, unknown>[] } | undefined)?.nodes;
+    // A body with no `nodes` array is NOT an empty project — it is a failed or
+    // unexpected response (an error envelope, an HTML shell, a proxied error
+    // page). Collapsing it to [] made a broken read indistinguishable from "no
+    // users": logins failed as "incorrect password", signups skipped their
+    // duplicate check, and sessions were signed out on load. An empty project
+    // still returns `nodes: []`, which passes this guard.
+    if (!Array.isArray(nodes)) {
+      throw new Error(`Taskade project ${projectId} node list was missing from the response.`);
+    }
+    return nodes;
   }
 
   async createProjectNode(projectId: string, body: Record<string, unknown>): Promise<Record<string, unknown>> {

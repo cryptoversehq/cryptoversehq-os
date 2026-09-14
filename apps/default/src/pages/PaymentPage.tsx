@@ -146,6 +146,12 @@ export function PaymentPage() {
   const [expired, setExpired]         = useState(false);
   const [cancelled, setCancelled]     = useState(false);
   const [completed, setCompleted]     = useState(false);
+  /**
+   * Checkout-start failure (provider outage, expired session, unreachable API).
+   * Held in state so the user gets a persistent, retryable explanation on the
+   * page instead of a toast that vanishes and leaves the form looking dead.
+   */
+  const [createError, setCreateError] = useState<{ message: string; reference?: string } | null>(null);
 
   // Backstop: force-expire any payment stuck 'pending' past HARD_TIMEOUT_MINUTES
   // (e.g. the tab was closed before the 15-min on-screen countdown ever fired),
@@ -212,6 +218,7 @@ export function PaymentPage() {
     if (!user) { toast.error('Please sign in to continue'); return; }
     setCreating(true);
     setExpired(false);
+    setCreateError(null);
 
     const result = item.kind === 'subscription'
       ? await initiateCheckout({
@@ -236,7 +243,16 @@ export function PaymentPage() {
 
     setCreating(false);
     if (!result.ok) {
-      toast.error(result.error ?? 'Could not create payment. Please try again.');
+      const message = result.error ?? 'Could not create payment. Please try again.';
+      // A support reference the operator can match against the API logs
+      // (`requestId` is echoed by the server) — a provider outage is not
+      // something the user can act on beyond retrying later.
+      const reference = [
+        result.errorStatus ? `HTTP ${result.errorStatus}` : null,
+        result.errorRequestId ? `requestId ${result.errorRequestId}` : null,
+      ].filter(Boolean).join(' · ');
+      setCreateError({ message, reference: reference || undefined });
+      toast.error(message);
       return;
     }
     toast.success('Payment address generated');
@@ -399,6 +415,30 @@ export function PaymentPage() {
                   })}
                 </div>
               </div>
+
+              {createError && (
+                <div role="alert" className="rounded-2xl border border-red-500/25 p-3.5 space-y-2.5"
+                  style={{ background: 'rgba(239,68,68,0.06)' }}>
+                  <div className="flex items-start gap-2.5">
+                    <AlertTriangle className="h-4 w-4 text-red-400 shrink-0 mt-0.5" />
+                    <div className="min-w-0 space-y-1">
+                      <p className="text-xs font-bold text-red-300">Could not start this payment</p>
+                      <p className="text-[11px] text-red-200/70 leading-relaxed">{createError.message}</p>
+                      {createError.reference && (
+                        <p className="text-[10px] text-white/30 font-mono break-all">Reference: {createError.reference}</p>
+                      )}
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => { void handleCreate(); }}
+                    disabled={creating}
+                    className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white/70 text-xs font-bold hover:bg-white/10 transition-all disabled:opacity-50"
+                  >
+                    {creating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+                    {creating ? 'Trying again…' : 'Try again'}
+                  </button>
+                </div>
+              )}
 
               <motion.button
                 onClick={handleCreate}

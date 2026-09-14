@@ -89,7 +89,13 @@ let userRosterCache: Record<string, unknown>[] | null = null;
 let userRosterCacheAt = 0;
 let userRosterRequest: Promise<Record<string, unknown>[]> | null = null;
 
-function invalidateUserRosterCache() {
+/**
+ * Drop the cached roster. Exported so callers that are about to make a
+ * DESTRUCTIVE decision from a "user not found" result (signing a session out)
+ * can force a second, uncached read first — a stale or partial cache must never
+ * be able to end a valid session.
+ */
+export function invalidateUserRosterCache() {
   userRosterCache = null;
   userRosterCacheAt = 0;
 }
@@ -103,10 +109,17 @@ async function apiGet(_url: string) {
     userRosterRequest = cloudDataLayer.projectNodes(USERS_PROJECT)
       .finally(() => { userRosterRequest = null; });
   }
-  const nodes = await userRosterRequest;
-  userRosterCache = nodes;
+  const nodes = (await userRosterRequest) as unknown;
+  // Belt-and-braces shape check (the provider throws first): a response without
+  // a node list must never be read as "no users", because `findUserByEmail`
+  // returning null is what makes login say "incorrect password" and what makes
+  // the module-load session hydration sign a valid session out.
+  if (!Array.isArray(nodes)) {
+    throw new Error('The account service returned an unexpected response (no user list).');
+  }
+  userRosterCache = nodes as Record<string, unknown>[];
   userRosterCacheAt = Date.now();
-  return { payload: { nodes } };
+  return { payload: { nodes: userRosterCache } };
 }
 
 async function apiPost(_url: string, body: object): Promise<any> {
@@ -206,6 +219,29 @@ export async function createPendingUser(params: {
 }): Promise<string> {
   const normalizedEmail = params.email.trim().toLowerCase();
   const existingUser = await findUserByEmail(normalizedEmail);
+
+  // An existing but UNVERIFIED record means a previous signup never got past
+  // OTP — the verification email failed, the tab was closed, session storage
+  // was blocked. A record with no password hash is equally unusable: login()
+  // requires a hash, so that address could neither be logged into nor
+  // registered. Resume either in place — same node, fresh password + fresh code,
+  // and the OTP step still proves the person owns the mailbox.
+  const resumable = existingUser && (!existingUser.emailVerified || !existingUser.passwordHash);
+  if (existingUser && resumable) {
+    if (existingUser.status !== 'active') {
+      throw new Error('This account is not active. Please contact support.');
+    }
+    console.warn(`[Security] Resuming unfinished signup for: ${normalizedEmail}`);
+    await apiPatch(`${USERS_API}/${existingUser.nodeId}`, {
+      '/attributes/@cv_phash':    params.passwordHash,
+      '/attributes/@cv_fname':    params.fullName,
+      '/attributes/@cv_otp':      params.otpCode,
+      '/attributes/@cv_otpexp':   params.otpExpiresAt,
+      '/attributes/@cv_verified': 'ev_false',
+    });
+    return existingUser.nodeId;
+  }
+
   if (existingUser) {
     console.warn(`[Security] Duplicate signup attempt for email: ${normalizedEmail}`);
     throw new Error('An account with this email already exists. Please login instead.');

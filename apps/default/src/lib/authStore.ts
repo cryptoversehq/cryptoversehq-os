@@ -6,7 +6,7 @@ import { refreshAdminCacheFromDb } from './userMigrationService';
 import { rateLimiter } from './security/rateLimiter';
 import { createSession, destroySession, loadAuthSession } from './security/sessionManager';
 import { cloudRecordStore } from './cloudData';
-import { createPendingUser, findUserByEmail, generateOtp, sendOtpEmail, updatePassword, updateUserProfile, type UserRecord } from './authApi';
+import { createPendingUser, findUserByEmail, generateOtp, invalidateUserRosterCache, sendOtpEmail, updatePassword, updateUserProfile, type UserRecord } from './authApi';
 import { trackProductEventInBackground, trackProductEventOnce } from './productAnalytics';
 
 // ── Password hashing (PBKDF2-SHA256) ────────────────────────────────────────
@@ -659,7 +659,15 @@ async function hydrateCurrentUserFromServer(): Promise<void> {
   const cachedUser = useAuthStore.getState().user;
   if (!cachedUser?.email) return;
   try {
-    const record = await findUserByEmail(cachedUser.email);
+    let record = await findUserByEmail(cachedUser.email);
+    if (!record) {
+      // "Not found" is about to sign this user out, so confirm it against a
+      // fresh read first: a stale or partial roster cache must never be able to
+      // end a valid session (this runs on every full page load, so an ambiguous
+      // miss here would log everyone out on refresh).
+      invalidateUserRosterCache();
+      record = await findUserByEmail(cachedUser.email);
+    }
     if (!record || record.status !== 'active') {
       destroySession();
       saveSession(null);
