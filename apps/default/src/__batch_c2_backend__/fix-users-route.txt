@@ -1,0 +1,96 @@
+/**
+ * GET /api/admin/users — the admin roster (Batch C2).
+ *
+ * SCHEMA-SAFE BY CONSTRUCTION. The previous version named every column it wanted
+ * (`... status, language, display_name, updated_at ...`), so a column that does
+ * not exist on this database failed the WHOLE query:
+ *
+ *     error: column "status" does not exist     (Postgres 42703)
+ *     -> the route answered 500 -> the roster rendered empty.
+ *
+ * Nothing caught it earlier because every pre-existing code path reads those
+ * fields off the row object in JS (`select *` + `appUser.status ?? 'active'`),
+ * so their absence was invisible. This version reads `select *` and projects in
+ * JS, so a missing column degrades to a default instead of emptying the page.
+ *
+ * Query: limit (1-500) · offset · email (exact, case-insensitive) ·
+ *        q (substring of email or display_name).
+ * `total` / `has_more` describe the SAME filter, so the client can page.
+ */
+app.get('/api/admin/users', authenticate, requireAdminRead, async (req, res) => {
+  try {
+    const limit = Math.min(Math.max(Number(req.query.limit) || 100, 1), 500);
+    const offset = Math.max(Number(req.query.offset) || 0, 0);
+    const email = typeof req.query.email === 'string' ? req.query.email.trim() : '';
+    const q = typeof req.query.q === 'string' ? req.query.q.trim() : '';
+
+    const filters = [];
+    const filterParams = [];
+    if (email) {
+      filterParams.push(email.toLowerCase());
+      filters.push(`lower(email) = $${filterParams.length}`);
+    }
+    if (q) {
+      filterParams.push(`%${q.toLowerCase()}%`);
+      filters.push(`(lower(email) like $${filterParams.length} or lower(coalesce(display_name, '')) like $${filterParams.length})`);
+    }
+    const whereSql = filters.length ? ` where ${filters.join(' and ')}` : '';
+
+    const result = await pgPool.query(
+      `select * from public.users${whereSql}
+        order by created_at desc
+        limit $${filterParams.length + 1} offset $${filterParams.length + 2}`,
+      [...filterParams, limit, offset]
+    );
+
+    // Explicit projection: the client's contract stays stable whatever the table holds.
+    const users = result.rows.map((row) => ({
+      id: row.id,
+      email: row.email,
+      display_name: row.display_name ?? null,
+      role: row.role ?? 'user',
+      plan: row.plan ?? 'free',
+      balance: Number(row.balance || 0),
+      status: row.status ?? 'active',
+      language: row.language ?? 'en',
+      last_seen_at: row.last_seen_at ?? null,
+      last_seen_ip: row.last_seen_ip ?? null,
+      created_at: row.created_at ?? null,
+      updated_at: row.updated_at ?? null,
+    }));
+
+    // The count only feeds the pager: it must never be able to break the roster.
+    let total = null;
+    try {
+      const { rows: countRows } = await pgPool.query(
+        `select count(*)::int as total from public.users${whereSql}`,
+        filterParams
+      );
+      total = countRows[0] ? countRows[0].total : null;
+    } catch (err) {
+      console.error(JSON.stringify({ event: 'admin_users_count_failed', requestId: req.requestId, error: err?.message }));
+    }
+
+    return res.json({
+      success: true,
+      users,
+      returned: users.length,
+      total,
+      limit,
+      offset,
+      has_more: total === null ? users.length >= limit : offset + users.length < total,
+      requestId: req.requestId,
+    });
+  } catch (error) {
+    // Surface the real database message to the caller (admin-only route) and the
+    // Postgres code to the logs, so the next failure names its own cause instead
+    // of showing "no users".
+    console.error(JSON.stringify({ event: 'admin_users_failed', requestId: req.requestId, code: error?.code, error: error?.message }));
+    return res.status(500).json({
+      error: 'SERVER_ERROR',
+      code: 'users_query_failed',
+      message: `Failed to fetch users: ${error?.message || 'unknown error'}`,
+      requestId: req.requestId,
+    });
+  }
+});
