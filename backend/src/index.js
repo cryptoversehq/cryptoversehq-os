@@ -1101,10 +1101,11 @@ app.get('/api/admin/users', authenticate, requireAdminRead, async (req, res) => 
         limit ${filterParams.length + 1} offset ${filterParams.length + 2}`,
       [...filterParams, limit, offset]
     );
+    const countParams = filterParams.length > 0 ? filterParams : [];
     const { rows: countRows } = await pgPool.query(
-      `select count(*)::int as total from public.users${whereSql}`,
-      filterParams
-    );
+  `select count(*)::int as total from public.users${whereSql}`,
+  countParams
+);
     const total = countRows[0].total;
     return res.json({
       success: true,
