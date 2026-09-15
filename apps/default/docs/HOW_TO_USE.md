@@ -118,7 +118,7 @@ function Profile() {
 }
 ```
 
-- `auth.signinRedirect()` — trigger login (Genesis provides the login/signup UI)
+- `auth.signinRedirect()` - trigger login (Genesis provides the login/signup UI). It brings the user back to the page it was called from, path, query and hash included, so a gate on `/admin` needs no return flag of its own. Never write a `sessionStorage` marker or a bounce-back component for this.
 - `auth.signoutRedirect()` — logout
 - `auth.isAuthenticated` — check login state
 - `auth.user?.profile` — `{ email, name, preferred_username, sub }`

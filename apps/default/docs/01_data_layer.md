@@ -67,13 +67,21 @@ Consequences:
 ## Automations: `@/lib/genesis-flows`
 
 ```ts
-import { submitForm, runFlow } from '@/lib/genesis-flows';
+import { submitForm, runFlow, getFlowRuns } from '@/lib/genesis-flows';
 
-await submitForm(FLOW_ID, { file, title: file.name }); // FORM-trigger flow (side effect only)
+await submitForm(FLOW_ID, { file, title: file.name }); // FORM-trigger flow (side effect only; a file upload is the one row it may save, see below)
 await runFlow(FLOW_ID, { orderId: '789' }); // WEBHOOK/MANUAL-trigger flow
+const { runs } = await getFlowRuns(FLOW_ID, { limit: 5 }); // newest first: { id, status, createdAt, updatedAt }
 ```
 
-Both return `{ flowRunId?: string }`. A WEBHOOK flow ending in an "HTTP
+Read run history through `getFlowRuns` only. Do not build the gateway URL by
+hand: the helper is the supported contract (id encoding, paging cursor,
+response envelope) and a raw fetch is not. Runs carry id, status
+(`completed | failed | running | filtered`) and timestamps only; step detail
+and error bodies are not readable from an app.
+
+`submitForm` and `runFlow` both return `{ flowRunId?: string }`; `getFlowRuns` returns
+`{ runs, nextCursor }` (pass `nextCursor` back as `cursor` for the next page). A WEBHOOK flow ending in an "HTTP
 response" action returns that body synchronously (then `flowRunId` is
 undefined); a non-2xx or non-JSON synchronous body throws.
 
@@ -87,6 +95,12 @@ enabled (a disabled flow returns 404 and the data is silently lost).
 `submitForm` for the same submit. If the flow behind the form also has an Add
 Task step, every submission lands twice and the duplicate pair disagrees on
 whichever fields only one writer sets.
+
+The one exception is a row that carries an uploaded file: pass the `File` to
+`submitForm` and let the flow's Add Task step save the row with the
+`https://files.taskade.com/...` URL it receives; the page does not also call
+`createNode` for that submit. A field holds that URL, never the file bytes
+(no base64 `data:` URLs in a row).
 
 ```ts
 // WRONG - two writers, two rows per submit

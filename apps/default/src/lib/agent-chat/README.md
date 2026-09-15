@@ -116,7 +116,7 @@ const handleSwitchChat = (existingConvoId: string) => {
 
 **Advanced (low-level):**
 
-- `createConversation(agentId)` - Direct API call
+- `createConversation(agentId)` - Direct API call. Returns `{ conversationId, nonce }`; the SDK stores the nonce in `localStorage` and replays it as a header on send/stream, so the transcript is bound to this browser. App code only keeps `conversationId`.
 - `sendMessage(agentId, conversationId, text)` - Direct API call
 - `AgentChatStream` - Stream manager class
 

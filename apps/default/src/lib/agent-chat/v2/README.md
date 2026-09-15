@@ -340,8 +340,11 @@ request to the server — no manual trigger required.
 ## API
 
 **`createConversation(agentId, options?)`**
-Creates a new public conversation. Returns `{ ok, conversationId }`. Persist that
-id if the app needs a History / transcript surface later.
+Creates a new public conversation. Returns `{ ok, conversationId, nonce }`. Persist
+`conversationId` if the app needs a History / transcript surface later. The
+`nonce` is the proof that this browser created the chat: the SDK stores it in
+`localStorage` beside the id and replays it as a request header on every read,
+so app code never touches it. Never put it in a URL, and never render it.
 
 **`listConversations(agentId, conversationIds, options?)`**
 Look up metadata for conversations whose ids this client already stored.
@@ -390,6 +393,11 @@ A History tab that renders empty and then claims there is no record of the
 prompts is a fabricated feature: the empty state usually means the app never
 stored the ids. Full pattern (persist helper, empty-state copy, projects vs
 this API): `docs/04_agent_chat.md`.
+
+Transcripts are bound to the browser that created them: `listConversations` and
+`getConversation` replay the nonce the SDK stored at create time, and a stored
+id from another device (or one whose nonce was cleared with site data) is simply
+omitted / not found. That is expected - do not treat it as a bug in the API.
 
 ## Sending Messages
 

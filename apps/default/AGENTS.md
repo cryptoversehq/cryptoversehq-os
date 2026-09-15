@@ -34,7 +34,7 @@ a chapter only when you need it.
    a mismatched key renders an EMPTY chart with no error, silently.
 6. Data via the gateway helpers, never hand-rolled endpoints:
    `getNodes/createNode/updateNode/deleteNode` from `@/lib/genesis-data`,
-   `submitForm/runFlow` from `@/lib/genesis-flows`. Rows arrive FLAT (do not
+   `submitForm/runFlow/getFlowRuns` from `@/lib/genesis-flows`. Rows arrive FLAT (do not
    filter by `parentId`); read fields with `getFieldValue`/`getFieldNumber`,
    never by indexing `fieldValues` directly. An intake form (contact / lead /
    survey) saves with `createNode` ONLY - one submit, one writer. Never also
@@ -54,7 +54,9 @@ a chapter only when you need it.
    (localStorage / `createPersistentStore`) and read with `listConversations` /
    `getConversation`; the API cannot list every conversation.
 9. Auth, when needed: wrap with `<GenesisAuth>` from `@/lib/genesis-auth`.
-   Never build custom login flows.
+   Never build custom login flows. `signinRedirect()` returns the user to the
+   page it was called from, so never add a return-path flag or bounce-back
+   component.
 10. NEVER import an identifier that shadows a built-in global constructor
     (`Map`, `Set`, `Date`, `Image`, `Promise`, `Proxy`, `RegExp`, ...) and then
     `new` it. e.g. `import { Map } from 'lucide-react'` makes `new Map()` throw

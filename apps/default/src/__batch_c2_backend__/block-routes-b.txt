@@ -1,0 +1,91 @@
+/**
+ * POST /api/admin/users/:userId/status — { status, reason? }
+ *
+ * WHY THIS EXISTS (Batch C2): the panel's ban/suspend used to write the Taskade
+ * users project (@cv_status) and localStorage only, while authenticate()
+ * enforces public.users.status in Neon — so an admin "ban" never actually
+ * blocked the API. This writes the column the API reads, ends the target's live
+ * sessions when the account is restricted, and leaves exactly one audit row.
+ */
+const ACCOUNT_STATUSES = new Set(['active', 'suspended', 'banned']);
+
+app.post('/api/admin/users/:userId/status', authenticate, requireAdminWrite, async (req, res) => {
+  const { userId } = req.params;
+  const body = req.body || {};
+  const status = String(body.status || '').trim().toLowerCase();
+  const reason = typeof body.reason === 'string' ? body.reason.trim().slice(0, 200) : '';
+
+  if (!UUID_RE.test(String(userId))) {
+    return res.status(400).json({ error: 'VALIDATION_ERROR', code: 'invalid_user_id', message: 'userId must be a UUID.', requestId: req.requestId });
+  }
+  if (!ACCOUNT_STATUSES.has(status)) {
+    return res.status(400).json({
+      error: 'VALIDATION_ERROR',
+      code: 'invalid_status',
+      message: `status must be one of: ${Array.from(ACCOUNT_STATUSES).join(', ')}`,
+      requestId: req.requestId,
+    });
+  }
+  if (userId === req.user.id) {
+    return res.status(400).json({ error: 'VALIDATION_ERROR', code: 'self_status', message: 'You cannot change your own account status.', requestId: req.requestId });
+  }
+
+  try {
+    const { rows } = await pgPool.query('select id, email, role, status from public.users where id = $1 limit 1', [userId]);
+    if (rows.length === 0) {
+      return res.status(404).json({ error: 'NOT_FOUND', code: 'not_found', message: 'User not found.', requestId: req.requestId });
+    }
+    const target = rows[0];
+    const beforeStatus = target.status || 'active';
+
+    // Acting on an owner-tier account is an owner-tier action.
+    if (OWNER_ROLES.has(target.role) && !OWNER_ROLES.has(req.user.role)) {
+      return res.status(403).json({
+        error: 'FORBIDDEN',
+        code: 'forbidden',
+        message: "Only an owner-tier admin can change another owner's account status.",
+        requestId: req.requestId,
+      });
+    }
+
+    if (beforeStatus === status) {
+      return res.json({
+        success: true, duplicate: true, user_id: userId,
+        before_status: beforeStatus, after_status: status, sessions_revoked: 0,
+        requestId: req.requestId,
+      });
+    }
+
+    await pgPool.query('update public.users set status = $1, updated_at = now() where id = $2', [status, userId]);
+    invalidateUserCache(target.email);
+
+    // A banned/suspended account must not keep a live session: the next request
+    // would be refused anyway, but ending them here is what the admin expects.
+    const sessionsRevoked = status === 'active'
+      ? 0
+      : await revokeSessionsByAppUserId(userId, REVOKE.BANNED).catch(() => 0);
+
+    await writeAuditLog({
+      actor_id: req.user.id, actor_email: req.user.email, actor_role: req.user.role,
+      target_user_id: userId, plan_id: null, action: 'status_change', result: 'success',
+      note: `Account status: ${beforeStatus} → ${status}${reason ? ` | ${reason}` : ''}`,
+      before_state: { status: beforeStatus },
+      after_state: { status, sessions_revoked: sessionsRevoked },
+      ip_address: req.ip, user_agent: req.get('User-Agent'),
+      request_id: req.requestId, idempotency_key: null, entitlement_id: null,
+    });
+
+    return res.json({
+      success: true,
+      user_id: userId,
+      email: target.email,
+      before_status: beforeStatus,
+      after_status: status,
+      sessions_revoked: sessionsRevoked,
+      requestId: req.requestId,
+    });
+  } catch (error) {
+    console.error(JSON.stringify({ event: 'admin_status_change_failed', requestId: req.requestId, error: error?.message }));
+    return res.status(500).json({ error: 'SERVER_ERROR', code: 'internal_error', message: 'Account status change failed.', requestId: req.requestId });
+  }
+});

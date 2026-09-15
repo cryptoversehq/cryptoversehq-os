@@ -9,6 +9,8 @@
  * NEITHER is how an intake form saves its row. A contact / lead / survey submit persists with
  * `createNode` from `@/lib/genesis-data`, and NEVER also calls `submitForm` for the same submit -
  * if the flow behind that form has an Add Task step, every submission lands twice.
+ * The one exception is a file upload: pass the `File` here and let the flow's Add Task step
+ * save the row with the media URL, with no `createNode` for that submit.
  *
  * Both return the created flow run id when available. A WEBHOOK flow that ends in an
  * "HTTP response" action returns its body synchronously; `runFlow` surfaces it only when
@@ -62,6 +64,8 @@ function buildFlowBody(values: Record<string, unknown>): BodyInit {
  *
  * NOT for saving an intake row: a contact / lead / survey submit calls `createNode`
  * instead, and calling both for one submit writes the row twice.
+ * The one exception is a row that carries an uploaded file: the flow's Add Task step saves
+ * it with the media URL, and the page does not also call `createNode`.
  *
  * To send an uploaded document or photo, pass the `File` object directly (do NOT
  * read it into a base64 `data:` URL) - it is uploaded to media and the flow input
@@ -114,4 +118,59 @@ export async function runFlow(
     options,
   );
   return { flowRunId: data.payload?.flowRunId };
+}
+
+export type FlowRunStatus = 'completed' | 'failed' | 'running' | 'filtered';
+
+export interface FlowRunSummary {
+  id: string;
+  status: FlowRunStatus;
+  /** ISO 8601 */
+  createdAt: string;
+  /** ISO 8601 */
+  updatedAt: string;
+}
+
+export interface FlowRunsPage {
+  runs: FlowRunSummary[];
+  /** Opaque; pass as `cursor` to fetch the next (older) page. Null when there is none. */
+  nextCursor: string | null;
+}
+
+/**
+ * Reads a flow's recent runs, newest first. Use this helper rather than fetching
+ * the gateway path by hand: it is the supported contract (encoding, paging,
+ * response envelope) and the raw URL is not. Each run carries id, status and
+ * timestamps only, so an automation-status widget can say "last run completed
+ * 2 minutes ago"; step detail and error bodies are not readable from an app.
+ *
+ * @example
+ * ```typescript
+ * const { runs } = await getFlowRuns(syncFlowId, { limit: 1 });
+ * const last = runs[0]; // undefined when the flow has never run
+ * ```
+ */
+export async function getFlowRuns(
+  flowId: string,
+  page?: { limit?: number; cursor?: string },
+  options?: ClientOptions,
+): Promise<FlowRunsPage> {
+  if (isEmptyString(flowId)) {
+    throw new Error('Flow ID cannot be empty');
+  }
+  const params = new URLSearchParams();
+  if (page?.limit != null) {
+    params.set('limit', String(page.limit));
+  }
+  if (page?.cursor != null && page.cursor !== '') {
+    params.set('cursor', page.cursor);
+  }
+  const query = params.toString();
+  const search = query !== '' ? `?${query}` : '';
+  const data = await gatewayRequest<GatewayResponse<FlowRunsPage>>(
+    `/flows/${encodeURIComponent(flowId)}/runs${search}`,
+    { method: 'GET' },
+    options,
+  );
+  return { runs: data.payload?.runs ?? [], nextCursor: data.payload?.nextCursor ?? null };
 }

@@ -1,44 +1,75 @@
 /**
  * SignupPage.tsx — /signup
  *
- * Flow:
- * 1. Validate fields (email format, password strength, match)
- * 2. Check email not already in Users project
- * 3. Generate OTP, store pending user (node with ev_false)
- * 4. Send OTP email via automation webhook
- * 5. Redirect → /verify-otp?email={email}
+ * Passwordless registration (Phase 0.5 · frontend Batch A):
+ * 1. Validate the name + email
+ * 2. Keep the optional referral code captured from ?ref=
+ * 3. POST /api/auth/email-otp/send-verification-otp  { email, type: 'sign-in' }
+ * 4. Stash the display name; VerifyOtpPage applies it with PATCH /api/me once the
+ *    session exists (the OTP endpoints only carry an email)
+ * 5. Redirect → /verify-otp?email=…&mode=signup
+ *
+ * The account itself is created by Better Auth on successful verification and the
+ * app row is auto-provisioned by the API on the first /api/me call — so the browser
+ * no longer writes a pending-user record, a password hash, or an OTP.
+ *
+ * `type: 'sign-in'` is deliberate for signup too: 'email-verification' requires the
+ * account to already exist and would reject a brand-new address.
  */
-import React, { useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Eye, EyeOff } from 'lucide-react';
 import { AuthLayout, Alert, Field, SubmitButton } from './AuthLayout';
-import {
-  sha256, generateOtp, createPendingUser,
-  sendOtpEmail, savePendingSignup,
-} from '../../lib/authApi';
+import { sendSignInOtp, AuthRequestError } from '../../lib/betterAuthClient';
 import { referralService } from '@/lib/referralService';
 
-// ─── Validation helpers ───────────────────────────────────────────────────────
+/** Display name captured before the account exists (applied post-verification). */
+const PENDING_NAME_KEY = 'cv_pending_display_name';
 
 function validateEmail(v: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v) ? '' : 'Please enter a valid email address.';
 }
 
-function validatePassword(v: string) {
-  if (v.length < 6) return 'Password must be at least 6 characters.';
-  return '';
+/** Turns an auth failure into something the user can act on. */
+function describeAuthError(err: unknown): React.ReactNode {
+  if (err instanceof AuthRequestError) {
+    if (err.status === 429) {
+      return 'Too many code requests. Please wait a minute and try again.';
+    }
+    if (err.status === 409 || err.status === 400 || err.status === 422) {
+      return (
+        <span>
+          <span>This email can&apos;t be registered right now.</span>{' '}
+          <Link to="/login" className="text-primary underline font-medium">Log in instead</Link>
+          {' '}if you already have an account.
+        </span>
+      );
+    }
+    if (err.status === 0 || err.status >= 500) {
+      return (
+        <span>
+          We couldn&apos;t reach the account service, so no account was created.
+          {' '}Please check your connection and try again in a moment.
+        </span>
+      );
+    }
+    return err.message;
+  }
+  return 'Something went wrong. Please try again.';
 }
-
-// ─── Component ────────────────────────────────────────────────────────────────
 
 export function SignupPage() {
   const navigate = useNavigate();
 
-  const [fullName, setFullName]   = useState('');
-  const [email, setEmail]         = useState('');
-  const [password, setPassword]   = useState('');
+  const [fullName, setFullName] = useState('');
+  const [email, setEmail]       = useState('');
+  const [loading, setLoading]   = useState(false);
+  const [error, setError]       = useState<React.ReactNode>('');
+  const [success, setSuccess]   = useState('');
 
-  // ── P2-1: Capture referral code from URL on mount ─────────────────────
+  const submittingRef = useRef(false);
+  const [touched, setTouched] = useState({ fullName: false, email: false });
+
+  // ── P2-1: Capture referral code from URL on mount (behaviour preserved) ──
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const refCode = params.get('ref');
@@ -49,111 +80,41 @@ export function SignupPage() {
       }
     }
   }, []);
-  const [confirm, setConfirm]     = useState('');
-  const [showPwd, setShowPwd]     = useState(false);
-  const [showCfm, setShowCfm]     = useState(false);
-  const [loading, setLoading]     = useState(false);
-  const [error, setError]         = useState<React.ReactNode>('');
-  const [success, setSuccess]     = useState('');
 
-  // Per-field errors (shown after touch)
-  const [touched, setTouched] = useState({ fullName: false, email: false, password: false, confirm: false });
-
-  const emailErr    = touched.email    ? validateEmail(email)        : '';
-  const passwordErr = touched.password ? validatePassword(password)  : '';
-  const confirmErr  = touched.confirm  ? (confirm !== password ? 'Passwords do not match.' : '') : '';
-  const nameErr     = touched.fullName ? (fullName.trim().length < 2 ? 'Please enter your full name.' : '') : '';
-
-  const canSubmit =
-    !loading &&
-    fullName.trim().length >= 2 &&
-    validateEmail(email) === '' &&
-    validatePassword(password) === '' &&
-    confirm === password;
+  const nameErr  = touched.fullName && fullName.trim().length < 2 ? 'Please enter your full name.' : '';
+  const emailErr = touched.email ? validateEmail(email) : '';
+  const canSubmit = !loading && fullName.trim().length >= 2 && validateEmail(email) === '';
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setTouched({ fullName: true, email: true, password: true, confirm: true });
+    setTouched({ fullName: true, email: true });
+    if (submittingRef.current) return;
     if (!canSubmit) return;
 
+    submittingRef.current = true;
     setLoading(true);
     setError('');
     setSuccess('');
 
+    const normalizedEmail = email.toLowerCase().trim();
+    const trimmedName     = fullName.trim();
+
     try {
-      // Duplicate-email protection lives inside createPendingUser so the
-      // registration path does not fetch the full roster twice.
-      const passwordHash = await sha256(password);
+      await sendSignInOtp(normalizedEmail, 'sign-in');
 
-      const otpCode      = generateOtp();
-      const otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
-      console.info('[SignupPage] OTP generated and stored for delivery', { email: email.toLowerCase().trim() });
-
-      // 4. Create pending user node in project
-      const nodeId = await createPendingUser({
-        email: email.toLowerCase().trim(),
-        passwordHash,
-        fullName: fullName.trim(),
-        otpCode,
-        otpExpiresAt,
-      });
-
-      // 5. Save pending signup to sessionStorage
-      savePendingSignup({
-        email:        email.toLowerCase().trim(),
-        fullName:     fullName.trim(),
-        passwordHash,
-        nodeId,
-      });
-
-      // 6. Send OTP email
-      await sendOtpEmail({
-        email: email.toLowerCase().trim(),
-        name:  fullName.trim(),
-        code:  otpCode,
-      });
+      // Applied by VerifyOtpPage after the session exists.
+      try { sessionStorage.setItem(PENDING_NAME_KEY, trimmedName); } catch { /* private mode */ }
 
       setSuccess('A verification code has been sent to your email.');
 
-      // 7. Redirect
       setTimeout(() => {
-        navigate(`/verify-otp?email=${encodeURIComponent(email.toLowerCase().trim())}&mode=signup`);
-      }, 800);
-    } catch (err: any) {
+        navigate(`/verify-otp?email=${encodeURIComponent(normalizedEmail)}&mode=signup`);
+      }, 600);
+    } catch (err) {
       console.error('[SignupPage]', err);
-      const message = String(err?.message ?? 'Something went wrong. Please try again.');
-
-      if (/already exists/i.test(message)) {
-        // A registered address can still be unusable (an interrupted signup, or
-        // a password state the account owner never finished). Offer both
-        // recoveries instead of a dead end.
-        setError(
-          <span>
-            <span>This email is already registered.</span>{' '}
-            <Link to="/login" className="text-primary underline font-medium">Log in instead</Link>
-            {' '}— or{' '}
-            <Link to="/forgot-password" className="text-primary underline font-medium">reset your password</Link>
-            {' '}if you never completed the setup.
-          </span>,
-        );
-        return;
-      }
-
-      // A transport/roster failure is neither the user's fault nor a validation
-      // problem: say what actually happened instead of leaking a platform error
-      // string, and make clear the account was NOT created so retrying is safe.
-      if (/platform transport|account service|failed to fetch|network|timed out|abort/i.test(message)) {
-        setError(
-          <span>
-            We couldn&apos;t reach the account service, so no account was created.
-            {' '}Please check your connection and try again in a moment.
-          </span>,
-        );
-        return;
-      }
-
-      setError(message);
+      setError(describeAuthError(err));
     } finally {
+      submittingRef.current = false;
       setLoading(false);
     }
   }
@@ -177,7 +138,6 @@ export function SignupPage() {
           error={nameErr}
           disabled={loading}
         />
-        <div onBlur={() => setTouched(t => ({ ...t, fullName: true }))} />
 
         <Field
           label="Email Address"
@@ -189,52 +149,14 @@ export function SignupPage() {
           error={emailErr}
           disabled={loading}
         />
-        <div onBlur={() => setTouched(t => ({ ...t, email: true }))} />
 
-        <Field
-          label="Password"
-          type={showPwd ? 'text' : 'password'}
-          value={password}
-          onChange={setPassword}
-          placeholder="Min 6 chars, uppercase & number"
-          autoComplete="new-password"
-          error={passwordErr}
-          disabled={loading}
-          suffix={
-            <button
-              type="button"
-              onClick={() => setShowPwd(s => !s)}
-              className="text-muted-foreground hover:text-foreground transition-colors"
-              tabIndex={-1}
-            >
-              {showPwd ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-            </button>
-          }
-        />
-
-        <Field
-          label="Repeat Password"
-          type={showCfm ? 'text' : 'password'}
-          value={confirm}
-          onChange={setConfirm}
-          placeholder="Repeat your password"
-          autoComplete="new-password"
-          error={confirmErr}
-          disabled={loading}
-          suffix={
-            <button
-              type="button"
-              onClick={() => setShowCfm(s => !s)}
-              className="text-muted-foreground hover:text-foreground transition-colors"
-              tabIndex={-1}
-            >
-              {showCfm ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-            </button>
-          }
-        />
+        <p className="text-xs text-muted-foreground mb-3">
+          No password to create — we&apos;ll email you a 6-digit code to confirm
+          your address.
+        </p>
 
         <SubmitButton
-          label="Register"
+          label="Create account"
           loading={loading}
           disabled={!canSubmit}
           loadingLabel="Sending verification code…"

@@ -82,6 +82,11 @@ export type ErrorEvent = Extract<StreamEvent, { type: 'error' }>;
 export interface CreateConversationResponse {
   ok: boolean;
   conversationId: string;
+  /**
+   * Proof that this client created the conversation. The SDK stores and
+   * replays it for you (`convoNonce.ts`); app code only needs `conversationId`.
+   */
+  nonce?: string;
 }
 
 export interface SendMessageResponse {

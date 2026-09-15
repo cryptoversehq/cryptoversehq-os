@@ -1,0 +1,58 @@
+/**
+ * GET /api/admin/users/:userId — one account, in the list shape plus the active
+ * subscription and the live-session count. This is what "view as user" reads
+ * (Batch C2): the panel renders the SERVER's record instead of a Taskade /
+ * localStorage mirror. Read-only — it never writes to the target's data.
+ */
+app.get('/api/admin/users/:userId', authenticate, requireAdminRead, async (req, res) => {
+  const { userId } = req.params;
+
+  if (!UUID_RE.test(String(userId))) {
+    return res.status(400).json({ error: 'VALIDATION_ERROR', code: 'invalid_user_id', message: 'userId must be a UUID.', requestId: req.requestId });
+  }
+
+  try {
+    const { rows } = await pgPool.query(
+      `select id, email, display_name, role, plan, balance, status, language,
+              last_seen_at, last_seen_ip, created_at, updated_at
+         from public.users
+        where id = $1
+        limit 1`,
+      [userId]
+    );
+    if (rows.length === 0) {
+      return res.status(404).json({ error: 'NOT_FOUND', code: 'not_found', message: 'User not found.', requestId: req.requestId });
+    }
+
+    // Enrichment only: a missing table/column must not 500 an otherwise fine page.
+    const { rows: subRows } = await pgPool.query(
+      `select id, plan_id, status, starts_at, ends_at, granted_by, created_at
+         from public.subscriptions
+        where user_id = $1 and status = 'active'
+        order by created_at desc
+        limit 1`,
+      [userId]
+    ).catch(() => ({ rows: [] }));
+
+    const { rows: sessionRows } = await pgPool.query(
+      `select count(*)::int as live_sessions
+         from public.session s
+         join public."user" u on u.id = s."userId"
+        where lower(u.email) = lower($1)
+          and s.revoked_at is null
+          and s."expiresAt" > now()`,
+      [rows[0].email]
+    ).catch(() => ({ rows: [{ live_sessions: 0 }] }));
+
+    return res.json({
+      success: true,
+      user: rows[0],
+      active_subscription: subRows[0] || null,
+      live_sessions: sessionRows[0] ? sessionRows[0].live_sessions : 0,
+      requestId: req.requestId,
+    });
+  } catch (error) {
+    console.error(JSON.stringify({ event: 'admin_user_detail_failed', requestId: req.requestId, error: error?.message }));
+    return res.status(500).json({ error: 'SERVER_ERROR', code: 'internal_error', message: 'Failed to fetch the user.', requestId: req.requestId });
+  }
+});

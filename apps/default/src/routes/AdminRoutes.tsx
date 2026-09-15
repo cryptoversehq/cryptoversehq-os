@@ -30,9 +30,7 @@ import { AICommandConsole } from '../components/admin/AICommandConsole';
 import { AIAdminDashboard } from '../pages/admin/AIAdminDashboard';
 import { AdminLynxSettings } from '../pages/admin/AdminLynxSettings';
 import { AdminAnalytics } from '../pages/admin/AdminAnalytics';
-import { useAdminAuthStore } from '../lib/adminAuthStore';
-import { useAuthStore } from '../lib/authStore';
-import { hasAccess, type AdminSectionId } from '../lib/adminPortalStore';
+import { type AdminSectionId } from '../lib/adminPortalStore';
 import { ALLOWED_ADMIN_ROLES, ApiForbiddenError, fetchAdminRole, isAdminRole, hasFullAdminAccess, useAdminIdentity } from '../lib/adminApi';
 
 export function Forbidden403() {
@@ -48,15 +46,17 @@ export function Forbidden403() {
 }
 
 /**
- * Section gate. Authorization is driven by the SERVER role (GET /api/me):
- *   • developer         → every section
- *   • other admin roles → only the Subscriptions tool (the nav hides the rest)
- * The legacy adminAuthStore level / Taskade section grants remain as a fallback.
+ * Section gate. The SERVER role is the ONLY authority (GET /api/me, via
+ * useAdminIdentity — ServerAdminGuard has already fetched and cached it before
+ * rendering children):
+ *   • developer / founder / super_admin  → every section
+ *   • subscription_admin / support_admin → only the Subscriptions tool
+ *   • unresolved identity                → back to the server login
+ * The legacy adminAuthStore level and the Taskade section-grant mirror (H-007)
+ * are GONE: a browser that cannot prove an admin role gets no section at all.
  */
 function SectionGuard({ section, children }: { section: AdminSectionId; children: React.ReactElement }) {
   const identity = useAdminIdentity();
-  const { session } = useAdminAuthStore();
-  const appUser = useAuthStore(state => state.user);
 
   // Owner tier (developer / founder / super_admin) — unrestricted.
   if (hasFullAdminAccess(identity?.role)) return children;
@@ -66,17 +66,10 @@ function SectionGuard({ section, children }: { section: AdminSectionId; children
     return section === 'subscriptions' ? children : <Navigate to="/admin/403" replace />;
   }
 
-  // Server identity not resolved (or a legacy admin session) → legacy checks.
-  const sharedRoleLevel = appUser?.role === 'super_admin' || appUser?.role === 'founder'
-    ? 6
-    : appUser?.role === 'senior_admin'
-      ? 4
-      : appUser?.role === 'admin' || appUser?.role === 'developer'
-        ? 3
-        : 1;
-  const level = session?.level ?? sharedRoleLevel;
-  const email = session?.email ?? appUser?.email ?? '';
-  return level >= 6 || hasAccess(email, section) ? children : <Navigate to="/admin/403" replace />;
+  // Identity unresolved even though ServerAdminGuard rendered us (cache cleared,
+  // signed out, or /api/me failed after mount). There is no client-side fallback
+  // left to fall through to, so send the browser back to the server login.
+  return <Navigate to="/admin/login" replace />;
 }
 
 /** Full-screen status card used while the server gate is deciding. */

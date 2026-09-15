@@ -1,0 +1,58 @@
+/**
+ * GET /api/admin/users — the admin roster (Batch C2: server-backed).
+ *
+ * role / status / display_name all come from public.users, so the admin panel no
+ * longer needs the cryptoverse_users / banned / suspended / super-admin
+ * localStorage mirrors to render the roster. Read-only.
+ *
+ * Query: limit (1-100) · offset · email (exact, case-insensitive) ·
+ *        q (substring of email or display_name).
+ * `total` / `has_more` always describe the SAME filter, so the client can page
+ * instead of guessing how much it received.
+ */
+app.get('/api/admin/users', authenticate, requireAdminRead, async (req, res) => {
+  try {
+    const limit = Math.min(Math.max(Number(req.query.limit) || 50, 1), 100);
+    const offset = Math.max(Number(req.query.offset) || 0, 0);
+    const email = typeof req.query.email === 'string' ? req.query.email.trim() : '';
+    const q = typeof req.query.q === 'string' ? req.query.q.trim() : '';
+
+    const filters = [];
+    const filterParams = [];
+    if (email) {
+      filterParams.push(email.toLowerCase());
+      filters.push(`lower(email) = $${filterParams.length}`);
+    }
+    if (q) {
+      filterParams.push(`%${q.toLowerCase()}%`);
+      filters.push(`(lower(email) like $${filterParams.length} or lower(coalesce(display_name, '')) like $${filterParams.length})`);
+    }
+    const whereSql = filters.length ? ` where ${filters.join(' and ')}` : '';
+
+    const result = await pgPool.query(
+      `select id, email, display_name, role, plan, balance, status, language,
+              last_seen_at, last_seen_ip, created_at, updated_at
+         from public.users${whereSql}
+        order by created_at desc
+        limit $${filterParams.length + 1} offset $${filterParams.length + 2}`,
+      [...filterParams, limit, offset]
+    );
+    const { rows: countRows } = await pgPool.query(
+      `select count(*)::int as total from public.users${whereSql}`,
+      filterParams
+    );
+    const total = countRows[0].total;
+    return res.json({
+      success: true,
+      users: result.rows,
+      total,
+      limit,
+      offset,
+      has_more: offset + result.rows.length < total,
+      requestId: req.requestId,
+    });
+  } catch (error) {
+    console.error(JSON.stringify({ event: 'admin_users_failed', requestId: req.requestId, error: error?.message }));
+    return res.status(500).json({ error: 'SERVER_ERROR', message: 'Failed to fetch users.', requestId: req.requestId });
+  }
+});

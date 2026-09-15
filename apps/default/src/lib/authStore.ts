@@ -1,27 +1,21 @@
 
 import { create } from 'zustand';
-import { hashPassword as hashPasswordPbkdf2, verifyPassword as verifyPasswordPbkdf2 } from './passwordHash';
 import { recordLogin } from './loginHistoryStore';
 import { refreshAdminCacheFromDb } from './userMigrationService';
-import { rateLimiter } from './security/rateLimiter';
 import { createSession, destroySession, loadAuthSession } from './security/sessionManager';
 import { cloudRecordStore } from './cloudData';
-import { createPendingUser, findUserByEmail, generateOtp, invalidateUserRosterCache, sendOtpEmail, updatePassword, updateUserProfile, type UserRecord } from './authApi';
+import { findUserByEmail, invalidateUserRosterCache, type UserRecord } from './authApi';
+import { fetchMe, isUnauthenticated, mapServerUserToProfile, signOut, toUserRole, updateProfile as updateProfileOnServer, type ServerUser } from './betterAuthClient';
 import { trackProductEventInBackground, trackProductEventOnce } from './productAnalytics';
 
-// ── Password hashing (PBKDF2-SHA256) ────────────────────────────────────────
-// Delegated to ./passwordHash (WebCrypto PBKDF2 with a per-user 16-byte salt and
-// 100,000 iterations). No unsalted SHA-256 password hashing remains in this store.
-async function hashPassword(password: string): Promise<string> {
-  return hashPasswordPbkdf2(password);
-}
-
-async function verifyPassword(password: string, storedHash: string): Promise<boolean> {
-  return verifyPasswordPbkdf2(password, storedHash);
-}
+// ── Passwords are gone (Phase 0.5 · Batch C) ────────────────────────────────
+// Identity is Better Auth on the Render API: email OTP in, HttpOnly session
+// cookie out. There is no client-side hashing or password-verification path left
+// in this store, so ./passwordHash is no longer imported here (the module itself
+// is deleted in Batch D).
 
 // ── Role System ───────────────────────────────────────────────────────────────
-export type UserRole = 'user' | 'vip' | 'admin' | 'senior_admin' | 'super_admin' | 'founder' | 'developer';
+export type UserRole = 'user' | 'vip' | 'admin' | 'senior_admin' | 'super_admin' | 'founder' | 'developer' | 'subscription_admin' | 'support_admin';
 
 export interface UserProfile {
   id: string;
@@ -142,10 +136,10 @@ interface AuthState {
   startUserView: (targetEmail: string) => { success: boolean; error?: string };
   endUserView:   () => void;
 
-  // Auth actions (email + password only — no unverified client-side "OAuth")
-  login:              (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
-  register:           (email: string, password: string, displayName: string) => Promise<{ success: boolean; error?: string }>;
-  logout:             () => void;
+  // Auth actions — Better Auth owns the session and every sign-in is an email OTP
+  // handled by ./betterAuthClient. `login` / `register` were removed in Batch C:
+  // with no password there is nothing to verify and no account to provision here.
+  logout:             () => Promise<void>;
 
   // Profile updates
   updateProfile: (partial: Partial<UserProfile>) => void;
@@ -153,13 +147,14 @@ interface AuthState {
   // Referral
   applyReferral: (code: string) => void;
 
-  // Admin request (legacy)
-  requestAdmin: () => { approved: boolean; reason?: string };
+  // `requestAdmin` removed in Batch C — admin applications are handled server-side;
+  // the mirrored `adminRequestStatus` fields on UserProfile are still carried.
 
-  // Role management (super_admin only)
+  // Role management — server-enforced (requireAdminWrite on the API); the client
+  // no longer decides who is allowed to change a role.
   setUserRole: (targetEmail: string, newRole: UserRole) => Promise<{ success: boolean; error?: string }>;
 
-  // Get all users (super_admin only)
+  // Get all users from the local mirror (the server roster lands here in Batch C2)
   getAllUsers: () => Array<{ email: string; profile: UserProfile }>;
 
   // Virtual currency purchase
@@ -168,17 +163,22 @@ interface AuthState {
   // Dismiss first-login guide
   dismissFirstLogin: () => void;
 
-  // Password reset
-  resetPassword: (email: string, newPassword: string) => Promise<{ success: boolean; error?: string }>;
+  // `resetPassword` removed in Batch C — a passwordless account has nothing to reset.
 
   // New: log in directly from an external auth session (used by new auth pages)
   loginFromSession: (params: { id: string; email: string; fullName: string; role: UserRole }) => Promise<void>;
 
-  // Refresh the current user's role from the Taskade DB (reactive role sync)
+  // Refresh the current user's role from the server (GET /api/me — reactive role sync)
   refreshRole: () => Promise<void>;
 
   // Subscription management
   updateSubscription: (planId: string) => void;
+
+  // ── Server-verified session (Phase 0.5 · Batch B) ─────────────────────────
+  /** Applies a GET /api/me payload as the active session (server-authoritative). */
+  applyServerUser: (serverUser: ServerUser) => Promise<void>;
+  /** Re-verifies against the server; a 401 clears the local session (no navigation). */
+  refreshFromServer: () => Promise<boolean>;
 }
 
 function makeReferralCode(name: string) {
@@ -312,7 +312,8 @@ if (loadAuthSession()?.email) {
 
 // ── Role helpers ──────────────────────────────────────────────────────────────
 function roleToIsAdmin(role: UserRole): boolean {
-  return role === 'admin' || role === 'senior_admin' || role === 'super_admin' || role === 'founder' || role === 'developer';
+  return role === 'admin' || role === 'senior_admin' || role === 'super_admin' || role === 'founder' || role === 'developer'
+    || role === 'subscription_admin' || role === 'support_admin';
 }
 
 function migrateProfile(profile: UserProfile): UserProfile {
@@ -426,60 +427,30 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     });
   },
 
-  login: async (email, password) => {
-    const normalizedEmail = email.toLowerCase().trim();
-    const rateCheck = rateLimiter.checkRateLimit('login', normalizedEmail);
-    if (!rateCheck.allowed) return { success: false, error: rateCheck.message || 'Too many attempts. Please wait.' };
-    const lockCheck = rateLimiter.isLockedOut(normalizedEmail);
-    if (lockCheck.locked) return { success: false, error: lockCheck.message || 'Account is temporarily locked.' };
+  // `login(email, password)` was removed in Batch C. Password authentication no
+  // longer exists anywhere: sign-in is sendSignInOtp() → signInWithOtp() against
+  // Better Auth, then applyServerUser() with the GET /api/me payload.
 
-    try {
-      const record = await findUserByEmail(normalizedEmail);
-      if (!record || !record.passwordHash || !(await verifyPassword(password, record.passwordHash))) {
-        rateLimiter.recordFailedAttempt('login', normalizedEmail);
-        return { success: false, error: 'Incorrect email or password.' };
-      }
-      if (record.status !== 'active') return { success: false, error: 'This account is not active.' };
-
-      const profile = profileFromServer(record, get().user?.email === record.email ? get().user : null);
-      createSession(record.email);
-      saveSession(profile);
-      set({ user: profile, isAuthenticated: true, isAdmin: roleToIsAdmin(profile.role), isSuperAdmin: profile.role === 'super_admin' });
-      recordLogin({ userId: profile.id, method: 'email' });
-      hydrateUserData(profile.email);
-      return { success: true };
-    } catch {
-      return { success: false, error: 'We could not reach the account service. Please try again.' };
-    }
-  },
-
-  register: async (email, password, displayName) => {
-    const normalizedEmail = email.toLowerCase().trim();
-    if (password.length < 6) return { success: false, error: 'Password must be at least 6 characters.' };
-    try {
-      const passwordHash = await hashPassword(password);
-      const otpCode = generateOtp();
-      const otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
-      await createPendingUser({
-        email: normalizedEmail,
-        passwordHash,
-        fullName: displayName.trim() || normalizedEmail.split('@')[0],
-        otpCode,
-        otpExpiresAt,
-      });
-      await sendOtpEmail({ email: normalizedEmail, name: displayName.trim() || normalizedEmail.split('@')[0], code: otpCode });
-      return { success: true };
-    } catch (error) {
-      return { success: false, error: error instanceof Error ? error.message : 'Unable to create the account.' };
-    }
-  },
+  // `register(email, password, displayName)` was removed in Batch C. Better Auth
+  // creates the account on the first successful OTP verification (sendSignInOtp
+  // with type: 'sign-in'), so there is no client-side provisioning path left.
 
   // loginWithGoogle / loginWithApple / loginWithBiometric were removed.
   // They minted sessions from any caller-supplied email with no real OIDC / WebAuthn
-  // verification — a client-side authentication bypass. Sign-in is email+password
-  // (OTP-verified) and the standalone AdminLogin flow only.
+  // verification — a client-side authentication bypass. Sign-in is an email OTP
+  // verified by Better Auth, and nothing else.
 
-  logout: () => {
+  logout: async () => {
+    // Better Auth owns the session, so revoke it server-side first (the response
+    // clears the HttpOnly cookie) instead of only forgetting it locally. Bounded by
+    // a 3s race: a slow or unreachable API must never be able to trap the user in
+    // the app, and signOut() already swallows non-fatal failures itself.
+    try {
+      await Promise.race([
+        signOut(),
+        new Promise<void>(resolve => setTimeout(resolve, 3000)),
+      ]);
+    } catch { /* local sign-out still proceeds */ }
     destroySession();
     saveSession(null);
     // Also clear sessionStorage for any legacy entries
@@ -488,8 +459,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     // Clear all session-scoped state fully
     set({ user: null, isAuthenticated: false, isAdmin: false, isSuperAdmin: false,
       viewState: { isViewing: false, targetUser: null, originalUser: null, originalRole: null, startedAt: null } });
-    // Hard navigate to root — ensures the BrowserRouter isn't stuck on a deep route
-    // and the auth guard shows AuthPage instead of Dashboard
+    // Hard navigate to /dashboard — ensures the BrowserRouter isn't stuck on a deep
+    // route and the auth guard re-evaluates against the now-empty session.
     window.location.replace('/dashboard');
   },
 
@@ -498,9 +469,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     if (!user) return;
     const updated = migrateProfile({ ...user, ...partial });
     cloudRecordStore.set('auth_profile', user.email.toLowerCase(), updated);
-    if (partial.displayName !== undefined) {
-      void updateUserProfile(user.email, { fullName: partial.displayName }).then(result => {
-        if (!result.ok) console.warn('[authStore] Profile update was not accepted by the server.');
+    // Server-owned fields go to PATCH /api/me over the Better Auth session cookie.
+    // The Taskade roster (authApi.updateUserProfile) is no longer the profile
+    // source, and the local write below stays optimistic — the server's answer is
+    // re-read on the next refreshFromServer()/applyServerUser().
+    const patch: { display_name?: string; language?: string } = {};
+    if (partial.displayName !== undefined) patch.display_name = partial.displayName;
+    if (partial.language    !== undefined) patch.language    = partial.language;
+    if (Object.keys(patch).length > 0) {
+      void updateProfileOnServer(patch).catch(error => {
+        console.warn('[authStore] Profile update was not accepted by the server:', error);
       });
     }
     saveSession(updated);
@@ -509,6 +487,79 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       isAdmin:      roleToIsAdmin(updated.role),
       isSuperAdmin: updated.role === 'super_admin',
     });
+  },
+
+  // ── Server-verified session (Phase 0.5 · Batch B) ──────────────────────────
+  /**
+   * Applies a GET /api/me payload as the active session.
+   *
+   * Better Auth owns the session (HttpOnly cookie); this action only mirrors the
+   * authoritative profile into the store so the existing consumers keep working
+   * unchanged. Server-owned fields (id, email, plan, role, level, xp, balance)
+   * win; fields the server has no opinion on yet (avatar, bio, referral counters,
+   * admin-request state) are preserved from the previous profile.
+   */
+  applyServerUser: async (serverUser) => {
+    const email = serverUser.email.toLowerCase().trim();
+    const previous = (get().user?.email?.toLowerCase() === email ? get().user : null)
+      ?? getUsers()[email]?.profile
+      ?? null;
+    const mapped = mapServerUserToProfile(serverUser);
+    const role   = toUserRole(serverUser.role);
+
+    const profile = migrateProfile({
+      ...(previous ?? mapped),
+      id:             serverUser.id,
+      email,
+      displayName:    serverUser.display_name || previous?.displayName || mapped.displayName,
+      avatarSeed:     previous?.avatarSeed ?? mapped.avatarSeed,
+      plan:           serverUser.plan,
+      planExpiry:     serverUser.plan_expires_at ?? undefined,
+      role,
+      isAdmin:        roleToIsAdmin(role),
+      isDeveloper:    serverUser.role === 'developer',
+      language:       serverUser.language || previous?.language || 'en',
+      isFirstLogin:   serverUser.onboarding?.first_login_completed !== true,
+      joinedAt:       serverUser.created_at ?? previous?.joinedAt ?? mapped.joinedAt,
+      virtualBalance: Number(serverUser.balance || 0),
+    });
+
+    // Legacy local session mirror — removed in Batch C/D, when boot moves to the
+    // Better Auth cookie. Kept here so a refresh between batches still restores.
+    createSession(profile.email);
+    saveSession(profile);
+
+    set({
+      user:            profile,
+      isAuthenticated: true,
+      isAdmin:         roleToIsAdmin(profile.role),
+      isSuperAdmin:    profile.role === 'super_admin',
+    });
+
+    recordLogin({ userId: profile.id, method: 'email' });
+    hydrateUserData(profile.email);
+  },
+
+  /**
+   * Re-verifies the session against the server. A 401 means it was revoked or
+   * expired (single-session policy, admin revoke, ban) — the local session is
+   * cleared WITHOUT navigating, so the router guard can react on its own terms.
+   * Returns true when the server still recognises the session.
+   */
+  refreshFromServer: async () => {
+    try {
+      const me = await fetchMe();
+      await get().applyServerUser(me.user);
+      return true;
+    } catch (error) {
+      if (isUnauthenticated(error)) {
+        try { destroySession(); } catch { /* ignore */ }
+        saveSession(null);
+        try { sessionStorage.removeItem('cryptoverse_session'); } catch { /* ignore */ }
+        set({ user: null, isAuthenticated: false, isAdmin: false, isSuperAdmin: false });
+      }
+      return false;
+    }
   },
 
   applyReferral: (code) => {
@@ -525,47 +576,64 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
 
-  requestAdmin: () => {
-    const user = get().user;
-    if (!user) return { approved: false, reason: 'Not logged in' };
-    const { balance } = JSON.parse(localStorage.getItem('trading_store') || '{}') as { balance?: number };
-    const growthPct    = balance ? ((balance - 100000) / 100000) * 100 : 0;
-    const daysSinceJoin = Math.floor((Date.now() - new Date(user.joinedAt).getTime()) / 86400000);
-    const approved = growthPct >= 20 && daysSinceJoin >= 7;
-    const reason   = !approved
-      ? [
-          growthPct < 20    && `Portfolio growth below 20% (yours: ${growthPct.toFixed(1)}%)`,
-          daysSinceJoin < 7 && `Account must be at least 7 days old (yours: ${daysSinceJoin}d)`,
-        ].filter(Boolean).join(' · ')
-      : undefined;
-    get().updateProfile({
-      adminRequestStatus: approved ? 'approved' : 'rejected',
-      role:               approved ? 'admin' : user.role,
-      isAdmin:            approved || user.isAdmin,
-      adminRejectReason:  reason,
-    });
-    return { approved, reason };
-  },
+  // `requestAdmin` was removed in Batch C. It granted the `admin` role from local
+  // numbers (a simulated trading balance and the join date) — a client-side
+  // privilege escalation. Admin status is only ever set by the server through
+  // POST /api/admin/users/:userId/role.
 
+  /**
+   * Change a user's role on the SERVER (Phase 0.5 · Batch C).
+   *
+   * The Taskade roster (authApi.updateUserRole) is no longer a write path: the
+   * only way a role changes is POST /api/admin/users/:userId/role, which validates
+   * the role against the server allowlist, refuses to demote the last developer,
+   * bumps users.updated_at and writes an audit-log row. The client keeps no
+   * authority over roles at all — the old `super_admin`-only guard here was a UI
+   * check that the server now enforces properly via requireAdminWrite.
+   *
+   * The signature stays (email, newRole) because AdminAdmins.tsx and
+   * AdminRoleManagement.tsx already call it that way, and the former calls it
+   * fire-and-forget — so this must never reject.
+   */
   setUserRole: async (targetEmail, newRole) => {
-    const currentUser = get().user;
-    if (!currentUser || currentUser.role !== 'super_admin') {
-      return { success: false, error: 'Only Super Admins can change user roles.' };
-    }
-    const result = await import('./authApi').then(({ updateUserRole }) => updateUserRole(targetEmail, newRole));
-    if (!result.ok) return { success: false, error: result.error };
-
     const key = targetEmail.toLowerCase().trim();
-    const users = getUsers();
-    const target = users[key];
-    if (target) {
-      target.profile = migrateProfile({ ...target.profile, role: newRole, isAdmin: roleToIsAdmin(newRole) });
-      saveUsers(users);
+    if (!get().user) return { success: false, error: 'Not logged in.' };
+    try {
+      const { apiGet, apiPost } = await import('./adminApi');
+
+      // The write endpoint is keyed by user id, but callers pass an email, so walk
+      // the admin roster (the server pages it 100 at a time) to resolve the id.
+      let targetId: string | null = null;
+      let offset = 0;
+      for (let page = 0; page < 10 && targetId === null; page++) {
+        const roster = await apiGet<{
+          users?: Array<{ id: string; email: string }>;
+          total?: number;
+        }>(`/api/admin/users?limit=100&offset=${offset}`);
+        const rows = roster?.users ?? [];
+        const match = rows.find(u => (u.email || '').toLowerCase() === key);
+        if (match) { targetId = match.id; break; }
+        if (rows.length === 0 || offset + rows.length >= (roster?.total ?? 0)) break;
+        offset += rows.length;
+      }
+      if (!targetId) return { success: false, error: 'No account with that email exists on the server.' };
+
+      await apiPost(`/api/admin/users/${encodeURIComponent(targetId)}/role`, { role: newRole });
+
+      // Mirror the server's answer locally so the local roster doesn't drift.
+      const users = getUsers();
+      if (users[key]) {
+        users[key].profile = migrateProfile({ ...users[key].profile, role: newRole, isAdmin: roleToIsAdmin(newRole) });
+        saveUsers(users);
+      }
+      if (key === get().user?.email?.toLowerCase()) await get().refreshFromServer();
+      return { success: true };
+    } catch (error) {
+      if ((error as { name?: string })?.name === 'ApiForbiddenError') {
+        return { success: false, error: 'Your admin role does not allow changing roles.' };
+      }
+      return { success: false, error: error instanceof Error ? error.message : 'Unable to change the role.' };
     }
-    if (key === currentUser.email.toLowerCase()) {
-      get().updateProfile({ role: newRole, isAdmin: roleToIsAdmin(newRole) });
-    }
-    return { success: true };
   },
 
   getAllUsers: () => {
@@ -610,48 +678,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   refreshRole: async () => {
-    const currentUser = get().user;
-    if (!currentUser) return;
-    try {
-      // DB is the source of truth for role — never trust the local profile.
-      const { findUserByEmail } = await import('./authApi');
-      const dbUser = await findUserByEmail(currentUser.email);
-      if (!dbUser) return;
-      const newRole = (dbUser.role as UserRole) ?? 'user';
-      const isAdmin = roleToIsAdmin(newRole);
-      if (newRole === currentUser.role && isAdmin === currentUser.isAdmin) return;
-
-      const updatedProfile = migrateProfile({ ...currentUser, role: newRole, isAdmin });
-      const users = getUsers();
-      const key   = currentUser.email.toLowerCase();
-      if (users[key]) {
-        users[key].profile = updatedProfile;
-        saveUsers(users);
-      }
-      saveSession(updatedProfile);
-      set({
-        user:         updatedProfile,
-        isAdmin,
-        isSuperAdmin: newRole === 'super_admin',
-      });
-    } catch (error) {
-      console.warn('Failed to refresh role:', error);
-    }
+    // Phase 0.5 · Batch C: the server is the only role authority. GET /api/me
+    // carries the role, and refreshFromServer() additionally drops a session the
+    // server has revoked (401) instead of trusting the cached profile.
+    if (!get().user) return;
+    await get().refreshFromServer();
   },
 
-  resetPassword: async (email, newPassword) => {
-    if (newPassword.length < 6) {
-      return { success: false, error: 'Password must be at least 6 characters.' };
-    }
-    try {
-      const record = await findUserByEmail(email.toLowerCase().trim());
-      if (!record) return { success: false, error: 'No account found with this email.' };
-      await updatePassword(record.nodeId, await hashPassword(newPassword));
-      return { success: true };
-    } catch {
-      return { success: false, error: 'Unable to update the password right now.' };
-    }
-  },
+  // `resetPassword` was removed in Batch C: a passwordless account has nothing to
+  // reset, and `updatePassword`/`hashPassword` no longer exist in this store.
 }));
 
 

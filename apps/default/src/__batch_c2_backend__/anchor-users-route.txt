@@ -1,0 +1,22 @@
+app.get('/api/admin/users', authenticate, requireAdminRead, async (req, res) => {
+  try {
+    const limit = Math.min(Number(req.query.limit) || 50, 100);
+    const offset = Number(req.query.offset) || 0;
+    const result = await pgPool.query(
+      `select id, email, role, plan, balance, last_seen_at, last_seen_ip, created_at
+       from public.users order by created_at desc limit $1 offset $2`,
+      [limit, offset]
+    );
+    const { rows: countRows } = await pgPool.query('select count(*)::int as total from public.users');
+    return res.json({
+      success: true,
+      users: result.rows,
+      total: countRows[0].total,
+      limit, offset,
+      requestId: req.requestId,
+    });
+  } catch (error) {
+    console.error(JSON.stringify({ event: 'admin_users_failed', requestId: req.requestId, error: error?.message }));
+    return res.status(500).json({ error: 'SERVER_ERROR', message: 'Failed to fetch users.', requestId: req.requestId });
+  }
+});

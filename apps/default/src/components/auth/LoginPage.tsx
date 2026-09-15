@@ -1,48 +1,64 @@
 /**
  * LoginPage.tsx — /login
  *
- * Flow:
- * 1. Validate email + password fields
- * 2. Find user in Users project
- * 3. Compare SHA-256(password) with stored hash
- * 4. If match: generate OTP, update node, send email, redirect /verify-otp?mode=login
- * 5. If mismatch: show error
+ * Passwordless sign-in (Phase 0.5 · frontend Batch A):
+ * 1. Validate the email address
+ * 2. POST /api/auth/email-otp/send-verification-otp  { email, type: 'sign-in' }
+ * 3. Redirect → /verify-otp?email=…&mode=login
+ *
+ * There is no password field any more: the OTP is the only credential, and the
+ * session is minted by Better Auth in VerifyOtpPage. Nothing credential-shaped is
+ * ever generated or stored in the browser.
+ *
+ * Note: the backend issues the code for any address (no account enumeration), so
+ * this page never reveals whether an email has an account.
  */
 import React, { useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Eye, EyeOff } from 'lucide-react';
 import { AuthLayout, Alert, Field, SubmitButton } from './AuthLayout';
-import { verifyPassword, generateOtp, findUserByEmail, sendOtpEmail, updateUserOtp } from '../../lib/authApi';
+import { sendSignInOtp, AuthRequestError } from '../../lib/betterAuthClient';
+
+/** Turns an auth failure into something the user can act on. */
+function describeAuthError(err: unknown): React.ReactNode {
+  if (err instanceof AuthRequestError) {
+    if (err.status === 429) {
+      return 'Too many code requests. Please wait a minute and try again.';
+    }
+    if (err.status === 0 || err.status >= 500) {
+      return (
+        <span>
+          We couldn&apos;t send the code right now. Nothing was changed on your
+          account — please try again in a moment.
+        </span>
+      );
+    }
+    return err.message;
+  }
+  return 'Something went wrong. Please try again.';
+}
 
 export function LoginPage() {
   const navigate = useNavigate();
 
-  const [email, setEmail]       = useState('');
-  const [password, setPassword] = useState('');
-  const [showPwd, setShowPwd]   = useState(false);
-  const [loading, setLoading]   = useState(false);
-  const [error, setError]       = useState('');
-  const [success, setSuccess]   = useState('');
+  const [email, setEmail]     = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError]     = useState<React.ReactNode>('');
+  const [success, setSuccess] = useState('');
 
-  // Synchronous in-flight guard: prevents duplicate login submissions (a fast
-  // double-click/submit can fire before React's async `loading` state flushes,
-  // which would issue duplicate findUserByEmail GETs + webhook calls → 429).
+  // Synchronous in-flight guard: a fast double-click/submit can fire before
+  // React's async `loading` state flushes, which would send two code requests and
+  // earn a 429 from the provider.
   const submittingRef = useRef(false);
 
-  const [touched, setTouched] = useState({ email: false, password: false });
+  const [touched, setTouched] = useState({ email: false });
 
-  const emailErr    = touched.email    ? (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? '' : 'Enter a valid email.') : '';
-  const passwordErr = touched.password ? (password.length < 6 ? 'Password must be at least 6 characters.' : '') : '';
-
-  const canSubmit =
-    !loading &&
-    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) &&
-    password.length >= 6;
+  const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  const emailErr   = touched.email && !emailValid ? 'Enter a valid email.' : '';
+  const canSubmit  = !loading && emailValid;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setTouched({ email: true, password: true });
-    // Reject duplicate/unauthenticated submits synchronously (see ref above).
+    setTouched({ email: true });
     if (submittingRef.current) return;
     if (!canSubmit) return;
 
@@ -54,40 +70,15 @@ export function LoginPage() {
     const normalizedEmail = email.toLowerCase().trim();
 
     try {
-      // 1. Find user via API (Taskade project)
-      const user = await findUserByEmail(normalizedEmail);
-      if (user) {
-        // 2. Verify password via PBKDF2 (with legacy SHA-256 fallback)
-        const ok = await verifyPassword(password, user.passwordHash);
-        if (!ok) {
-          setError('Email or password is incorrect.');
-          setLoading(false);
-          return;
-        }
+      await sendSignInOtp(normalizedEmail, 'sign-in');
 
-        // 3. Generate OTP and update user record
-        const otpCode      = generateOtp();
-        const otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
-        console.info('[LoginPage] OTP generated for delivery', { email: normalizedEmail });
-        await updateUserOtp(user.nodeId, otpCode, otpExpiresAt);
-
-        // 4. Send OTP email
-        await sendOtpEmail({
-          email: user.email,
-          name:  user.fullName || user.email,
-          code:  otpCode,
-        });
-
-        setSuccess('Verification code sent to your email.');
-        setTimeout(() => {
-          navigate(`/verify-otp?email=${encodeURIComponent(user.email)}&mode=login`);
-        }, 800);
-      } else {
-        setError('Email or password is incorrect.');
-      }
-    } catch (err: any) {
+      setSuccess('Verification code sent to your email.');
+      setTimeout(() => {
+        navigate(`/verify-otp?email=${encodeURIComponent(normalizedEmail)}&mode=login`);
+      }, 600);
+    } catch (err) {
       console.error('[LoginPage]', err);
-      setError(err?.message ?? 'Something went wrong. Please try again.');
+      setError(describeAuthError(err));
     } finally {
       submittingRef.current = false;
       setLoading(false);
@@ -97,7 +88,7 @@ export function LoginPage() {
   return (
     <AuthLayout
       title="Welcome back"
-      subtitle="Sign in to your CryptoVerse HQ account."
+      subtitle="Sign in with a one-time code sent to your email."
     >
       <form onSubmit={handleSubmit} noValidate>
         <Alert message={error}   type="error"   />
@@ -115,35 +106,12 @@ export function LoginPage() {
           disabled={loading}
         />
 
-        <Field
-          label="Password"
-          type={showPwd ? 'text' : 'password'}
-          value={password}
-          onChange={setPassword}
-          placeholder="Your password"
-          autoComplete="current-password"
-          error={passwordErr}
-          disabled={loading}
-          suffix={
-            <button
-              type="button"
-              onClick={() => setShowPwd(s => !s)}
-              className="text-muted-foreground hover:text-foreground transition-colors"
-              tabIndex={-1}
-            >
-              {showPwd ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-            </button>
-          }
-        />
-
-        <div className="flex justify-end mb-2">
-          <Link to="/forgot-password" className="text-sm text-primary hover:underline">
-            Forgot password?
-          </Link>
-        </div>
+        <p className="text-xs text-muted-foreground mb-3">
+          No password needed — we&apos;ll email you a 6-digit code.
+        </p>
 
         <SubmitButton
-          label="Login"
+          label="Send verification code"
           loading={loading}
           disabled={!canSubmit}
           loadingLabel="Sending verification code…"

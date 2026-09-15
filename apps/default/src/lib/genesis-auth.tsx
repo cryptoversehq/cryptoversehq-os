@@ -2,32 +2,105 @@ import { ErrorResponse, UserManager, type User } from 'oidc-client-ts';
 import * as React from 'react';
 import { AuthProvider, useAuth } from 'react-oidc-context';
 
-import { GatewayAuthSync } from './gateway-auth.jsx';
+import { GatewayAuthSync } from './gateway-auth';
 
 /** Query params the IdP appends to `redirect_uri` on the way back. */
 const OIDC_CALLBACK_PARAMS = ['code', 'state', 'session_state', 'iss'];
 
 /**
- * Drop the OIDC callback params once the auth code has been exchanged.
- *
- * `react-oidc-context` exchanges `?code=&state=` on mount but leaves them in
- * the URL, and the PKCE state it matched them against is deleted during that
- * exchange. Any later mount of the same URL (reload, back navigation, a shared
- * link) therefore retries the callback, finds no matching state, and surfaces
- * an auth error that hides an otherwise valid session. Other params (e.g. the
- * preview `accessToken`) and the hash are kept.
+ * An in-app path (`/admin?tab=2#top`) is safe to return to after sign-in; a
+ * destination taken from a query parameter is not. Only a single leading `/`
+ * qualifies: `//host` and `/\host` are protocol-relative and would leave the
+ * app, and anything with a scheme is refused by the same rule.
  */
-function onSigninCallback(): void {
+export function isSafeAppPath(value: unknown): value is string {
+  return (
+    typeof value === 'string' &&
+    value.startsWith('/') &&
+    !value.startsWith('//') &&
+    !value.startsWith('/\\')
+  );
+}
+
+/** The path the OIDC `state` carries through the sign-in round trip. */
+type SigninState = { returnTo: string };
+
+/**
+ * Where a sign-in started, minus any stale callback params, so a sign-in
+ * clicked on a not-yet-cleaned callback URL does not carry them back.
+ */
+function currentAppPath(): string {
   const url = new URL(window.location.href);
-  let changed = false;
   for (const name of OIDC_CALLBACK_PARAMS) {
-    if (url.searchParams.has(name)) {
-      url.searchParams.delete(name);
-      changed = true;
-    }
+    url.searchParams.delete(name);
   }
-  if (changed) {
-    window.history.replaceState(window.history.state, document.title, url.toString());
+  return `${url.pathname}${url.search}${url.hash}`;
+}
+
+/**
+ * The in-app path a completed sign-in should land on, read off the round
+ * tripped OIDC `state`, or null when there is none worth honouring.
+ */
+export function readReturnTo(state: unknown): string | null {
+  if (typeof state !== 'object' || state == null) {
+    return null;
+  }
+  const { returnTo } = state as Partial<SigninState>;
+  return isSafeAppPath(returnTo) ? returnTo : null;
+}
+
+/**
+ * The URL the app should show once the auth code has been exchanged:
+ * `current` with the OIDC callback params dropped, moved to `returnTo` when
+ * the sign-in carried one. Pure, so it can be tested without a browser.
+ */
+export function signinLandingUrl(current: URL, returnTo: string | null): URL {
+  const url = new URL(current.href);
+  for (const name of OIDC_CALLBACK_PARAMS) {
+    url.searchParams.delete(name);
+  }
+  if (returnTo != null) {
+    const target = new URL(returnTo, url.origin);
+    url.pathname = target.pathname;
+    url.search = target.search;
+    url.hash = target.hash;
+  }
+  return url;
+}
+
+/**
+ * Finish the sign-in on the page the user started from.
+ *
+ * Two jobs, both on the URL. First, drop the OIDC callback params once the
+ * auth code has been exchanged: `react-oidc-context` exchanges `?code=&state=`
+ * on mount but leaves them in the URL, and the PKCE state it matched them
+ * against is deleted during that exchange, so any later mount of the same URL
+ * (reload, back navigation, a shared link) would retry the callback, find no
+ * matching state, and surface an auth error that hides a valid session. Other
+ * params (e.g. the preview `accessToken`) and the hash are kept.
+ *
+ * Second, return to where the sign-in began. `redirect_uri` is the app root,
+ * so every sign-in used to land on `/`, whatever the user was trying to reach
+ * (#28786: an owner signing in for `/admin` landed on the public page with no
+ * path onward, and apps compensated with a `sessionStorage` flag written by
+ * exactly one button). The path now rides in the OIDC `state`, which
+ * `signinRedirect` below fills in for every entry point. `replaceState` alone
+ * is invisible to React Router, which reads the location on `popstate`, so
+ * one is dispatched when the path moved.
+ */
+function onSigninCallback(user: User | undefined): void {
+  const current = new URL(window.location.href);
+  const next = signinLandingUrl(current, readReturnTo(user?.state));
+  if (next.href === current.href) {
+    return;
+  }
+  const pathMoved =
+    next.pathname !== current.pathname ||
+    next.search !== current.search ||
+    next.hash !== current.hash;
+  window.history.replaceState(window.history.state, document.title, next.toString());
+  if (pathMoved) {
+    window.dispatchEvent(new PopStateEvent('popstate', { state: window.history.state }));
   }
 }
 
@@ -78,6 +151,15 @@ function getUserManager(): UserManager {
     return inflightSigninCallback;
   };
 
+  // Every sign-in remembers where it started (see `onSigninCallback`), from
+  // whichever button or gate triggered it. A caller's own `state` wins.
+  const signinRedirect = manager.signinRedirect.bind(manager);
+  manager.signinRedirect = (args = {}): Promise<void> => {
+    const state: SigninState | unknown =
+      args.state === undefined ? { returnTo: currentAppPath() } : args.state;
+    return signinRedirect({ ...args, state });
+  };
+
   cachedUserManager = manager;
   return manager;
 }
@@ -111,6 +193,9 @@ function getUserManager(): UserManager {
  *   // ...
  * }
  * ```
+ *
+ * `auth.signinRedirect()` brings the user back to the page it was called from
+ * (path, query and hash), so a gate on `/admin` needs no return flag of its own.
  */
 export function GenesisAuth({ children }: { children: React.ReactNode }) {
   return (

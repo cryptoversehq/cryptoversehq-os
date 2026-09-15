@@ -1,6 +1,6 @@
 {
   "name": "@taskade/parade-base-template-v2",
-  "version": "2.5.9",
+  "version": "2.5.10",
   "private": true,
   "files": [
     "dist",

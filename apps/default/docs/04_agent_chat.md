@@ -87,9 +87,12 @@ If `listConversations` / `getConversation` are not exported from
 endpoint, and do not ship an empty History tab. Tell the user the app needs a
 scaffold that includes those helpers, then stop.
 
-**Persist ids yourself.** `createConversation` returns `{ conversationId }`.
-Store that id (prefer `createPersistentStore` from `@/lib/createPersistentStore`,
-or `localStorage`) on every successful create. The default
+**Persist ids yourself.** `createConversation` returns `{ conversationId, nonce }`.
+Store the id (prefer `createPersistentStore` from `@/lib/createPersistentStore`,
+or `localStorage`) on every successful create. Ignore `nonce`: the SDK already
+keeps it in `localStorage` beside the id and replays it as a header on every
+read, which is what binds a transcript to the browser that created it. A stored
+id from another device reads as not found, and that is correct. The default
 `<FloatingAgentChat />` does not persist ids, so a history surface must own
 `createConversation` (custom UI) rather than wrapping the floating block and
 hoping. Public conversations have no end-user identity, so the API cannot list

@@ -784,7 +784,7 @@ function LynxAIIntegration() {
   const { message: guidanceMsg, dismiss: dismissGuidance } = useLynxGuidance();
 
   // Only show on non-auth pages
-  const AUTH_ROUTES = ['/signup', '/login', '/verify-otp', '/forgot-password', '/reset-password'];
+  const AUTH_ROUTES = ['/signup', '/login', '/verify-otp', '/auth'];
   const isAuthRoute = AUTH_ROUTES.some(r => location.pathname.startsWith(r));
   const isAdminRoute = location.pathname.startsWith('/admin');
 
@@ -992,7 +992,7 @@ function AppInner() {
   }, [isAuthenticated]);
 
   // Dedicated auth routes — never show the overlay on these paths
-  const AUTH_ROUTES = ['/signup', '/login', '/verify-otp', '/forgot-password', '/reset-password'];
+  const AUTH_ROUTES = ['/signup', '/login', '/verify-otp', '/auth'];
   const isAuthRoute  = AUTH_ROUTES.some(r => location.pathname.startsWith(r));
   const isAdminRoute = location.pathname.startsWith('/admin');
 

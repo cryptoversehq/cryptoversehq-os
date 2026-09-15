@@ -18,7 +18,12 @@
  * // data: URL). It becomes a https://files.taskade.com URL a `Convert File to Text`
  * // step can OCR.
  * await submitForm(processDocFlowId, { file, title: file.name });
+ *
+ * // Read recent runs (id, status, timestamps) for a status widget. Always through
+ * // this typed helper, never a hand-built gateway URL.
+ * const { runs } = await getFlowRuns(syncFlowId, { limit: 1 });
  * ```
  */
-export { submitForm, runFlow } from './client';
+export { submitForm, runFlow, getFlowRuns } from './client';
+export type { FlowRunStatus, FlowRunSummary, FlowRunsPage } from './client';
 export type { ClientOptions } from '../genesis-gateway';
