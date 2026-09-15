@@ -15,6 +15,12 @@
  *   · Better Auth databaseHooks: single-session (revoke-then-insert) + banned refusal.
  *   · Payment provider failures now log the upstream status/body (diagnostics).
  *
+ * Batch C2 additions (server-backed admin surface)
+ *   · GET  /api/admin/users                 → + display_name/status/language, ?email=/?q=, total/has_more
+ *   · GET  /api/admin/users/:userId         → one account (+ active subscription, live-session count)
+ *   · POST /api/admin/users/:userId/status  → { active|suspended|banned } — the column authenticate() enforces
+ *   · POST /api/admin/view-as               → audit row only (read-only guarantee preserved)
+ *
  * Response shape is backwards compatible: { error, message, requestId } and now also
  * carries a machine-readable `code`:
  *   401 unauthenticated | session_revoked | session_expired
@@ -1056,26 +1062,253 @@ app.post('/api/me/sessions/revoke-all', authenticate, async (req, res) => {
 });
 
 // ==================== ADMIN: USERS ====================
+/**
+ * GET /api/admin/users — the admin roster (Batch C2: server-backed).
+ *
+ * role / status / display_name all come from public.users, so the admin panel no
+ * longer needs the cryptoverse_users / banned / suspended / super-admin
+ * localStorage mirrors to render the roster. Read-only.
+ *
+ * Query: limit (1-100) · offset · email (exact, case-insensitive) ·
+ *        q (substring of email or display_name).
+ * `total` / `has_more` always describe the SAME filter, so the client can page
+ * instead of guessing how much it received.
+ */
 app.get('/api/admin/users', authenticate, requireAdminRead, async (req, res) => {
   try {
-    const limit = Math.min(Number(req.query.limit) || 50, 100);
-    const offset = Number(req.query.offset) || 0;
+    const limit = Math.min(Math.max(Number(req.query.limit) || 50, 1), 100);
+    const offset = Math.max(Number(req.query.offset) || 0, 0);
+    const email = typeof req.query.email === 'string' ? req.query.email.trim() : '';
+    const q = typeof req.query.q === 'string' ? req.query.q.trim() : '';
+
+    const filters = [];
+    const filterParams = [];
+    if (email) {
+      filterParams.push(email.toLowerCase());
+      filters.push(`lower(email) = ${filterParams.length}`);
+    }
+    if (q) {
+      filterParams.push(`%${q.toLowerCase()}%`);
+      filters.push(`(lower(email) like ${filterParams.length} or lower(coalesce(display_name, '')) like ${filterParams.length})`);
+    }
+    const whereSql = filters.length ? ` where ${filters.join(' and ')}` : '';
+
     const result = await pgPool.query(
-      `select id, email, role, plan, balance, last_seen_at, last_seen_ip, created_at
-       from public.users order by created_at desc limit $1 offset $2`,
-      [limit, offset]
+      `select id, email, display_name, role, plan, balance, status, language,
+              last_seen_at, last_seen_ip, created_at, updated_at
+         from public.users${whereSql}
+        order by created_at desc
+        limit ${filterParams.length + 1} offset ${filterParams.length + 2}`,
+      [...filterParams, limit, offset]
     );
-    const { rows: countRows } = await pgPool.query('select count(*)::int as total from public.users');
+    const countParams = filterParams.length > 0 ? filterParams : [];
+    const { rows: countRows } = await pgPool.query(
+  `select count(*)::int as total from public.users${whereSql}`,
+  countParams
+);
+    const total = countRows[0].total;
     return res.json({
       success: true,
       users: result.rows,
-      total: countRows[0].total,
-      limit, offset,
+      total,
+      limit,
+      offset,
+      has_more: offset + result.rows.length < total,
       requestId: req.requestId,
     });
   } catch (error) {
     console.error(JSON.stringify({ event: 'admin_users_failed', requestId: req.requestId, error: error?.message }));
     return res.status(500).json({ error: 'SERVER_ERROR', message: 'Failed to fetch users.', requestId: req.requestId });
+  }
+});
+
+/**
+ * GET /api/admin/users/:userId — one account, in the list shape plus the active
+ * subscription and the live-session count. This is what "view as user" reads
+ * (Batch C2): the panel renders the SERVER's record instead of a Taskade /
+ * localStorage mirror. Read-only — it never writes to the target's data.
+ */
+app.get('/api/admin/users/:userId', authenticate, requireAdminRead, async (req, res) => {
+  const { userId } = req.params;
+
+  if (!UUID_RE.test(String(userId))) {
+    return res.status(400).json({ error: 'VALIDATION_ERROR', code: 'invalid_user_id', message: 'userId must be a UUID.', requestId: req.requestId });
+  }
+
+  try {
+    const { rows } = await pgPool.query(
+      `select id, email, display_name, role, plan, balance, status, language,
+              last_seen_at, last_seen_ip, created_at, updated_at
+         from public.users
+        where id = $1
+        limit 1`,
+      [userId]
+    );
+    if (rows.length === 0) {
+      return res.status(404).json({ error: 'NOT_FOUND', code: 'not_found', message: 'User not found.', requestId: req.requestId });
+    }
+
+    // Enrichment only: a missing table/column must not 500 an otherwise fine page.
+    const { rows: subRows } = await pgPool.query(
+      `select id, plan_id, status, starts_at, ends_at, granted_by, created_at
+         from public.subscriptions
+        where user_id = $1 and status = 'active'
+        order by created_at desc
+        limit 1`,
+      [userId]
+    ).catch(() => ({ rows: [] }));
+
+    const { rows: sessionRows } = await pgPool.query(
+      `select count(*)::int as live_sessions
+         from public.session s
+         join public."user" u on u.id = s."userId"
+        where lower(u.email) = lower($1)
+          and s.revoked_at is null
+          and s."expiresAt" > now()`,
+      [rows[0].email]
+    ).catch(() => ({ rows: [{ live_sessions: 0 }] }));
+
+    return res.json({
+      success: true,
+      user: rows[0],
+      active_subscription: subRows[0] || null,
+      live_sessions: sessionRows[0] ? sessionRows[0].live_sessions : 0,
+      requestId: req.requestId,
+    });
+  } catch (error) {
+    console.error(JSON.stringify({ event: 'admin_user_detail_failed', requestId: req.requestId, error: error?.message }));
+    return res.status(500).json({ error: 'SERVER_ERROR', code: 'internal_error', message: 'Failed to fetch the user.', requestId: req.requestId });
+  }
+});
+
+/**
+ * POST /api/admin/users/:userId/status — { status, reason? }
+ *
+ * WHY THIS EXISTS (Batch C2): the panel's ban/suspend used to write the Taskade
+ * users project (@cv_status) and localStorage only, while authenticate()
+ * enforces public.users.status in Neon — so an admin "ban" never actually
+ * blocked the API. This writes the column the API reads, ends the target's live
+ * sessions when the account is restricted, and leaves exactly one audit row.
+ */
+const ACCOUNT_STATUSES = new Set(['active', 'suspended', 'banned']);
+
+app.post('/api/admin/users/:userId/status', authenticate, requireAdminWrite, async (req, res) => {
+  const { userId } = req.params;
+  const body = req.body || {};
+  const status = String(body.status || '').trim().toLowerCase();
+  const reason = typeof body.reason === 'string' ? body.reason.trim().slice(0, 200) : '';
+
+  if (!UUID_RE.test(String(userId))) {
+    return res.status(400).json({ error: 'VALIDATION_ERROR', code: 'invalid_user_id', message: 'userId must be a UUID.', requestId: req.requestId });
+  }
+  if (!ACCOUNT_STATUSES.has(status)) {
+    return res.status(400).json({
+      error: 'VALIDATION_ERROR',
+      code: 'invalid_status',
+      message: `status must be one of: ${Array.from(ACCOUNT_STATUSES).join(', ')}`,
+      requestId: req.requestId,
+    });
+  }
+  if (userId === req.user.id) {
+    return res.status(400).json({ error: 'VALIDATION_ERROR', code: 'self_status', message: 'You cannot change your own account status.', requestId: req.requestId });
+  }
+
+  try {
+    const { rows } = await pgPool.query('select id, email, role, status from public.users where id = $1 limit 1', [userId]);
+    if (rows.length === 0) {
+      return res.status(404).json({ error: 'NOT_FOUND', code: 'not_found', message: 'User not found.', requestId: req.requestId });
+    }
+    const target = rows[0];
+    const beforeStatus = target.status || 'active';
+
+    // Acting on an owner-tier account is an owner-tier action.
+    if (OWNER_ROLES.has(target.role) && !OWNER_ROLES.has(req.user.role)) {
+      return res.status(403).json({
+        error: 'FORBIDDEN',
+        code: 'forbidden',
+        message: "Only an owner-tier admin can change another owner's account status.",
+        requestId: req.requestId,
+      });
+    }
+
+    if (beforeStatus === status) {
+      return res.json({
+        success: true, duplicate: true, user_id: userId,
+        before_status: beforeStatus, after_status: status, sessions_revoked: 0,
+        requestId: req.requestId,
+      });
+    }
+
+    await pgPool.query('update public.users set status = $1, updated_at = now() where id = $2', [status, userId]);
+    invalidateUserCache(target.email);
+
+    // A banned/suspended account must not keep a live session: the next request
+    // would be refused anyway, but ending them here is what the admin expects.
+    const sessionsRevoked = status === 'active'
+      ? 0
+      : await revokeSessionsByAppUserId(userId, REVOKE.BANNED).catch(() => 0);
+
+    await writeAuditLog({
+      actor_id: req.user.id, actor_email: req.user.email, actor_role: req.user.role,
+      target_user_id: userId, plan_id: null, action: 'status_change', result: 'success',
+      note: `Account status: ${beforeStatus} → ${status}${reason ? ` | ${reason}` : ''}`,
+      before_state: { status: beforeStatus },
+      after_state: { status, sessions_revoked: sessionsRevoked },
+      ip_address: req.ip, user_agent: req.get('User-Agent'),
+      request_id: req.requestId, idempotency_key: null, entitlement_id: null,
+    });
+
+    return res.json({
+      success: true,
+      user_id: userId,
+      email: target.email,
+      before_status: beforeStatus,
+      after_status: status,
+      sessions_revoked: sessionsRevoked,
+      requestId: req.requestId,
+    });
+  } catch (error) {
+    console.error(JSON.stringify({ event: 'admin_status_change_failed', requestId: req.requestId, error: error?.message }));
+    return res.status(500).json({ error: 'SERVER_ERROR', code: 'internal_error', message: 'Account status change failed.', requestId: req.requestId });
+  }
+});
+
+/**
+ * POST /api/admin/view-as — { target_user_id }
+ *
+ * "View as user" changes only what the ADMIN'S OWN BROWSER renders: no token
+ * swap, no write on the target, nothing returned that the admin could not
+ * already read through the roster/detail GETs. The read-only guarantee holds by
+ * construction, and this endpoint exists purely so the action is auditable —
+ * who looked at whom, from which address.
+ */
+app.post('/api/admin/view-as', authenticate, requireAdminRead, async (req, res) => {
+  const body = req.body || {};
+  const targetUserId = String(body.target_user_id || body.targetUserId || '').trim();
+
+  if (!UUID_RE.test(targetUserId)) {
+    return res.status(400).json({ error: 'VALIDATION_ERROR', code: 'invalid_user_id', message: 'target_user_id must be a UUID.', requestId: req.requestId });
+  }
+
+  try {
+    const { rows } = await pgPool.query('select id, email from public.users where id = $1 limit 1', [targetUserId]);
+    if (rows.length === 0) {
+      return res.status(404).json({ error: 'NOT_FOUND', code: 'not_found', message: 'User not found.', requestId: req.requestId });
+    }
+
+    await writeAuditLog({
+      actor_id: req.user.id, actor_email: req.user.email, actor_role: req.user.role,
+      target_user_id: targetUserId, plan_id: null, action: 'view_as_user', result: 'success',
+      note: `View as user (read-only): ${rows[0].email}`,
+      before_state: null, after_state: { read_only: true },
+      ip_address: req.ip, user_agent: req.get('User-Agent'),
+      request_id: req.requestId, idempotency_key: null, entitlement_id: null,
+    });
+
+    return res.json({ success: true, read_only: true, target_user_id: targetUserId, requestId: req.requestId });
+  } catch (error) {
+    console.error(JSON.stringify({ event: 'admin_view_as_failed', requestId: req.requestId, error: error?.message }));
+    return res.status(500).json({ error: 'SERVER_ERROR', code: 'internal_error', message: 'Failed to record the view-as-user action.', requestId: req.requestId });
   }
 });
 
