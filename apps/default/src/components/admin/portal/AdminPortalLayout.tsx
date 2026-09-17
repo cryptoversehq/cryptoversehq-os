@@ -4,20 +4,22 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard, Users, CreditCard, BookOpen, Trophy,
   Flag, HeadphonesIcon, Shield, ClipboardList, FileText,
-  Bell, LogOut, Menu, X, Clock, ChevronRight, AlertTriangle,
+  Bell, LogOut, Menu, X, ChevronRight, AlertTriangle,
   Zap, RefreshCw, Activity, Image, Brain, DollarSign, ShieldCheck, KeyRound, Settings,
   ArrowLeftCircle, Terminal,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
-import { useAdminAuthStore } from '@/lib/adminAuthStore';
+// Batch C2.5: `@/lib/adminAuthStore` (the cryptoverse_admin_session store) is no
+// longer imported anywhere in this file — every value it offered was editable in
+// the browser. The admin identity comes from GET /api/me (useAdminIdentity).
 import { useAdminManagementStore, ADMIN_LEVEL_META, AdminNotifType } from '@/lib/adminManagementStore';
 import { useAuthStore } from '@/lib/authStore';
 import { type AdminSectionId } from '@/lib/adminPortalStore';
 import { CryptoVerseLogo } from '@/components/CryptoVerseLogo';
 import { AdminLynxButton } from '@/components/admin/AdminLynxButton';
 import { destroySession, loadAuthSession, refreshActivity } from '@/lib/security/sessionManager';
-import { useAdminIdentity, logoutAdminSession, clearAdminSessionCache, hasFullAdminAccess } from '@/lib/adminApi';
+import { useAdminIdentity, logoutAdminSession, clearAdminSessionCache, hasFullAdminAccess, roleLevel } from '@/lib/adminApi';
 
 /** Email from the app's own session cache (`cryptoverse_session`), if present. */
 function readCachedAppSessionEmail(): string | null {
@@ -37,12 +39,13 @@ interface NavItem {
   minLevel: number;
   badge?: string;
   color?: string;
-  /** If set, a section-scoped Admin (level 3, not Super Admin) additionally
-   *  needs hasAccess(email, section) to see/use this item. Super Admins and
-   *  items without a section are governed by minLevel alone. */
+  /** LEGACY (Batch C2/C2.5) — `minLevel`, `section` and `subscriptionAdminOnly`
+   *  are no longer consulted by anything. Nav visibility is decided from the
+   *  SERVER role in `allowedNav`: the owner tier sees all of NAV_ITEMS and the
+   *  other two admin roles see only Subscriptions. The old comment here described
+   *  `hasAccess(email, section)`, which has been deleted. */
   section?: AdminSectionId;
-  /** When true the item is shown only to the Developer or an admin explicitly
-   *  granted the `subscriptions` section — never by level alone. */
+  /** LEGACY — see above. */
   subscriptionAdminOnly?: boolean;
 }
 
@@ -74,50 +77,21 @@ const NAV_ITEMS: NavItem[] = [
   { path: '/admin/cloud',            label: 'Cloud Operations', icon: Activity,   minLevel: 1,  color: 'text-cyan-400'   },
 ];
 
-// Session countdown timer
-function SessionTimer({ onExpiry }: { onExpiry: () => void }) {
-  const { session, touchSession, isSessionValid } = useAdminAuthStore();
-  const [remaining, setRemaining] = useState(30 * 60);
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      if (!session) return;
-      const elapsed = Math.floor((Date.now() - new Date(session.lastActive).getTime()) / 1000);
-      const left    = Math.max(0, 30 * 60 - elapsed);
-      setRemaining(left);
-      if (left === 0) onExpiry();
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [session, onExpiry]);
-
-  const mins = Math.floor(remaining / 60);
-  const secs = remaining % 60;
-  const isWarning = remaining < 5 * 60;
-
-  return (
-    <button
-      onClick={touchSession}
-      title="Click to extend session"
-      className={cn(
-        'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-mono font-semibold border transition-all',
-        isWarning
-          ? 'bg-amber-500/10 border-amber-500/25 text-amber-400 animate-pulse'
-          : 'bg-white/3 border-white/8 text-white/40',
-      )}
-    >
-      <Clock className="h-3 w-3" />
-      {String(mins).padStart(2, '0')}:{String(secs).padStart(2, '0')}
-    </button>
-  );
-}
+// Batch C2.5: the client-side SessionTimer was deleted here. It counted down 30
+// minutes from `session.lastActive` and let the admin "extend" it with a click —
+// a browser-side pretence of authority over a server-side session. The Better Auth
+// cookie and the API's own revocation checks are the authority; the UI simply does
+// not need to model expiry.
 
 // Notification bell
 function AdminNotifBell() {
-  const { session }   = useAdminAuthStore();
+  // Batch C2.5: the audience level comes from the SERVER role (GET /api/me) —
+  // the cryptoverse_admin_session level it used to read was editable in the browser.
+  const identity = useAdminIdentity();
   const { notifications, markNotifRead, getMyNotifications } = useAdminManagementStore();
   const [open, setOpen] = useState(false);
 
-  const level = session?.level ?? 1;
+  const level = roleLevel(identity?.role);
   const myNotifs = getMyNotifications ? getMyNotifications(level) : notifications.filter(n => n.forLevels.includes(level));
   const unread = myNotifs.filter(n => !n.read).length;
 
@@ -194,8 +168,10 @@ function AdminNotifBell() {
 
 // ── Main Layout ───────────────────────────────────────────────────────────────
 export function AdminPortalLayout() {
-  const { session, logout: adminLogout } = useAdminAuthStore();
-  const { user: appUser, endUserView, loginFromSession } = useAuthStore();
+  // Batch C2.5: there is no admin session store any more. The admin identity is
+  // the SERVER's answer (useAdminIdentity, above) and signing out is
+  // logoutAdminSession(), which revokes the Better Auth cookie.
+  const { user: appUser, endUserView } = useAuthStore();
   const { notifications }         = useAdminManagementStore();
   const location                  = useLocation();
   const navigate                  = useNavigate();
@@ -212,7 +188,7 @@ export function AdminPortalLayout() {
   const meta = ADMIN_LEVEL_META[Math.min(level, 6) as keyof typeof ADMIN_LEVEL_META]
     ?? ADMIN_LEVEL_META[1];
   const roleLabel = adminRole ? adminRole.replace(/_/g, ' ') : meta.role;
-  const identityEmail = identity?.email || session?.email || appUser?.email || 'Admin account';
+  const identityEmail = identity?.email || appUser?.email || 'Admin account';
 
   // Nav is filtered purely by the server-provided admin role:
   //   developer / founder / super_admin   → everything
@@ -232,7 +208,8 @@ export function AdminPortalLayout() {
   const logout = useCallback(async () => {
     await logoutAdminSession();
     clearAdminSessionCache();
-    if (session) adminLogout();
+    // Batch C2.5: no local admin session store to clear any more — the Better
+    // Auth cookie was revoked by logoutAdminSession() above.
     try {
       destroySession();
       window.localStorage.removeItem('cryptoverse_session');
@@ -241,9 +218,9 @@ export function AdminPortalLayout() {
       useAuthStore.setState({ user: null, isAuthenticated: false, isAdmin: false, isSuperAdmin: false });
     } catch { /* ignore — sign-out must always complete */ }
     window.location.replace('/admin/login');
-  }, [session, adminLogout]);
+  }, []);
 
-  const handleExpiry = useCallback(() => { void logout(); }, [logout]);
+  // Batch C2.5: handleExpiry fed the removed client-side SessionTimer.
 
   /**
    * "Back to App" — hand the admin over to the normal user app.
@@ -278,22 +255,16 @@ export function AdminPortalLayout() {
       return;
     }
 
-    // No app session in this browser. When the admin's identity is
-    // server-verified, ask the app for the SAME account's session before
-    // prompting a sign-in — loginFromSession re-checks the account exists and is
-    // active, so this cannot walk into someone else's account.
-    const email = identity?.email ?? '';
-    if (email) {
-      await loginFromSession({ id: email, email, fullName: appUser?.displayName ?? email, role: 'user' });
-      if (useAuthStore.getState().isAuthenticated) {
-        navigate('/dashboard');
-        return;
-      }
-    }
-
+    // No app session in this browser. The admin is still authenticated against
+    // the API (Better Auth cookie), but the app keeps its OWN session — and
+    // Batch C2 removed the client-side "mint an app session from an email"
+    // path (loginFromSession) that used to paper over this, because it turned a
+    // verified admin email into an app session without the app's own sign-in.
+    // Say so plainly instead of dropping the admin on a login page that looks
+    // like a forced logout.
     toast.error('Your app session has ended. Sign in with your app account to continue.');
     navigate('/login');
-  }, [endUserView, loginFromSession, identity?.email, appUser?.displayName, navigate]);
+  }, [endUserView, navigate]);
 
   useEffect(() => { setSidebar(false); }, [location.pathname]);
 
@@ -321,14 +292,17 @@ export function AdminPortalLayout() {
           </div>
         </div>
 
-        {/* Admin badge */}
+        {/* Admin badge — Batch C2.5: the identity comes from the app session and the
+            SERVER-verified admin (GET /api/me). The deleted cryptoverse_admin_session
+            used to supply the avatar seed and display name here, and leftover
+            references to it are what crashed this layout on every admin page. */}
         <div className="mx-4 mt-4 mb-2 px-3 py-2.5 rounded-xl border" style={{ borderColor: meta.border, background: meta.bg }}>
           <div className="flex items-center gap-2">
             <div className="h-7 w-7 rounded-lg bg-black/20 overflow-hidden flex-shrink-0">
-              <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${session?.avatarSeed ?? appUser?.avatarSeed ?? 'Admin'}`} alt="" className="w-full h-full" />
+              <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${appUser?.avatarSeed ?? 'Admin'}`} alt="" className="w-full h-full" />
             </div>
             <div className="min-w-0">
-              <p className="text-xs font-semibold text-white truncate">{session?.displayName ?? appUser?.displayName ?? 'Admin'}</p>
+              <p className="text-xs font-semibold text-white truncate">{appUser?.displayName || identity?.email || 'Admin'}</p>
               <p className="text-[10px] truncate" style={{ color: meta.color }}>{meta.icon} {meta.role}</p>
             </div>
           </div>
@@ -411,17 +385,20 @@ export function AdminPortalLayout() {
               <span className="text-[11px] text-green-400 font-medium">Live</span>
             </div>
 
-            {/* Session timer */}
-            <SessionTimer onExpiry={handleExpiry} />
+            {/* Batch C2.5: the 30-minute client session timer lived here. It was a
+                countdown that could be "extended" from the browser while the real
+                authority is the Better Auth cookie plus the server's revocation
+                checks — the illusion of control over server-side expiry. If a
+                countdown is ever wanted again, drive it from /api/me session
+                expires_at and treat it as display only. */}
 
             {/* Notifications */}
             <AdminNotifBell />
 
-            {/* IP */}
-            <div className="hidden sm:flex items-center gap-1.5 text-[10px] text-white/20 font-mono">
-              <Zap className="h-3 w-3" />
-              {session?.ipAddress}
-            </div>
+            {/* Batch C2.5: this printed session.ipAddress from the local admin
+                session store. The authoritative value is GET /api/me → session.ip
+                if the UI wants it back — showing a browser-recorded IP as though
+                it were the server's was misleading, so it is gone. */}
           </div>
         </header>
 

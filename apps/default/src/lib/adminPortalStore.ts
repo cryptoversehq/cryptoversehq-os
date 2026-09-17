@@ -1,65 +1,17 @@
 import { create } from 'zustand';
-import { fetchAllUsers, UserRecord } from './authApi';
+import { fetchAllAdminUsers, type AdminUserRecord } from './adminUsersApi';
 import { fetchTickets, Ticket, updateTicketStatus, updateTicketPriority } from './ticketStore';
 import { MODULES } from '../components/Academy';
-import {
-  refreshAdminCacheFromDb,
-  setSuperAdminInDb,
-  setUserStatusInDb,
-  setAdminSectionsInDb,
-} from './userMigrationService';
 
 // ── Keys ─────────────────────────────────────────────────────────────────────
+// Batch C2 deletions: the cryptoverse_banned_users / cryptoverse_suspended_users
+// / cryptoverse_super_admins key groups and every helper that touched them
+// (loadBans, saveBans, loadSuspended, saveSuspended, loadSuperAdmins,
+// saveSuperAdmins, ensureSuperAdminsPersisted) are gone. Status and role live in
+// public.users: read via GET /api/admin/users, written via
+// POST /api/admin/users/:id/status | /role.
 const TWO_MAN_KEY   = 'cryptoverse_twoman_requests';
 const NOTIF_CTR_KEY = 'cryptoverse_portal_notifs';
-const BANS_KEY      = 'cryptoverse_banned_users';
-
-// ── Ban helpers ───────────────────────────────────────────────────────────────
-function loadBans(): Set<string> {
-  try { return new Set(JSON.parse(localStorage.getItem(BANS_KEY) || '[]')); } catch { return new Set(); }
-}
-function saveBans(b: Set<string>) {
-  localStorage.setItem(BANS_KEY, JSON.stringify([...b]));
-}
-
-// ── Suspension helpers ────────────────────────────────────────────────────────
-const SUSP_KEY = 'cryptoverse_suspended_users';
-function loadSuspended(): Set<string> {
-  try { return new Set(JSON.parse(localStorage.getItem(SUSP_KEY) || '[]')); } catch { return new Set(); }
-}
-function saveSuspended(s: Set<string>) {
-  localStorage.setItem(SUSP_KEY, JSON.stringify([...s]));
-}
-
-// ── Super-admin helpers ───────────────────────────────────────────────────────
-// Single source of truth for cryptoverse_super_admins. Every read/write in
-// this file (and, via the store's `superAdmins` state + `getSuperAdmins()`,
-// every consumer outside this file too) goes through these two functions —
-// no other module should touch this localStorage key directly.
-// ── Super-admin resolution (DB as source of truth, no hardcoded emails) ─────
-// The Taskade Users project @cv_role field is the single source of truth for
-// super-admin status. refreshAdminCacheFromDb() mirrors DB role === 'super_admin'
-// into this localStorage key. No email is hardcoded in source; the list is only
-// populated from the DB or from explicit Super-Admin promotion/demotion actions.
-const SUPER_ADMINS_KEY = 'cryptoverse_super_admins';
-function loadSuperAdmins(): string[] {
-  try {
-    const raw = JSON.parse(localStorage.getItem(SUPER_ADMINS_KEY) || '[]');
-    if (!Array.isArray(raw)) return [];
-    return raw.filter((email: unknown) => typeof email === 'string' && email.trim().length > 0);
-  } catch { return []; }
-}
-function saveSuperAdmins(emails: string[]) {
-  const uniq = [...new Set(emails.filter(e => typeof e === 'string' && e.trim().length > 0))];
-  localStorage.setItem(SUPER_ADMINS_KEY, JSON.stringify(uniq));
-}
-function ensureSuperAdminsPersisted() {
-  // No hardcoded seeding. Super admins are resolved from the DB
-  // (refreshAdminCacheFromDb) or via Super-Admin promotion actions.
-  if (!localStorage.getItem(SUPER_ADMINS_KEY)) {
-    localStorage.setItem(SUPER_ADMINS_KEY, '[]');
-  }
-}
 
 // ── Two-Man Rule ──────────────────────────────────────────────────────────────
 export type TwoManActionType =
@@ -147,102 +99,38 @@ export interface DemoReport {
   createdAt: string; category: string;
 }
 
-/** Convert a UserRecord (from Taskade) to DemoUser */
-function userRecordToDemo(r: UserRecord): DemoUser {
-  const bans      = loadBans();
-  const suspended = loadSuspended();
-  const status: DemoUser['status'] = bans.has(r.email)
-    ? 'banned'
-    : suspended.has(r.email)
-    ? 'suspended'
-    : 'active';
+/**
+ * Map one SERVER roster record (GET /api/admin/users — Batch C2) to the portal's
+ * DemoUser shape.
+ *
+ * This replaces `userRecordToDemo` (Taskade) and the localStorage mirrors
+ * (`cryptoverse_users`, `cryptoverse_banned_users`, `cryptoverse_suspended_users`,
+ * `cryptoverse_super_admins`): role and status now come from public.users, which
+ * is exactly what `authenticate()` enforces on every request. A browser can no
+ * longer influence what the panel believes about an account.
+ */
+function adminUserToDemo(r: AdminUserRecord): DemoUser {
   return {
-    id:       r.nodeId,
-    name:     r.fullName || r.email.split('@')[0],
+    id:       r.id,
+    name:     r.display_name || r.email.split('@')[0],
     email:    r.email,
-    plan:     'free', // subscriptions not yet synced here
-    status,
-    joinedAt: r.createdAt || new Date().toISOString(),
-    balance:  0,
+    plan:     r.plan || 'free',
+    status:   (r.status ?? 'active') as DemoUser['status'],
+    joinedAt: r.created_at || new Date().toISOString(),
+    balance:  typeof r.balance === 'number' ? r.balance : 0,
     trades:   0,
     winRate:  0,
     country:  '',
     flag:     '',
-    role:     r.role,
+    role:     r.role || 'user',
   };
 }
 
-/**
- * Mirror the live roster into the legacy synchronous profile cache. User-view
- * mode and offline admin fallbacks still read this cache, so it must be
- * refreshed whenever the authoritative roster succeeds.
- */
-function syncLegacyUsersCache(records: UserRecord[]): void {
-  try {
-    const existing = JSON.parse(localStorage.getItem('cryptoverse_users') || '{}') as Record<string, {
-      password?: string;
-      profile?: Record<string, unknown>;
-    }>;
-    const next: Record<string, { password: string; profile: Record<string, unknown> }> = {};
-    for (const record of records) {
-      const email = record.email.toLowerCase().trim();
-      const previous = existing[email];
-      next[email] = {
-        password: previous?.password ?? '',
-        profile: {
-          ...(previous?.profile ?? {}),
-          id: record.nodeId,
-          email: record.email,
-          displayName: record.fullName || record.email.split('@')[0],
-          role: record.role,
-          isAdmin: record.role !== 'user',
-          joinedAt: record.createdAt,
-        },
-      };
-    }
-    localStorage.setItem('cryptoverse_users', JSON.stringify(next));
-  } catch {
-    // Keep the live roster authoritative if the synchronous cache is unavailable.
-  }
-}
-
-/**
- * Offline fallback for loadUsers() — builds the same DemoUser[] shape
- * directly from legacy cryptoverse_users localStorage, used only when the
- * Taskade Users project is unreachable. Once the DB comes back, the next
- * loadUsers() call overwrites this with the real DB-backed roster.
- */
-function legacyUsersToDemo(): DemoUser[] {
-  try {
-    const raw = JSON.parse(localStorage.getItem('cryptoverse_users') || '{}') as Record<string, {
-      profile: { id: string; email: string; displayName: string; role?: string; joinedAt?: string };
-    }>;
-    const bans      = loadBans();
-    const suspended = loadSuspended();
-    const supers    = new Set(loadSuperAdmins());
-    return Object.values(raw).map(({ profile }) => {
-      const status: DemoUser['status'] = bans.has(profile.email)
-        ? 'banned'
-        : suspended.has(profile.email)
-        ? 'suspended'
-        : 'active';
-      return {
-        id:       profile.id,
-        name:     profile.displayName || profile.email.split('@')[0],
-        email:    profile.email,
-        plan:     'free',
-        status,
-        joinedAt: profile.joinedAt || new Date().toISOString(),
-        balance:  0,
-        trades:   0,
-        winRate:  0,
-        country:  '',
-        flag:     '',
-        role:     supers.has(profile.email) ? 'super_admin' : (profile.role || 'user'),
-      };
-    });
-  } catch { return []; }
-}
+// Batch C2: `userRecordToDemo`, `syncLegacyUsersCache` and `legacyUsersToDemo`
+// were deleted here. They built the panel's roster from the Taskade users project
+// and mirrored it into the cryptoverse_users / banned / suspended localStorage
+// keys. The roster now comes from GET /api/admin/users via adminUserToDemo()
+// above, and `syncLegacyUsersCache` was the last thing writing that mirror.
 
 // ── Two-man persistence ───────────────────────────────────────────────────────
 function loadTwoMan(): TwoManRequest[] {
@@ -253,9 +141,13 @@ function saveTwoMan(r: TwoManRequest[]) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// SECTION-BASED ADMIN ACCESS  (superadmin scopes a promoted admin to
-// specific sections of the portal — see AdminUsers.tsx promotion modal,
-// AdminPortalLayout.tsx menu filtering, and the App.tsx route guards)
+// PORTAL SECTIONS — identifiers only (Batch C2)
+//
+// What remains is the list of section ids the portal nav (NAV_ITEMS in
+// AdminPortalLayout.tsx) and the route guards (SectionGuard in AdminRoutes.tsx)
+// refer to. Access is decided from the SERVER-provided role, not from any
+// per-section grant list: developer / founder / super_admin see everything, and
+// the other two admin roles are scoped to Subscriptions.
 // ─────────────────────────────────────────────────────────────────────────────
 
 /** Every section a Super Admin can hand out to a section-scoped Admin. */
@@ -277,39 +169,12 @@ export const ADMIN_SECTIONS = [
 
 export type AdminSectionId = typeof ADMIN_SECTIONS[number]['id'];
 
-export interface AdminPermissions {
-  email:    string;
-  sections: AdminSectionId[];
-}
-
-const ADMIN_PERMISSIONS_KEY = 'cryptoverse_admin_section_permissions';
-
-function loadAdminPermissions(): AdminPermissions[] {
-  try { return JSON.parse(localStorage.getItem(ADMIN_PERMISSIONS_KEY) || '[]'); } catch { return []; }
-}
-function saveAdminPermissions(list: AdminPermissions[]) {
-  localStorage.setItem(ADMIN_PERMISSIONS_KEY, JSON.stringify(list));
-}
-
-function isPersistedSuperAdmin(email: string): boolean {
-  return loadSuperAdmins().includes(email);
-}
-
-/**
- * Access check used by the side menu (AdminPortalLayout) and the route
- * guards (App.tsx). Super Admins always have access to every section.
- */
-export function hasAccess(email: string, section: string): boolean {
-  if (!email) return false;
-  if (isPersistedSuperAdmin(email)) return true;
-  const admin = loadAdminPermissions().find(a => a.email === email);
-  return admin?.sections.includes(section as AdminSectionId) || false;
-}
-
-/** Sections explicitly assigned to a section-scoped admin (empty for none / superadmins). */
-export function getAdminSections(email: string): AdminSectionId[] {
-  return loadAdminPermissions().find(a => a.email === email)?.sections ?? [];
-}
+// Batch C2: `AdminPermissions`, the cryptoverse_admin_section_permissions
+// helpers, `isPersistedSuperAdmin`, `hasAccess` and `getAdminSections` were
+// deleted here. `hasAccess()` was the H-007 bypass window (a browser-editable
+// grant list consulted by the route guards); SectionGuard now decides purely from
+// the server-provided role. ADMIN_SECTIONS / AdminSectionId stay: the portal nav
+// and routes still use them as section identifiers.
 
 // ── Store ─────────────────────────────────────────────────────────────────────
 interface AdminPortalState {
@@ -319,23 +184,16 @@ interface AdminPortalState {
   reports:        DemoReport[];
   lessons:        DemoLesson[];
   twoManRequests: TwoManRequest[];
-  adminPermissions: AdminPermissions[];
-  /** Reactive mirror of cryptoverse_super_admins — the only place any
-   *  component should read super-admin status from. */
-  superAdmins:    string[];
   loadingUsers:   boolean;
   loadingTickets: boolean;
 
-  // Section-based admin access
-  getAdminSections:       (email: string) => AdminSectionId[];
-  setAdminSections:       (email: string, sections: AdminSectionId[]) => void;
-  /** Promote a regular user to a section-scoped Admin in one step. */
-  promoteToSectionAdmin:  (email: string, sections: AdminSectionId[]) => void;
-
-  /** All super-admin emails. This is the ONLY sanctioned way to read
-   *  cryptoverse_super_admins — components must not touch localStorage
-   *  directly for this key. */
-  getSuperAdmins: () => string[];
+  // Section-scoped grants are gone (Batch C2). They lived in
+  // cryptoverse_admin_section_permissions + the Taskade @cv_sections field, which
+  // had NO server counterpart — so the panel could not have read them from
+  // public.users anyway. Portal section access is role-derived: developer /
+  // founder / super_admin see everything, the other admin roles are scoped to
+  // Subscriptions by SectionGuard. Real per-section grants would need a
+  // users.sections column + an endpoint — a feature, not a mirror.
 
   // Load live data
   loadUsers:   () => Promise<void>;
@@ -346,15 +204,9 @@ interface AdminPortalState {
   approveTwoMan: (reqId: string, adminId: string, adminName: string) => TwoManRequest | null;
   rejectTwoMan:  (reqId: string, adminId: string) => void;
 
-  // User actions (local status only; role changes go via authApi)
-  banUser:     (email: string) => void;
-  unbanUser:   (email: string) => void;
-  suspendUser: (email: string) => void;
+  // Account status is a direct server call now — see AdminUsers.tsx.
 
-  // Role management
-  changeUserRole: (email: string, newRole: string) => void;
-  promoteToSuperAdmin: (email: string) => void;
-  demoteSuperAdmin: (email: string) => void;
+  // Role management is a direct server call now (POST /api/admin/users/:id/role).
 
   // Ticket actions (persist to Taskade)
   resolveTicket:  (nodeId: string, adminId: string, response: string) => Promise<void>;
@@ -374,10 +226,10 @@ interface AdminPortalState {
   rejectTransaction:  (txId: string) => void;
 }
 
-// Seed the two default super admins into localStorage BEFORE the store reads
-// its initial `superAdmins` snapshot below, so the very first render already
-// reflects them (rather than waiting for the first loadUsers() call).
-ensureSuperAdminsPersisted();
+// Batch C2: the localStorage super-admin seed that used to run here is gone.
+// Super-admin status is public.users.role, read from GET /api/admin/users — there
+// is no client-side privilege list left to seed (and seeding one was the H-007
+// class of problem: a browser-editable store the API never consulted).
 
 export const useAdminPortalStore = create<AdminPortalState>((set, get) => ({
   users:          [],
@@ -386,52 +238,22 @@ export const useAdminPortalStore = create<AdminPortalState>((set, get) => ({
   reports:        [],
   lessons:        buildLessonsFromAcademy(),
   twoManRequests: loadTwoMan(),
-  adminPermissions: loadAdminPermissions(),
-  superAdmins:    loadSuperAdmins(),
   loadingUsers:   false,
   loadingTickets: false,
 
-  // ── Section-based admin access ────────────────────────────────────────────
-  getAdminSections: (email) => getAdminSections(email),
-
-  getSuperAdmins: () => get().superAdmins,
-
-  setAdminSections: (email, sections) => {
-    const list = loadAdminPermissions();
-    const idx  = list.findIndex(a => a.email === email);
-    const entry: AdminPermissions = { email, sections };
-    const updated = idx >= 0
-      ? list.map((a, i) => i === idx ? entry : a)
-      : [...list, entry];
-    saveAdminPermissions(updated);
-    set({ adminPermissions: updated });
-    setAdminSectionsInDb(email, sections);
-  },
-
-  promoteToSectionAdmin: (email, sections) => {
-    get().setAdminSections(email, sections);
-    get().changeUserRole(email, 'admin');
-  },
-
-  // ── Load live users from Taskade Users project ────────────────────────────
+  // ── Load the roster from the SERVER (Batch C2) ────────────────────────────
+  // GET /api/admin/users is the single source of truth for role + status. There
+  // is deliberately no localStorage fallback: an editable mirror that the API
+  // does not enforce is worse than an honest empty list, and AdminUsers surfaces
+  // its own fetch failure.
   loadUsers: async () => {
     set({ loadingUsers: true });
     try {
-      const records = await fetchAllUsers();
-      // Keep both synchronous legacy caches and the admin metadata cache in
-      // sync with the live roster used by AdminUsers and user-view mode.
-      syncLegacyUsersCache(records);
-      await refreshAdminCacheFromDb(records).catch(() => {});
-      set({
-        users:            records.map(userRecordToDemo),
-        adminPermissions: loadAdminPermissions(),
-        superAdmins:      loadSuperAdmins(),
-      });
-    } catch {
-      // DB unreachable — fall back to whatever legacy accounts exist in
-      // localStorage so Admin → Users still shows something instead of
-      // an empty screen (per the explicit fallback requirement).
-      set({ users: legacyUsersToDemo() });
+      const records = await fetchAllAdminUsers();
+      set({ users: records.map(adminUserToDemo) });
+    } catch (err) {
+      console.error('[adminPortalStore] roster load failed', err);
+      set({ users: [] });
     } finally {
       set({ loadingUsers: false });
     }
@@ -489,76 +311,14 @@ export const useAdminPortalStore = create<AdminPortalState>((set, get) => ({
     set({ twoManRequests: reqs });
   },
 
-  // ── User actions ─────────────────────────────────────────────────────────
-  // Each action writes to localStorage immediately (unchanged behavior — this
-  // is also the offline fallback) and fires a best-effort DB write alongside
-  // it, so the shared Taskade Users project stays the source of truth.
-  banUser: (email) => {
-    const bans = loadBans();
-    bans.add(email);
-    saveBans(bans);
-    set(s => ({ users: s.users.map(u => u.email === email ? { ...u, status: 'banned' as const } : u) }));
-    setUserStatusInDb(email, 'banned');
-  },
-  unbanUser: (email) => {
-    const bans = loadBans();
-    bans.delete(email);
-    saveBans(bans);
-    const susp = loadSuspended();
-    susp.delete(email);
-    saveSuspended(susp);
-    set(s => ({ users: s.users.map(u => u.email === email ? { ...u, status: 'active' as const } : u) }));
-    setUserStatusInDb(email, 'active');
-  },
-  suspendUser: (email) => {
-    const susp = loadSuspended();
-    susp.add(email);
-    saveSuspended(susp);
-    set(s => ({ users: s.users.map(u => u.email === email ? { ...u, status: 'suspended' as const } : u) }));
-    setUserStatusInDb(email, 'suspended');
-  },
+  // Account status changes left this store in Batch C2: they are a direct server
+  // call (POST /api/admin/users/:id/status) made by AdminUsers.tsx through
+  // adminUsersApi.setAdminUserStatus(), which writes the column the API enforces.
 
-  // ── Role management ────────────────────────────────────────────────────────
-  changeUserRole: (email, newRole) => {
-    set(s => ({
-      users: s.users.map(u =>
-        u.email === email ? { ...u, role: newRole, roleChangedAt: new Date().toISOString() } as DemoUser : u
-      ),
-    }));
-    // Persist role change to localStorage for the user record
-    try {
-      const key = `cryptoverse_user_role_override`;
-      const overrides = JSON.parse(localStorage.getItem(key) || '{}');
-      overrides[email] = { role: newRole, changedAt: new Date().toISOString() };
-      localStorage.setItem(key, JSON.stringify(overrides));
-    } catch {}
-  },
-  promoteToSuperAdmin: (email) => {
-    const supers = new Set(get().superAdmins);
-    supers.add(email);
-    const updated = [...supers];
-    saveSuperAdmins(updated);
-    set(s => ({
-      superAdmins: updated,
-      users: s.users.map(u =>
-        u.email === email ? { ...u, role: 'super_admin', roleChangedAt: new Date().toISOString() } as DemoUser : u
-      ),
-    }));
-    setSuperAdminInDb(email, true);
-  },
-  demoteSuperAdmin: (email) => {
-    const supers = new Set(get().superAdmins);
-    supers.delete(email);
-    const updated = [...supers];
-    saveSuperAdmins(updated);
-    set(s => ({
-      superAdmins: updated,
-      users: s.users.map(u =>
-        u.email === email ? { ...u, role: 'admin', roleChangedAt: new Date().toISOString() } as DemoUser : u
-      ),
-    }));
-    setSuperAdminInDb(email, false);
-  },
+  // Role management left this store in Batch C2: it is a direct server call
+  // (POST /api/admin/users/:id/role) made by AdminUsers.tsx. public.users.role is
+  // the single source of truth — the local cryptoverse_user_role_override mirror
+  // and the super-admin list that used to live here are gone.
 
   // ── Ticket actions (live) ──────────────────────────────────────────────────
   resolveTicket: async (nodeId, adminId, response) => {

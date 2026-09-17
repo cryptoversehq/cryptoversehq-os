@@ -3,13 +3,15 @@ import { motion } from 'framer-motion';
 import { Shield, UserX, UserCheck, Trash2, Search, Star, HeadphonesIcon, Activity } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAdminManagementStore, ADMIN_LEVEL_META } from '@/lib/adminManagementStore';
-import { useAdminAuthStore } from '@/lib/adminAuthStore';
+// Batch C2.5: the cryptoverse_admin_session store is gone — the acting admin is
+// the SERVER-verified identity, and owner tier comes from roleLevel(identity?.role).
+import { useAdminIdentity, roleLevel } from '@/lib/adminApi';
 import { useAuthStore } from '@/lib/authStore';
 import { useAdminPortalStore } from '@/lib/adminPortalStore';
 
 export function AdminAdmins() {
   const { members, suspendAdmin, activateAdmin, deleteAdmin } = useAdminManagementStore();
-  const { session } = useAdminAuthStore();
+  const identity = useAdminIdentity();
   const { user, setUserRole }    = useAuthStore();
   const { tickets, loadTickets } = useAdminPortalStore();
   const [search,  setSearch]  = useState('');
@@ -22,8 +24,8 @@ export function AdminAdmins() {
     return !q || m.displayName.toLowerCase().includes(q) || m.email.toLowerCase().includes(q);
   });
 
-  const fakeAdmin = user ? { ...user, isAdmin: true, id: session?.adminId ?? user.id } : null;
-  const isSuperAdmin = user?.role === 'super_admin' || (session && session.level >= 6);
+  const fakeAdmin = user ? { ...user, isAdmin: true, id: identity?.email ?? user.id } : null;
+  const isSuperAdmin = user?.role === 'super_admin' || roleLevel(identity?.role) >= 6;
 
   // Compute ticket stats per admin (by adminId field in tickets)
   const ticketStats = (adminEmail: string) => {

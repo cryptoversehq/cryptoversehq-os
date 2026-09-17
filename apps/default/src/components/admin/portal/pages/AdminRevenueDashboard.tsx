@@ -6,7 +6,9 @@ import React, { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { DollarSign, TrendingUp, Zap, BarChart2, Check, X, RefreshCw, Download, Clock, Users, ShoppingBag } from 'lucide-react';
 import { useMonetizationStore, RevenueSource, PayoutRequest } from '@/lib/monetizationStore';
-import { useAdminAuthStore } from '@/lib/adminAuthStore';
+// Batch C2.5: the cryptoverse_admin_session store is gone — payout approvals are
+// attributed to the SERVER-verified admin (GET /api/me).
+import { useAdminIdentity } from '@/lib/adminApi';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -73,7 +75,7 @@ function buildChartData(revenueLog: any[], days: number) {
 
 export function AdminRevenueDashboard() {
   const { revenueLog, getRevenueSummary, getTotalRevenueCP, payoutRequests, approvePayoutRequest, rejectPayoutRequest } = useMonetizationStore();
-  const { session } = useAdminAuthStore();
+  const identity = useAdminIdentity();
   const [period, setPeriod] = useState<Period>(30);
   const [loading, setLoading] = useState<string | null>(null);
 
@@ -90,7 +92,7 @@ export function AdminRevenueDashboard() {
   async function handleApprove(req: PayoutRequest) {
     setLoading(req.id);
     await new Promise(r => setTimeout(r,500));
-    approvePayoutRequest(req.id, session?.adminId ?? 'admin');
+    approvePayoutRequest(req.id, identity?.email ?? 'admin');
     setLoading(null);
     toast.success(`Payout of ${req.amountCP} CP approved`);
   }
@@ -98,7 +100,7 @@ export function AdminRevenueDashboard() {
   async function handleReject(req: PayoutRequest) {
     setLoading(req.id + '_r');
     await new Promise(r => setTimeout(r,400));
-    rejectPayoutRequest(req.id, session?.adminId ?? 'admin', 'Rejected by admin');
+    rejectPayoutRequest(req.id, identity?.email ?? 'admin', 'Rejected by admin');
     setLoading(null);
     toast.error(`Payout rejected`);
   }

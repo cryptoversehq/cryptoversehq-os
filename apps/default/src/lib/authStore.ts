@@ -5,6 +5,7 @@ import { refreshAdminCacheFromDb } from './userMigrationService';
 import { createSession, destroySession, loadAuthSession } from './security/sessionManager';
 import { cloudRecordStore } from './cloudData';
 import { findUserByEmail, invalidateUserRosterCache, type UserRecord } from './authApi';
+import { findAdminUserByEmail, type AdminUserRecord } from './adminUsersApi';
 import { fetchMe, isUnauthenticated, mapServerUserToProfile, signOut, toUserRole, updateProfile as updateProfileOnServer, type ServerUser } from './betterAuthClient';
 import { trackProductEventInBackground, trackProductEventOnce } from './productAnalytics';
 
@@ -131,9 +132,16 @@ interface AuthState {
   isAdmin: boolean;
   isSuperAdmin: boolean;
 
-  // "View as User" mode
+  // "View as User" mode — the target is a SERVER record (Batch C2); the email
+  // form still type-checks but is refused at runtime with a clear message.
+  // `adminIdentity` is the portal's server-verified identity (useAdminIdentity),
+  // used when this browser has no app session: without it, an admin who signed in
+  // only at /admin/login could not start a view at all.
   viewState: ViewState;
-  startUserView: (targetEmail: string) => { success: boolean; error?: string };
+  startUserView: (
+    target: AdminUserRecord | string,
+    adminIdentity?: { email?: string; role?: string },
+  ) => Promise<{ success: boolean; error?: string }>;
   endUserView:   () => void;
 
   // Auth actions — Better Auth owns the session and every sign-in is an email OTP
@@ -297,6 +305,71 @@ function profileFromServer(record: UserRecord, previous?: UserProfile | null): U
   });
 }
 
+/**
+ * Render a SERVER roster record (GET /api/admin/users/:userId — the Batch C2
+ * shape) as the app's UserProfile, for "View as User" mode.
+ *
+ * The record carries only roster fields: no password, no entitlements, no admin
+ * powers. Those are never invented here — the viewed account gets the server's
+ * own role/plan and neutral values for everything else, so this path can neither
+ * grant the admin extra access nor hide their own.
+ */
+function profileFromAdminUserRecord(record: AdminUserRecord): UserProfile {
+  const email       = String(record.email || '').toLowerCase().trim();
+  const displayName = record.display_name || email.split('@')[0];
+  const role        = (record.role as UserRole) ?? 'user';
+  const plan: UserProfile['plan'] =
+    record.plan === 'pro_plus' ? 'pro_plus' : record.plan === 'pro' ? 'pro' : 'free';
+
+  return migrateProfile({
+    id:             record.id || email,
+    email,
+    displayName,
+    avatarSeed:     displayName.split(' ')[0] || email,
+    plan,
+    referralCode:   makeReferralCode(displayName),
+    referralCount:  0,
+    referralBonus:  0,
+    language:       record.language ?? 'en',
+    isFirstLogin:   false,
+    joinedAt:       record.created_at ?? new Date().toISOString(),
+    role,
+    isAdmin:        roleToIsAdmin(role),
+    isDeveloper:    record.role === 'developer',
+    virtualBalance: 0,
+  });
+}
+
+/**
+ * Who is the admin right now, for "View as User"?
+ *
+ * The portal authenticates against the API (Better Auth cookie), and an admin who
+ * entered through /admin/login may never have signed into the APP in this browser
+ * — so `useAuthStore.user` can be null even though the API answers GET /api/me
+ * for them. That is exactly what produced "Not logged in." and blocked view-as.
+ *
+ * Resolution order:
+ *   1. the caller's SERVER-verified identity (useAdminIdentity → GET /api/me);
+ *   2. the persisted app session in this browser;
+ *   3. GET /api/me directly — the portal's own authentication.
+ */
+async function resolveAdminIdentity(hint?: { email?: string; role?: string }): Promise<{ email: string; role: UserRole } | null> {
+  const hintedEmail = String(hint?.email || '').trim();
+  if (hintedEmail) return { email: hintedEmail, role: ((hint?.role as UserRole) || 'user') };
+
+  const session = getSession();
+  if (session?.email) return { email: session.email, role: (session.role as UserRole) ?? 'user' };
+
+  try {
+    const me = await fetchMe();
+    const email = String(me?.user?.email || '').trim();
+    if (!email) return null;
+    return { email, role: toUserRole(me.user.role) };
+  } catch {
+    return null;
+  }
+}
+
 // ── Admin account management ──────────────────────────────────────────────────
 // Super Admin accounts are created and managed exclusively through the Admin
 // Portal (Admin Dashboard → Admins page) or via the standalone Admin Login
@@ -341,9 +414,27 @@ const migratedSession = session ? migrateProfile(session) : null;
 // render the target user's profile instead of the admin's on initial load.
 const initialViewState = loadViewState();
 let initialUser = migratedSession;
+
+// Boot restore for an in-flight "View as User" session (this tab only).
+//
+// This used to read the target's profile out of the cryptoverse_users
+// localStorage mirror. That mirror is gone (Batch C2), so the target is
+// re-fetched from the SERVER instead. The fetch is asynchronous, so the admin's
+// own session renders first and the viewed profile is applied a moment later —
+// and if the account no longer exists, the view is ENDED rather than left in a
+// half-on state that renders the wrong account.
 if (initialViewState.isViewing && initialViewState.targetUser) {
-  const targetEntry = getUsers()[initialViewState.targetUser];
-  if (targetEntry) initialUser = migrateProfile({ ...targetEntry.profile });
+  void findAdminUserByEmail(initialViewState.targetUser)
+    .then(target => {
+      if (!target) { useAuthStore.getState().endUserView(); return; }
+      const profile = profileFromAdminUserRecord(target);
+      useAuthStore.setState({
+        user:         profile,
+        isAdmin:      roleToIsAdmin(profile.role),
+        isSuperAdmin: profile.role === 'super_admin',
+      });
+    })
+    .catch(() => { /* keep the admin session; the view banner still offers Exit */ });
 }
 
 // Task 49: on a fresh page load with an already-active session, pull this
@@ -372,15 +463,38 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   viewState:       initialViewState,
 
   // ── "View as User" (§New Feature 2) ───────────────────────────────────────
-  startUserView: (targetEmail) => {
-    const admin = get().user;
-    if (!admin) return { success: false, error: 'Not logged in.' };
-    if (!roleToIsAdmin(admin.role)) return { success: false, error: 'Only Admins and Super Admins can use User View.' };
+  // The target now comes from the SERVER (findAdminUserByEmail → GET
+  // /api/admin/users/:userId) instead of the cryptoverse_users localStorage
+  // mirror. Everything else is deliberately unchanged: this is a RENDER swap
+  // only — no session is written, no token is minted, the target is never
+  // notified, and `viewState.isViewing` stays the single read-only switch.
+  startUserView: async (target, adminIdentity) => {
+    if (typeof target === 'string' || !target?.email) {
+      return { success: false, error: 'A server user record is required to start a user view.' };
+    }
 
-    const users  = getUsers();
-    const key    = targetEmail.toLowerCase().trim();
-    const target = users[key];
-    if (!target) return { success: false, error: 'User not found.' };
+    // SERVER-FIRST identity — see resolveAdminIdentity(). Requiring an app session
+    // here was the bug: an admin authenticated only by the portal's cookie was told
+    // "Not logged in." and the view never started, even though GET /api/me knew
+    // exactly who they were.
+    const admin = await resolveAdminIdentity(adminIdentity);
+    if (!admin?.email) {
+      return { success: false, error: 'Could not verify your admin session. Reload the page and try again.' };
+    }
+    if (!roleToIsAdmin(admin.role)) {
+      return { success: false, error: 'Only Admins and Super Admins can use User View.' };
+    }
+
+    const key        = target.email.toLowerCase().trim();
+    const adminEmail = admin.email.toLowerCase().trim();
+    if (key === adminEmail) {
+      return { success: false, error: 'That is your own account — you are already signed in as it.' };
+    }
+    // Deliberately NO presence gate: view-as must work for an offline user, and
+    // `last_seen_at` being null (never seen) is not a reason to refuse.
+    // The banned/suspended gate was removed too — an admin is already authorised to
+    // read that account's data, so refusing only blocked inspection, while the
+    // read-only switch still prevents every mutation.
 
     const viewState: ViewState = {
       isViewing:    true,
@@ -399,10 +513,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       endedAt:     null,
     });
 
-    // Swap the rendered `user` to the target's profile WITHOUT touching the
-    // persisted session (`cryptoverse_session` / users store), so nothing is
-    // written on the target user's account and no notification is possible.
-    set({ user: migrateProfile({ ...target.profile }), viewState });
+    // Swap the rendered `user` to the SERVER's record for that account WITHOUT
+    // touching the persisted session (`cryptoverse_session`) or the Better Auth
+    // cookie — so nothing is written on the target's account, no notification is
+    // possible, and the API still sees the admin.
+    // `isAuthenticated: true` is required for an admin who has no app session:
+    // the app's route guard reads it, and without it /dashboard would bounce
+    // straight back to /login the moment the view started. Nothing is impersonated
+    // — every request is still authorised by the admin's own Better Auth cookie.
+    set({ user: profileFromAdminUserRecord(target), viewState, isAuthenticated: true });
     return { success: true };
   },
 
@@ -412,19 +531,24 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     closeLatestOpenLogEntry(viewState.originalUser, viewState.targetUser ?? '');
 
-    const users     = getUsers();
-    const adminKey  = viewState.originalUser.toLowerCase();
-    const restored  = users[adminKey]?.profile ?? getSession();
-
     const cleared: ViewState = { isViewing: false, targetUser: null, originalUser: null, originalRole: null, startedAt: null };
     saveViewState(cleared);
 
+    // Restore the ADMIN's own profile. The viewed account was only ever a render
+    // swap, so the persisted session and the Better Auth cookie still belong to
+    // the admin: read the local session first for an instant, flicker-free
+    // restore, then let the SERVER confirm it. `/api/me` is answered with the
+    // admin's identity (their cookie), never the viewed user's — and a 401 clears
+    // a revoked session properly instead of leaving a stale profile on screen.
+    const restored = getSession();
     set({
-      user:         restored ? migrateProfile({ ...restored }) : null,
+      user:         restored ? migrateProfile(restored) : null,
       viewState:    cleared,
       isAdmin:      restored ? roleToIsAdmin(restored.role) : false,
       isSuperAdmin: restored?.role === 'super_admin',
     });
+
+    Promise.resolve(get().refreshFromServer()).catch(() => { /* keep the local restore */ });
   },
 
   // `login(email, password)` was removed in Batch C. Password authentication no

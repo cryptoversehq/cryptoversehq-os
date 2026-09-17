@@ -17,7 +17,8 @@ import { useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { useEventsStore } from '../../../events/eventStore';
 import { LiveEvent, EventType, EventStatus } from '../../../events/eventTypes';
-import { useAdminAuthStore } from '@/lib/adminAuthStore';
+// Batch C2.5: the cryptoverse_admin_session store is gone — the admin level comes
+// from the SERVER role (hasFullAdminAccess(identity?.role)) plus the app-session role.
 import { useAuthStore } from '@/lib/authStore';
 import { hasFullAdminAccess, useAdminIdentity } from '@/lib/adminApi';
 import { toast } from 'sonner';
@@ -555,19 +556,16 @@ export function AdminEvents() {
   const [filter,     setFilter]     = useState<EventStatus | 'all'>('all');
   const navigate = useNavigate();
 
-  const { session }     = useAdminAuthStore();
   const { user: appUser } = useAuthStore();
-  // Same fallback SectionGuard/AdminPortalLayout already use: prefer the
-  // dedicated Admin Portal session's level, but fall back to the main-app
-  // role so a superadmin who never logged in through the standalone /admin
-  // login form (adminAuthStore.session is null) isn't treated as Level 0
-  // and blocked here — this was the root cause of superadmins seeing
-  // "Level 4+ admin access required."
+  // Level: owner tier → 6, otherwise the main-app role decides — the same
+  // fallback the route guard uses. Batch C2.5 removed the browser-editable
+  // `cryptoverse_admin_session.level` that used to be consulted first; that value
+  // being null for a portal-only superadmin was the root cause of the
+  // "Level 4+ admin access required." message this code was written to dodge.
   const identity = useAdminIdentity();
   const adminLevel = hasFullAdminAccess(identity?.role)
     ? 6
-    : (session?.level
-      ?? (appUser?.role === 'super_admin' ? 6 : appUser?.role === 'admin' ? 3 : 1));
+    : (appUser?.role === 'super_admin' ? 6 : appUser?.role === 'admin' ? 3 : 1);
   if (adminLevel < 4) {
     return (
       <div className="p-6 flex items-center gap-3 rounded-2xl bg-red-500/5 border border-red-500/20">

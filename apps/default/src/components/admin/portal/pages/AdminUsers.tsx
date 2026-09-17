@@ -26,13 +26,14 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
-import { useAdminPortalStore } from '@/lib/adminPortalStore';
 import { useAdminManagementStore } from '@/lib/adminManagementStore';
-import { useAdminAuthStore } from '@/lib/adminAuthStore';
+// Batch C2.5: the cryptoverse_admin_session store is gone — the admin identity and
+// level come from GET /api/me (useAdminIdentity + roleLevel).
 import { useAuthStore } from '@/lib/authStore';
 import { deleteUser } from '@/lib/authApi';
-import { getLoginHistory, getLoginStats, type LoginEvent } from '@/lib/loginHistoryStore';
-import { ApiForbiddenError, apiDelete, apiGet, apiPost, hasFullAdminAccess, useAdminIdentity } from '@/lib/adminApi';
+import { getLoginHistory, type LoginEvent } from '@/lib/loginHistoryStore';
+import { ApiForbiddenError, apiDelete, apiGet, apiPost, hasFullAdminAccess, useAdminIdentity, roleLevel } from '@/lib/adminApi';
+import { fetchAllAdminUsers, findAdminUserByEmail, recordAdminViewAs, setAdminUserStatus, type AdminUserRecord } from '@/lib/adminUsersApi';
 
 // ── Roles ─────────────────────────────────────────────────────────────────────
 /** The app's full role vocabulary, including the two server-only roles. */
@@ -162,18 +163,16 @@ function StatusPill({ status }: { status: Row['status'] }) {
 }
 
 export function AdminUsers() {
-  const { users: roster, loadUsers, banUser, unbanUser, suspendUser } = useAdminPortalStore();
   const { logAction } = useAdminManagementStore();
-  const { session } = useAdminAuthStore();
   const { startUserView, viewState, endUserView } = useAuthStore();
   const identity = useAdminIdentity();
   const canManage = hasFullAdminAccess(identity?.role);
-  /** Deletion: owner tier or admin level 4+. */
-  const canDelete = canManage || (session?.level ?? 0) >= 4;
+  /** Deletion: owner tier, or any role the API's requireAdminWrite accepts. */
+  const canDelete = canManage || roleLevel(identity?.role) >= 4;
 
   const [loading, setLoading]     = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [serverUsers, setServerUsers] = useState<ServerUser[]>([]);
+  const [serverUsers, setServerUsers] = useState<AdminUserRecord[]>([]);
 
   const [search, setSearch]         = useState('');
   const [roleFilter, setRoleFilter] = useState<'all' | RoleId>('all');
@@ -195,56 +194,54 @@ export function AdminUsers() {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting]           = useState(false);
 
-  // ── Load: Neon roster (source of truth) + Taskade roster (enrichment) ─────
+  // ── Load: the SERVER roster (Batch C2 — no Taskade enrichment) ────────────
+  // fetchAllAdminUsers() walks every page, so this is the COMPLETE roster — the
+  // old call asked for limit=500 and silently got whatever the server cap
+  // allowed (100 before C2, 500 now).
   const reload = useCallback(async () => {
     setLoading(true);
     setLoadError(null);
     try {
-      const res = await apiGet<{ users?: ServerUser[] } | ServerUser[]>('/api/admin/users?limit=500&offset=0');
-      setServerUsers(Array.isArray(res) ? res : (Array.isArray(res?.users) ? res.users : []));
-      await loadUsers().catch(() => { /* enrichment only */ });
+      setServerUsers(await fetchAllAdminUsers());
     } catch (err) {
       if (err instanceof ApiForbiddenError) setLoadError('The server refused the request (401/403).');
       else setLoadError((err as Error).message);
     } finally {
       setLoading(false);
     }
-  }, [loadUsers]);
+  }, []);
 
   useEffect(() => { void reload(); }, [reload]);
 
   // ── Rows ──────────────────────────────────────────────────────────────────
-  const rows: Row[] = useMemo(() => {
-    const taskade: Record<string, { id: string; status: Row['status'] }> = {};
-    for (const u of roster) {
-      taskade[u.email.toLowerCase()] = { id: u.id, status: (u.status as Row['status']) ?? 'active' };
-    }
-    return serverUsers.map(u => {
-      const td = taskade[u.email.toLowerCase()];
-      const taskadeId = td?.id ?? null;
-      // last_seen_at is authoritative; fall back to the local login history.
-      const local = taskadeId ? (getLoginStats(taskadeId).lastLogin?.timestamp ?? null) : null;
-      const lastSeenAt = u.last_seen_at || local || null;
-      const t = lastSeenAt ? new Date(lastSeenAt).getTime() : NaN;
-      return {
-        id:         u.id,
-        email:      u.email,
-        name:       u.email.split('@')[0],
-        role:       ((u.role as RoleId) || 'user'),
-        plan:       u.plan ?? '',
-        balance:    typeof u.balance === 'number' ? u.balance : null,
-        joinedAt:   u.created_at,
-        lastSeenAt,
-        lastSeenIp: u.last_seen_ip || null,
-        online:     Number.isFinite(t) && (Date.now() - t) < ACTIVE_WINDOW_MS,
-        activityKnown: !!lastSeenAt,
-        bucket:     bucketOf(lastSeenAt),
-        taskadeId,
-        hasTaskade: !!td,
-        status:     td?.status ?? 'active',
-      };
-    });
-  }, [serverUsers, roster]);
+  // Built purely from the SERVER roster (Batch C2): role and status come from
+  // public.users, so the table can no longer show "active" for an account the
+  // API is refusing. The Taskade/localStorage mirror lookup that used to enrich
+  // these rows is gone — including its silent `?? 'active'` fallback.
+  const rows: Row[] = useMemo(() => serverUsers.map(u => {
+    // last_seen_at is the authoritative activity signal (server-side).
+    const lastSeenAt = u.last_seen_at || null;
+    const t = lastSeenAt ? new Date(lastSeenAt).getTime() : NaN;
+    return {
+      id:         u.id,
+      email:      u.email,
+      name:       u.display_name || u.email.split('@')[0],
+      role:       ((u.role as RoleId) || 'user'),
+      plan:       u.plan ?? '',
+      balance:    typeof u.balance === 'number' ? u.balance : null,
+      joinedAt:   u.created_at,
+      lastSeenAt,
+      lastSeenIp: u.last_seen_ip || null,
+      online:     Number.isFinite(t) && (Date.now() - t) < ACTIVE_WINDOW_MS,
+      activityKnown: !!lastSeenAt,
+      bucket:     bucketOf(lastSeenAt),
+      // No Taskade node id any more: the device-local login history is keyed by
+      // it and can no longer be matched, so the server's last_seen_at stands alone.
+      taskadeId:  null,
+      hasTaskade: true,
+      status:     ((u.status ?? 'active') as Row['status']),
+    };
+  }), [serverUsers]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -303,7 +300,7 @@ export function AdminUsers() {
   const writeAudit = useCallback((action: AuditAction, target: string, reason: string) => {
     logAction?.({
       adminId:     identity?.email ?? 'unknown',
-      adminLevel:  session?.level ?? 6,
+      adminLevel:  roleLevel(identity?.role),
       adminName:   identity?.email ?? 'Admin',
       action,
       targetId:    target,
@@ -314,6 +311,32 @@ export function AdminUsers() {
       revertable:  false,
     });
   }, [logAction, identity?.email, session?.level]);
+
+  // ── Moderation status (Batch C2: SERVER-authoritative) ────────────────────
+  // Calls POST /api/admin/users/:id/status — the same column authenticate()
+  // enforces — so a ban finally blocks the API and ends the target's live
+  // sessions. The id comes from the server row itself (no local roster lookup),
+  // and the list is reloaded from the server afterwards, so the table always
+  // shows what the server holds.
+  const [moderationBusy, setModerationBusy] = useState<'active' | 'suspended' | 'banned' | null>(null);
+  const setStatus = useCallback(async (next: 'active' | 'suspended' | 'banned') => {
+    if (!selected) return;
+    setModerationBusy(next);
+    try {
+      const result = await setAdminUserStatus(selected.id, next);
+
+      if (next === 'banned') writeAudit('ban_user', selected.email, 'Banned');
+      else if (next === 'active') writeAudit('unban_user', selected.email, 'Unbanned');
+
+      const revoked = result.sessions_revoked > 0 ? ` ${result.sessions_revoked} session(s) ended.` : '';
+      toast.success(`${selected.email} is now ${result.after_status}.${revoked}`);
+      await reload();
+    } catch (err) {
+      toast.error((err as Error)?.message ?? `Could not set the status to ${next}.`);
+    } finally {
+      setModerationBusy(null);
+    }
+  }, [selected, writeAudit, reload]);
 
   // ── Role (server accepts only the 6 assignable roles) ─────────────────────
   const applyRoleChange = async () => {
@@ -385,13 +408,38 @@ export function AdminUsers() {
     }
   };
 
-  // ── View as user (read-only) ──────────────────────────────────────────────
-  const handleViewAsUser = (email: string, hasTaskade: boolean) => {
-    if (!hasTaskade) { toast.error('No login account record for this user.'); return; }
-    const res = startUserView(email);
-    if (!res.success) { toast.error(res.error ?? 'Could not start user view.'); return; }
-    writeAudit('change_role', email, 'Started read-only user view');
-    window.location.assign('/dashboard');
+  // ── View as user (read-only) — Batch C2: server-backed ─────────────────────
+  // The target is read from the SERVER (GET /api/admin/users/:userId through
+  // findAdminUserByEmail), and the action is recorded server-side
+  // (POST /api/admin/view-as). Nothing is impersonated: the browser keeps the
+  // admin's own cookie, `viewState.isViewing` turns the app read-only, and no
+  // data is written on the target's account.
+  const [viewBusy, setViewBusy] = useState<string | null>(null);
+  const handleViewAsUser = async (email: string) => {
+    setViewBusy(email);
+    try {
+      const record = await findAdminUserByEmail(email);
+      if (!record) { toast.error(`No server account record for ${email}.`); return; }
+
+      // The portal's server-verified identity goes in: an admin who signed in only
+      // at /admin/login has no app session, which used to fail as "Not logged in."
+      const res = await startUserView(record, identity ? { email: identity.email, role: identity.role } : undefined);
+      if (!res.success) { toast.error(res.error ?? 'Could not start user view.'); return; }
+
+      // Server-side audit row. Best-effort by design: a refused audit write must
+      // not stop an admin from viewing an account they are authorised to see —
+      // the local audit below is already recorded, and the failure is logged.
+      void Promise.resolve(recordAdminViewAs(record.id)).catch(err => {
+        console.warn('[AdminUsers] view-as audit write failed', err);
+      });
+
+      writeAudit('change_role', email, 'Started read-only user view');
+      window.location.assign('/dashboard');
+    } catch (err) {
+      toast.error((err as Error)?.message ?? 'Could not start user view.');
+    } finally {
+      setViewBusy(null);
+    }
   };
 
   // ── Delete ────────────────────────────────────────────────────────────────
@@ -590,11 +638,11 @@ export function AdminUsers() {
 
                 {/* Eye — icon only */}
                 <button
-                  onClick={e => { e.stopPropagation(); handleViewAsUser(r.email, r.hasTaskade); }}
-                  disabled={!canManage || !r.hasTaskade}
-                  title={r.hasTaskade ? 'View as this user (read-only)' : 'No login account record'}
+                  onClick={e => { e.stopPropagation(); void handleViewAsUser(r.email); }}
+                  disabled={!canManage || viewBusy !== null}
+                  title={viewBusy === r.email ? 'Starting read-only view…' : 'View as this user (read-only)'}
                   className="p-1.5 rounded-lg border bg-sky-500/10 border-sky-500/25 text-sky-400 hover:bg-sky-500/20 transition-all disabled:opacity-30 disabled:cursor-not-allowed">
-                  <Eye className="h-3.5 w-3.5" />
+                  {viewBusy === r.email ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Eye className="h-3.5 w-3.5" />}
                 </button>
               </div>
             </div>
@@ -811,18 +859,18 @@ export function AdminUsers() {
               <div className="rounded-2xl border border-white/8 bg-[#0d0d14] p-4 space-y-2">
                 <p className="text-[10px] uppercase tracking-widest font-semibold text-white/30">Moderation</p>
                 {selected.status !== 'banned' ? (
-                  <button onClick={() => { banUser(selected.email); writeAudit('ban_user', selected.email, 'Banned'); toast.success(`${selected.email} banned`); }}
-                    className="w-full flex items-center gap-2 px-4 py-2.5 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm font-semibold hover:bg-red-500/20 transition-all">
-                    <UserX className="h-4 w-4" /> Ban user
+                  <button onClick={() => void setStatus('banned')} disabled={moderationBusy !== null}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm font-semibold hover:bg-red-500/20 transition-all disabled:opacity-50">
+                    {moderationBusy === 'banned' ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserX className="h-4 w-4" />} Ban user
                   </button>
                 ) : (
-                  <button onClick={() => { unbanUser(selected.email); writeAudit('unban_user', selected.email, 'Unbanned'); toast.success(`${selected.email} unbanned`); }}
-                    className="w-full flex items-center gap-2 px-4 py-2.5 rounded-xl bg-green-500/10 border border-green-500/20 text-green-400 text-sm font-semibold hover:bg-green-500/20 transition-all">
-                    <UserCheck className="h-4 w-4" /> Unban user
+                  <button onClick={() => void setStatus('active')} disabled={moderationBusy !== null}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-green-500/10 border border-green-500/20 text-green-400 text-sm font-semibold hover:bg-green-500/20 transition-all disabled:opacity-50">
+                    {moderationBusy === 'active' ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserCheck className="h-4 w-4" />} Unban user
                   </button>
                 )}
                 {selected.status === 'active' && (
-                  <button onClick={() => { suspendUser(selected.email); toast.success(`${selected.email} suspended`); }}
+                  <button onClick={() => void setStatus('suspended')} disabled={moderationBusy !== null}
                     className="w-full flex items-center gap-2 px-4 py-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 text-sm font-semibold hover:bg-amber-500/20 transition-all">
                     <Shield className="h-4 w-4" /> Suspend
                   </button>

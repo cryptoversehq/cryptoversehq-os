@@ -3,7 +3,9 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { ClipboardList, Check, X, ChevronDown, ChevronUp, Bot, CheckCircle2, XCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAdminManagementStore, ADMIN_LEVEL_META } from '@/lib/adminManagementStore';
-import { useAdminAuthStore } from '@/lib/adminAuthStore';
+// Batch C2.5: the cryptoverse_admin_session store is gone — approving/rejecting
+// admins are identified by their SERVER-verified identity (GET /api/me).
+import { useAdminIdentity } from '@/lib/adminApi';
 import { useAuthStore } from '@/lib/authStore';
 
 const STATUS_STYLE: Record<string, string> = {
@@ -16,13 +18,15 @@ const STATUS_STYLE: Record<string, string> = {
 
 export function AdminRequests() {
   const { requests, approveRequest, rejectRequest } = useAdminManagementStore();
-  const { session } = useAdminAuthStore();
+  const identity = useAdminIdentity();
   const { user }    = useAuthStore();
   const [expanded, setExpanded] = useState<string | null>(null);
   const [rejectNote, setRejectNote] = useState('');
   const [rejectingId, setRejectingId] = useState<string | null>(null);
 
-  const fakeAdmin = user ? { ...user, isAdmin: true, id: session?.adminId ?? user.id } : null;
+  // The approving admin is the server-verified identity; `user` still supplies the
+  // display fields the record and the audit entry expect.
+  const fakeAdmin = user ? { ...user, isAdmin: true, id: identity?.email ?? user.id } : null;
 
   const sorted = [...requests].sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime());
 

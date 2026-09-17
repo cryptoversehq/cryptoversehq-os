@@ -17,7 +17,8 @@ import {
   ShieldAlert, DollarSign, RotateCcw, Check, History, AlertTriangle,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useAdminAuthStore } from '@/lib/adminAuthStore';
+// Batch C2.5: the cryptoverse_admin_session store is gone — access and attribution
+// come from hasFullAdminAccess(identity?.role) / identity?.email (GET /api/me).
 import { useAuthStore } from '@/lib/authStore';
 import {
   useAdminPricingStore, DEFAULT_PLAN_PRICES, EDITABLE_PLAN_IDS, type EditablePlanId,
@@ -301,14 +302,16 @@ function ChangeLog() {
 }
 
 export function AdminSettings() {
-  const { session }       = useAdminAuthStore();
   const { user: appUser } = useAuthStore();
   const identity          = useAdminIdentity();
 
+  // Owner tier from the SERVER role (hasFullAdminAccess == the API's requireOwner
+  // set), plus the app-session role for an admin who is also signed into the app.
+  // The editable cryptoverse_admin_session level that used to be ORed in here — and
+  // which anyone could raise to 6 in the browser — is gone.
   const isSuperAdmin = hasFullAdminAccess(identity?.role)
-    || session?.level === 6
     || appUser?.role === 'super_admin';
-  const actor = identity?.email || session?.displayName || appUser?.displayName || 'Super Admin';
+  const actor = identity?.email || appUser?.displayName || 'Super Admin';
 
   if (!isSuperAdmin) return <SuperAdminOnly403 />;
 

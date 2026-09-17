@@ -3,7 +3,9 @@ import { motion } from 'framer-motion';
 import { CreditCard, Search, Check, X, Clock, CheckCircle2, XCircle, Copy, AlertTriangle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAdminPaymentStore } from '@/lib/adminPaymentStore';
-import { useAdminAuthStore } from '@/lib/adminAuthStore';
+// Batch C2.5: the cryptoverse_admin_session store is gone — the approving admin
+// is identified by their SERVER-verified identity (GET /api/me).
+import { useAdminIdentity } from '@/lib/adminApi';
 
 const STATUS_STYLE = {
   verified: 'bg-green-500/10 border-green-500/25 text-green-400',
@@ -20,7 +22,7 @@ const STATUS_ICON = {
 
 export function AdminTransactions() {
   const { rows, adminApprove, adminReject } = useAdminPaymentStore();
-  const { session } = useAdminAuthStore();
+  const identity = useAdminIdentity();
   const [search, setSearch]   = useState('');
   const [filter, setFilter]   = useState<'all' | 'pending' | 'verified' | 'rejected'>('all');
   const [copied, setCopied]   = useState<string | null>(null);
@@ -44,12 +46,12 @@ export function AdminTransactions() {
   };
 
   const handleApprove = (id: string) => {
-    const res = adminApprove(id, session?.adminId ?? 'unknown');
+    const res = adminApprove(id, identity?.email ?? 'unknown');
     if (!res.ok) alert(res.error ?? 'Could not approve payment.');
   };
   const confirmReject = () => {
     if (!rejectId) return;
-    const res = adminReject(rejectId, session?.adminId ?? 'unknown', rejectReason);
+    const res = adminReject(rejectId, identity?.email ?? 'unknown', rejectReason);
     if (!res.ok) alert(res.error ?? 'Could not reject payment.');
     setRejectId(null);
     setRejectReason('');

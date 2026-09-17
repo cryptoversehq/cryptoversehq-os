@@ -1,12 +1,12 @@
 /**
  * subscriptionEntitlements.ts — Admin manual subscription (Pro / Pro+) engine.
  *
- * WHO CAN USE THIS
- *   • The Developer / project owner (UserRole 'developer' or Profile.isDeveloper).
- *   • The "Super Admin – Subscriptions" role, modelled in this app as an admin
- *     who has been explicitly granted the `subscriptions` section
- *     (Admin → Users → permissions). No other admin may use it — a Level 6
- *     "Technical Admin" is NOT auto-allowed; access requires the explicit grant.
+ * WHO CAN USE THIS (Batch C2.5: from the SERVER role, not a local grant)
+ *   • developer / founder / super_admin — the owner tier.
+ *   • subscription_admin — the same roles the API accepts on
+ *     POST /api/admin/subscriptions/grant|revoke (its requireAdminWrite set).
+ *   Read-only roles (support_admin) and everyone else are excluded, and no
+ *   browser-editable list can change that any more.
  *
  * SECURITY
  *   Authorization is resolved from the trusted auth stores by ONE function
@@ -29,8 +29,7 @@
  */
 import { create } from 'zustand';
 import { useAuthStore } from './authStore';
-import { useAdminAuthStore } from './adminAuthStore';
-import { getAdminSections } from './adminPortalStore';
+import { getCachedAdminIdentity, roleLevel } from './adminApi';
 import { cloudRecordStore } from './cloudData';
 import { PLAN_DURATION_DAYS } from './subscriptionStore';
 
@@ -155,33 +154,37 @@ function writeLocal(key: string, value: unknown): void {
 
 // ── Actor resolution (trusted stores only) ────────────────────────────────────
 export function resolveSubscriptionActor(): SubscriptionActor {
-  const appUser = useAuthStore.getState().user;
-  const session = useAdminAuthStore.getState().session;
-  const email   = (session?.email ?? appUser?.email ?? '').toLowerCase();
-  const role    = appUser?.role ?? 'user';
+  const appUser  = useAuthStore.getState().user;
+  const identity = getCachedAdminIdentity();   // GET /api/me, cached by the portal guard
+
+  // The SERVER role wins when we have it — it is what the API will enforce on
+  // POST /api/admin/subscriptions/grant|revoke. The app-session role is only a
+  // fallback for someone signed into the app rather than the portal.
+  const role  = (identity?.role || appUser?.role || 'user');
+  const email = (identity?.email || appUser?.email || '').toLowerCase();
+
   return {
-    id:          session?.adminId ?? appUser?.id ?? email,
+    id:          email || appUser?.id || '',
     email,
-    displayName: session?.displayName ?? appUser?.displayName ?? email,
+    displayName: email || appUser?.displayName || '',
     role,
     isDeveloper: role === 'developer' || appUser?.isDeveloper === true,
-    level:       session?.level ?? 0,
+    level:       roleLevel(role),
   };
 }
 
 /**
- * The single authorization boundary. True only for the Developer, or an admin
- * who was explicitly granted the `subscriptions` section. Level alone never
- * qualifies — this is what keeps Level 6 admins out unless granted the role.
+ * The single authorization boundary (Batch C2.5).
+ *
+ * It used to read the retired `cryptoverse_admin_section_permissions` grant list —
+ * a browser-editable mirror that the API never consulted. It now decides from the
+ * SERVER role and matches exactly what the API enforces on
+ * POST /api/admin/subscriptions/grant|revoke: `requireAdminWrite`, i.e.
+ * developer / founder / super_admin / subscription_admin (roleLevel >= 4).
+ * A read-only support_admin (level 3) is excluded, and no local grant can widen it.
  */
 export function isSubscriptionManager(actor: SubscriptionActor = resolveSubscriptionActor()): boolean {
-  if (actor.isDeveloper || actor.role === 'developer') return true;
-  if (!actor.email) return false;
-  try {
-    return getAdminSections(actor.email).includes(SUBSCRIPTION_ADMIN_SECTION);
-  } catch {
-    return false;
-  }
+  return roleLevel(actor.role) >= 4;
 }
 
 // ── Persistence ───────────────────────────────────────────────────────────────
@@ -283,7 +286,7 @@ function buildAudit(
 }
 
 const NOT_AUTHORIZED =
-  'Not authorized. Only the Developer or a Super Admin granted the Subscriptions role can manage subscriptions.';
+  'Not authorized. Managing subscriptions requires the developer, founder, super_admin or subscription_admin role.';
 
 // ── Store ─────────────────────────────────────────────────────────────────────
 interface SubscriptionEntitlementState {

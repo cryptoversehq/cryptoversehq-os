@@ -3,7 +3,9 @@ import { motion } from 'framer-motion';
 import { HeadphonesIcon, Search, CheckCircle2, ArrowUpCircle, Star, Clock, AlertTriangle, Loader2, Send, RefreshCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAdminPortalStore } from '@/lib/adminPortalStore';
-import { useAdminAuthStore } from '@/lib/adminAuthStore';
+// Batch C2.5: the cryptoverse_admin_session store is gone — ticket replies are
+// attributed to the SERVER-verified admin (GET /api/me).
+import { useAdminIdentity } from '@/lib/adminApi';
 
 const PRIO_STYLE: Record<string, string> = {
   low:      'bg-slate-500/10 border-slate-500/20 text-slate-400',
@@ -20,7 +22,7 @@ const STATUS_STYLE: Record<string, string> = {
 };
 
 export function AdminTickets() {
-  const { session } = useAdminAuthStore();
+  const identity = useAdminIdentity();
   const { tickets, resolveTicket, escalateTicket, loadTickets, loadingTickets } = useAdminPortalStore();
   const [search,     setSearch]     = useState('');
   const [filter,     setFilter]     = useState('all');
@@ -31,7 +33,8 @@ export function AdminTickets() {
 
   useEffect(() => { loadTickets(); }, [loadTickets]);
 
-  const adminId = session?.adminId ?? 'admin';
+  // The reply's author is the admin's server-verified email.
+  const adminId = identity?.email ?? 'admin';
 
   const filtered = tickets.filter(t => {
     const matchS = filter === 'all' || t.status === filter;

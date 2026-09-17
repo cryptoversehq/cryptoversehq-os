@@ -3,7 +3,9 @@ import { motion } from 'framer-motion';
 import { FileText, Search, RotateCcw, Download, AlertTriangle, X, Clock, Filter, Bot, MessageSquare, ChevronDown, ChevronUp, Ticket } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAdminManagementStore, RichAuditEntry, AuditActionType } from '@/lib/adminManagementStore';
-import { useAdminAuthStore } from '@/lib/adminAuthStore';
+// Batch C2.5: the cryptoverse_admin_session store is gone. The super-admin gate
+// and the revert attribution come from the SERVER-verified identity (GET /api/me).
+import { useAdminIdentity, roleLevel } from '@/lib/adminApi';
 import { getAllConversations, MentorConversation } from '@/lib/mentorChatStore';
 import { useAuthStore, getUserViewAccessLog } from '@/lib/authStore';
 import { Eye as EyeIcon } from 'lucide-react';
@@ -152,9 +154,11 @@ function UserViewLogTab() {
 
 export function AdminLogs() {
   const { richAudit, revertAction, alerts, dismissAlert } = useAdminManagementStore();
-  const { session } = useAdminAuthStore();
+  const identity = useAdminIdentity();
   const { user }    = useAuthStore();
-  const isSuperAdmin = user?.role === 'super_admin' || (session && session.level >= 6);
+  // Owner tier only (developer / founder / super_admin) — roleLevel(6) is exactly
+  // the API's requireOwner set, so this cannot claim a level the server would deny.
+  const isSuperAdmin = user?.role === 'super_admin' || roleLevel(identity?.role) >= 6;
   const [activeTab, setActiveTab] = useState<'audit' | 'mentor' | 'user-view'>('audit');
   const [search, setSearch]     = useState('');
   const [actionFilter, setActionFilter] = useState<'all' | AuditActionType>('all');
@@ -190,8 +194,8 @@ export function AdminLogs() {
   };
 
   const handleRevert = (entry: RichAuditEntry) => {
-    if (!session) return;
-    revertAction(entry.id, { displayName: session.displayName, id: session.adminId } as any);
+    if (!identity?.email) return;
+    revertAction(entry.id, { displayName: identity.email, id: identity.email } as any);
   };
 
   return (

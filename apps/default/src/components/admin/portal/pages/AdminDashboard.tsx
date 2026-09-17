@@ -6,7 +6,9 @@ import {
   ShieldAlert, Zap, Activity, BarChart3, Check, X,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useAdminAuthStore } from '@/lib/adminAuthStore';
+// Batch C2.5: the cryptoverse_admin_session store is gone — level and admin
+// attribution come from the SERVER-verified identity (GET /api/me).
+import { useAdminIdentity, roleLevel } from '@/lib/adminApi';
 import { useAdminPortalStore, TWO_MAN_ACTIONS } from '@/lib/adminPortalStore';
 import { useAdminManagementStore, ADMIN_LEVEL_META } from '@/lib/adminManagementStore';
 import { useAdminPaymentStore } from '@/lib/adminPaymentStore';
@@ -31,7 +33,7 @@ function buildActivitySpark(auditTimestamps: string[]): { t: number; v: number }
 }
 
 export function AdminDashboard() {
-  const { session }            = useAdminAuthStore();
+  const identity               = useAdminIdentity();
   const { user: appUser }      = useAuthStore();
   const { users, tickets, reports, twoManRequests, approveTwoMan, rejectTwoMan, loadUsers, loadTickets } = useAdminPortalStore();
   const { notifications, alerts, members, richAudit } = useAdminManagementStore();
@@ -44,14 +46,15 @@ export function AdminDashboard() {
     loadTickets();
   }, [loadUsers, loadTickets]);
 
-  // Resolve effective admin level the same way SectionGuard/AdminPortalLayout do:
-  // prefer the dedicated Admin Portal session's level, but fall back to the
-  // main-app role (super_admin → 6, admin → 3, everyone else → 1) so a
-  // superadmin who entered via the main-app session (never logged in through
-  // the standalone /admin login form) still gets the full dashboard instead
-  // of defaulting to a Level-1 "Content Admin" view.
-  const level = session?.level
-    ?? (appUser?.role === 'super_admin' ? 6 : appUser?.role === 'admin' ? 3 : 1);
+  // Level from the SERVER role (roleLevel mirrors the API's own
+  // requireOwner/requireAdminWrite/requireAdminRead sets). roleLevel() returns 1 for
+  // anything outside those sets, so the documented app-session fallback still
+  // applies to a superadmin who signed in through the main app. The old
+  // `session?.level` came from browser storage and could claim 6 for anyone.
+  const identityLevel = roleLevel(identity?.role);
+  const level = identityLevel > 1
+    ? identityLevel
+    : (appUser?.role === 'super_admin' ? 6 : appUser?.role === 'admin' ? 3 : 1);
   const meta  = ADMIN_LEVEL_META[level];
 
   const auditLast24h = richAudit.filter(a => Date.now() - new Date(a.timestamp).getTime() < 24 * 60 * 60 * 1000).length;
@@ -91,7 +94,7 @@ export function AdminDashboard() {
             {meta.icon} {meta.role} Dashboard
           </h1>
           <p className="text-sm text-white/40 mt-0.5">
-            Welcome back, {session?.displayName} · {new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}
+            Welcome back, {identity?.email || appUser?.displayName || 'Admin'} · {new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}
           </p>
         </div>
         <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs font-semibold"
@@ -198,7 +201,7 @@ export function AdminDashboard() {
           <div className="space-y-3">
             {pendingTwoMan.map(req => {
               const actionMeta = TWO_MAN_ACTIONS[req.action];
-              const myApproval = req.approvals.find(a => a.adminId === session?.adminId);
+              const myApproval = req.approvals.find(a => a.adminId === identity?.email);
               return (
                 <div key={req.id} className="bg-white/3 border border-white/8 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center gap-3">
                   <div className="flex-1 min-w-0">
@@ -216,13 +219,13 @@ export function AdminDashboard() {
                     {!myApproval ? (
                       <>
                         <button
-                          onClick={() => approveTwoMan(req.id, session?.adminId ?? '', session?.displayName ?? '')}
+                          onClick={() => approveTwoMan(req.id, identity?.email ?? '', identity?.email ?? '')}
                           className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-green-500/15 border border-green-500/25 text-green-400 text-xs font-semibold hover:bg-green-500/25 transition-all"
                         >
                           <Check className="h-3.5 w-3.5" /> Approve
                         </button>
                         <button
-                          onClick={() => rejectTwoMan(req.id, session?.adminId ?? '')}
+                          onClick={() => rejectTwoMan(req.id, identity?.email ?? '')}
                           className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-semibold hover:bg-red-500/20 transition-all"
                         >
                           <X className="h-3.5 w-3.5" /> Reject

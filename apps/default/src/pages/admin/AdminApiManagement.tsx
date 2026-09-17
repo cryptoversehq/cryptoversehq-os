@@ -27,7 +27,8 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
-import { useAdminAuthStore } from '@/lib/adminAuthStore';
+// Batch C2.5: the cryptoverse_admin_session store is gone — access is decided by
+// hasFullAdminAccess(identity?.role) from GET /api/me, plus the app-session role.
 import { useAuthStore } from '@/lib/authStore';
 import { ApiTestButton } from '@/components/admin/ApiTestButton';
 import {
@@ -632,19 +633,20 @@ function ApiCard({ def, actor, onEdit, onRotate, onDelete }: {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export function AdminApiManagement() {
-  const { session }        = useAdminAuthStore();
   const { user: appUser }  = useAuthStore();
   const apis     = useApiMgmtStore(s => s.apis);
   const testing  = useApiMgmtStore(s => s.testing);
   const testAll  = useApiMgmtStore(s => s.testAll);
   const healthOf = useApiMgmtStore(s => s.healthOf);
 
-  // ── Access control: Developer (server role) or legacy Super Admin (Level 6) ──
+  // ── Access control: owner tier from the SERVER role ─────────────────────────
+  // hasFullAdminAccess covers developer / founder / super_admin (the API's
+  // requireOwner set). The app-session role stays honoured for an admin who is
+  // also signed into the app; the editable admin-session level is gone.
   const identity = useAdminIdentity();
   const isSuperAdmin = hasFullAdminAccess(identity?.role)
-    || session?.level === 6
     || appUser?.role === 'super_admin';
-  const actor = identity?.email || appUser?.email || session?.displayName || 'Super Admin';
+  const actor = identity?.email || appUser?.email || 'Super Admin';
 
   // ── Modal state ──
   const [modalOpen, setModalOpen]   = useState(false);

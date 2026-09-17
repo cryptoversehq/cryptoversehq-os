@@ -145,6 +145,46 @@ export function hasFullAdminAccess(role: string | null | undefined): boolean {
   return !!role && (FULL_ACCESS_ROLES as readonly string[]).includes(normalizeRole(role));
 }
 
+/**
+ * Coarse level for UI gating, derived from the SERVER role (Batch C2).
+ *
+ * This replaces the retired `adminAuthStore.session.level`: that number lived in
+ * browser storage, so anyone could edit it and claim Level 6. The mapping follows
+ * the API's own role sets rather than an invented hierarchy:
+ *
+ *   6  developer / founder / super_admin   → requireOwner      (every section)
+ *   4  subscription_admin                  → requireAdminWrite (may change data)
+ *   3  support_admin                       → requireAdminRead  (read only)
+ *   1  everything else, including retired `admin` / `senior_admin`
+ *
+ * Display-only: it shapes which controls are shown, never what is allowed — every
+ * write is authorised server-side from public.users.role.
+ */
+export const ROLE_LEVELS: Record<string, number> = {
+  developer: 6,
+  founder: 6,
+  super_admin: 6,
+  subscription_admin: 4,
+  support_admin: 3,
+};
+
+export function roleLevel(role: string | null | undefined): number {
+  return ROLE_LEVELS[normalizeRole(role)] ?? 1;
+}
+
+/**
+ * SYNCHRONOUS read of the cached GET /api/me identity (Batch C2.5).
+ *
+ * For non-React callers — store actions and plain functions that cannot use the
+ * `useAdminIdentity()` hook — that still need the server-verified admin. The cache
+ * is primed by `fetchAdminRole()`/`useAdminIdentity()`, i.e. by ServerAdminGuard
+ * before it renders any admin page; it returns null only when no admin request has
+ * completed yet, so callers must treat null as "not verified" and fall back.
+ */
+export function getCachedAdminIdentity(): AdminIdentity | null {
+  return _identityLoaded ? _identity : null;
+}
+
 /** Normalize a role string: trim, lowercase, and "Support-Admin" → "support_admin". */
 export function normalizeRole(role: unknown): string {
   return typeof role === 'string' ? role.trim().toLowerCase().replace(/[\s-]+/g, '_') : '';

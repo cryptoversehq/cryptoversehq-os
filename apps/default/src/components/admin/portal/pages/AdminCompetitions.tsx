@@ -3,7 +3,9 @@ import { motion } from 'framer-motion';
 import { Trophy, Users, DollarSign, Play, Square, ShieldAlert } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAdminPortalStore } from '@/lib/adminPortalStore';
-import { useAdminAuthStore } from '@/lib/adminAuthStore';
+// Batch C2.5: the cryptoverse_admin_session store is gone. The requester identity
+// for the two-man rule is the SERVER-verified admin (GET /api/me).
+import { useAdminIdentity } from '@/lib/adminApi';
 import { useEventsStore } from '../../../events/eventStore';
 
 const STATUS_STYLE = {
@@ -23,7 +25,7 @@ const STATUS_STYLE = {
 export function AdminCompetitions() {
   const { events } = useEventsStore();
   const { twoManRequests, requestTwoMan } = useAdminPortalStore();
-  const { session } = useAdminAuthStore();
+  const identity = useAdminIdentity();
   const [requested, setRequested] = useState<Set<string>>(new Set());
 
   const active   = events.filter(e => e.status === 'live').length;
@@ -34,8 +36,10 @@ export function AdminCompetitions() {
   const handleDeleteRequest = (ev: typeof events[0]) => {
     requestTwoMan({
       action:        'delete_competition',
-      requesterId:   session?.adminId ?? '',
-      requesterName: session?.displayName ?? '',
+      // The admin's email is the identifier here: it is what the server knows the
+      // admin by, and the second approver's email is compared against it.
+      requesterId:   identity?.email ?? '',
+      requesterName: identity?.email ?? '',
       targetId:      ev.id,
       targetLabel:   ev.title,
       reason:        'Admin-initiated deletion of active competition/event',
