@@ -31,6 +31,24 @@
 
 require('dotenv').config();
 
+// ==================== SENTRY (error monitoring) ====================
+// Initialized before any route is registered so a failure inside a handler is
+// reported with its stack and request context. The DSN lives in Render's
+// environment (SENTRY_DSN) — a DSN is send-only, but keeping it out of source means
+// rotating it needs no redeploy of the repository.
+//
+// @sentry/node v8+ has no Handlers.requestHandler()/errorHandler(): the SDK
+// instruments Express automatically, and the error handler below reports explicitly
+// with captureException().
+const Sentry = require('@sentry/node');
+
+Sentry.init({
+  dsn: process.env.SENTRY_DSN,
+  environment: process.env.NODE_ENV || 'production',
+  tracesSampleRate: 0.1,
+});
+
+
 const crypto = require('node:crypto');
 const express = require('express');
 const cors = require('cors');
@@ -2493,6 +2511,10 @@ app.get('/api/market/coingecko/*', async (req, res) => {
 
 // ==================== ERROR HANDLING ====================
 app.use((err, req, res, next) => {
+  // Report to Sentry before the response is written. Guarded in a try/catch so a
+  // monitoring outage can never turn a handled 500 into an unhandled crash.
+  try { Sentry.captureException(err, { tags: { requestId: req.requestId } }); } catch (_) { /* ignore */ }
+
   console.error(JSON.stringify({ event: 'request_failed', requestId: req.requestId, error: err?.message }));
   if (res.headersSent) return next(err);
   if (err?.message === 'CORS origin denied') {

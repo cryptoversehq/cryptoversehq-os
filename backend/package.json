@@ -9,6 +9,9 @@
   },
   "dependencies": {
     "@libsql/client": "^0.14.0",
+    "@neondatabase/serverless": "^0.10.0",
+    "@sentry/node": "^10.75.0",
+    "better-auth": "^1.6.0",
     "cookie-parser": "^1.4.6",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
@@ -17,8 +20,6 @@
     "helmet": "^8.1.0",
     "jose": "^4.15.9",
     "pg": "^8.13.0",
-    "better-auth": "^1.6.0",
-    "@neondatabase/serverless": "^0.10.0",
     "resend": "^4.0.0"
   }
 }
