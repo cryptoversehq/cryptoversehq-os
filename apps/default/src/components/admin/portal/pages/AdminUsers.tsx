@@ -310,7 +310,7 @@ export function AdminUsers() {
       status:      'completed',
       revertable:  false,
     });
-  }, [logAction, identity?.email, session?.level]);
+  }, [logAction, identity?.email, identity?.role]);
 
   // ── Moderation status (Batch C2: SERVER-authoritative) ────────────────────
   // Calls POST /api/admin/users/:id/status — the same column authenticate()
