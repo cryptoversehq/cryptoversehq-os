@@ -4,6 +4,8 @@
  */
 
 import { deepSeekAsk } from '@/lib/deepSeekClient';
+import { useAuthStore } from '@/lib/authStore';
+import { captureException } from '@/lib/sentry';
 
 const ERR_KEY = 'cv_error_log';
 const ERR_COUNT_KEY = 'cv_error_counts';
@@ -20,11 +22,18 @@ export interface ErrorEntry {
 let _reported: Map<string,number> = new Map();
 let _hourlyCounts: Map<string,{count:number;firstSeen:number}> = new Map();
 
+/**
+ * The id of the signed-in user, for error attribution.
+ *
+ * Batch D1: this used to read `localStorage['cryptoverse_session']` — a mirror of
+ * the old client-side session that Batch D deletes. Identity now comes from the
+ * SERVER-verified profile in the auth store, so this reports 'anonymous' until the
+ * session check answers instead of trusting (and parsing) browser storage.
+ */
 export function getUserId(): string {
   try {
-    const raw = localStorage.getItem('cryptoverse_session');
-    if (!raw) return 'anonymous';
-    return (JSON.parse(raw) as {id:string}).id || 'anonymous';
+    const user = useAuthStore.getState().user;
+    return user?.id || 'anonymous';
   } catch { return 'anonymous'; }
 }
 
@@ -67,6 +76,19 @@ export async function analyzeError(error: Error, errorInfo?: {componentStack:str
   } catch {}
 
   saveErrorLog(entry);
+
+  // Frontend Sentry project: report the same error with the AI triage attached, so
+  // the Sentry issue carries a severity and a diagnosis instead of a bare stack.
+  // No-op when the CDN script is blocked or absent (see lib/sentry.ts).
+  captureException(error, {
+    severity:       entry.severity,
+    diagnosis:      entry.diagnosis,
+    impact:         entry.impact,
+    componentStack: entry.componentStack,
+    url:            entry.url,
+    occurrence:     entry.count,
+  });
+
   return entry;
 }
 

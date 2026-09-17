@@ -10,6 +10,7 @@
  *
  *   GET  /api/admin/users?limit&offset&email&q  → { users, total, has_more }
  *   GET  /api/admin/users/:id                   → { user, active_subscription, live_sessions }
+ *   POST /api/admin/users/:id/role              → { before_role, after_role }
  *   POST /api/admin/users/:id/status            → { before_status, after_status, sessions_revoked }
  *   POST /api/admin/view-as                     → { read_only: true }  (audit row only)
  *
@@ -172,6 +173,33 @@ export async function fetchAdminUser(userId: string): Promise<AdminUserDetail> {
     user: normalizeAdminUser(res.user),
     active_subscription: res.active_subscription ?? null,
     live_sessions: typeof res.live_sessions === 'number' ? res.live_sessions : 0,
+  };
+}
+
+/**
+ * Change an account's role (Batch C2.5 · Task 2).
+ *
+ * `POST /api/admin/users/:id/role`, guarded server-side by requireAdminWrite.
+ * Used by AdminUsers' role control and by AdminAdmins' "Promote by email" — one
+ * code path, one server check, no local role list anywhere.
+ */
+export async function setAdminUserRole(
+  userId: string,
+  role: string,
+): Promise<{ user_id: string; before_role?: string; after_role: string; duplicate: boolean }> {
+  const res = await apiPost<{
+    success?: boolean;
+    user_id?: string;
+    before_role?: string;
+    after_role?: string;
+    duplicate?: boolean;
+  }>(`/api/admin/users/${encodeURIComponent(userId)}/role`, { role });
+
+  return {
+    user_id: res?.user_id ?? userId,
+    before_role: res?.before_role,
+    after_role: res?.after_role ?? role,
+    duplicate: res?.duplicate === true,
   };
 }
 

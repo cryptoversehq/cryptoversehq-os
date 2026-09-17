@@ -36,15 +36,18 @@ export function AdminDashboard() {
   const identity               = useAdminIdentity();
   const { user: appUser }      = useAuthStore();
   const { users, tickets, reports, twoManRequests, approveTwoMan, rejectTwoMan, loadUsers, loadTickets } = useAdminPortalStore();
-  const { notifications, alerts, members, richAudit } = useAdminManagementStore();
+  const { notifications, alerts, members, richAudit, refreshMembers } = useAdminManagementStore();
   const { rows: paymentRows } = useAdminPaymentStore();
   const { events } = useEventsStore();
 
-  // Load live data on mount
+  // Load live data on mount. The admin roster is SERVER data now
+  // (refreshMembers → GET /api/admin/users), so the "Admin Members" KPI below
+  // counts what public.users actually holds instead of a localStorage list.
   useEffect(() => {
     loadUsers();
     loadTickets();
-  }, [loadUsers, loadTickets]);
+    void refreshMembers();
+  }, [loadUsers, loadTickets, refreshMembers]);
 
   // Level from the SERVER role (roleLevel mirrors the API's own
   // requireOwner/requireAdminWrite/requireAdminRead sets). roleLevel() returns 1 for

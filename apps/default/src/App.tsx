@@ -849,9 +849,43 @@ function LynxAIIntegration() {
 // ─── AUTH-AWARE INNER APP ─────────────────────────────────────────────────────
 // Must be inside <Router> to use useLocation
 function AppInner() {
-  const { isAuthenticated, user, refreshRole } = useAuthStore();
+  const { isAuthenticated, user, refreshRole, refreshFromServer } = useAuthStore();
   const location            = useLocation();
   const { trackPageView }   = useLynxEvents();
+
+  // ── Batch D1: boot session check ──────────────────────────────────────────
+  // `isAuthenticated` used to arrive from a `cryptoverse_session` mirror in
+  // localStorage, so a stale (or hand-edited) entry could render the entire app
+  // before the server had been asked anything, and a valid cookie-only session
+  // could be missed entirely. The HttpOnly cookie is the credential now: ask the
+  // API once on boot and hold a splash until it answers. A 401 clears the session
+  // inside the store, which is what flips the render below to the login page.
+  const [sessionChecked, setSessionChecked] = useState(false);
+  useEffect(() => {
+    let canceled = false;
+    const done = () => { if (!canceled) setSessionChecked(true); };
+    // Failsafe: never hold the splash forever. A sleeping Render instance must
+    // not turn into a permanent white screen — the login page is the safe default.
+    const failsafe = setTimeout(done, 8000);
+    // refreshFromServer() rather than refreshRole(): refreshRole() bails out early
+    // when there is no local user, and after Batch D2 there is deliberately no
+    // local user until this very call populates one.
+    void refreshFromServer()
+      .catch(() => { /* 401/403 = no session; the login page takes over */ })
+      .finally(() => { clearTimeout(failsafe); done(); });
+    return () => { canceled = true; clearTimeout(failsafe); };
+  }, [refreshFromServer]);
+
+  /** Full-screen splash shown while the server is asked about the session. */
+  const bootSplash = (
+    <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center gap-4 bg-background">
+      <CryptoVerseLogo size={40} />
+      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        <RefreshCw className="h-4 w-4 animate-spin" />
+        Checking your session…
+      </div>
+    </div>
+  );
 
   // ── Lynx AI: page tracking + context refresh ─────────────────────────────
   useEffect(() => {
@@ -1028,8 +1062,12 @@ function AppInner() {
 
       {!isAuthRoute && !isAdminRoute && isPublicPath && (location.pathname !== '/' || !isAuthenticated) && <PublicRoutes />}
 
-      {/* Authenticated app — hidden on auth routes and /admin/* */}
-      {!isAuthRoute && !isAdminRoute && (isAuthenticated || (location.pathname !== '/' && location.pathname !== '/about' && location.pathname !== '/privacy' && location.pathname !== '/terms' && location.pathname !== '/contact' && location.pathname !== '/help' && location.pathname !== '/community' && location.pathname !== '/api-docs' && location.pathname !== '/blog' && location.pathname !== '/careers' && location.pathname !== '/status' && location.pathname !== '/security' && location.pathname !== '/cookie-policy')) && (
+      {/* Boot splash (Batch D1) — shown only where the app itself would render. */}
+      {!isAuthRoute && !isAdminRoute && !sessionChecked && bootSplash}
+
+      {/* Authenticated app — hidden on auth routes and /admin/*, and gated on the
+          server session check so a stale client can never flash the app shell. */}
+      {!isAuthRoute && !isAdminRoute && sessionChecked && (isAuthenticated || (location.pathname !== '/' && location.pathname !== '/about' && location.pathname !== '/privacy' && location.pathname !== '/terms' && location.pathname !== '/contact' && location.pathname !== '/help' && location.pathname !== '/community' && location.pathname !== '/api-docs' && location.pathname !== '/blog' && location.pathname !== '/careers' && location.pathname !== '/status' && location.pathname !== '/security' && location.pathname !== '/cookie-policy')) && (
         <AnimatePresence mode="wait">
           {!isAuthenticated ? (
             <motion.div

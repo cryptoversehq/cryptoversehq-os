@@ -82,6 +82,16 @@ function nextRequestId() { return `req_${Date.now()}_${++_reqSeq}`; }
 
 // ─── AUTH CONTEXT RESOLVER ────────────────────────────────────────────────────
 
+/**
+ * The auth context handed to the in-browser handlers (see the registry below).
+ *
+ * Batch D1: there is deliberately NO localStorage fallback here. `user` is only
+ * ever set from the server (refreshFromServer → GET /api/me) and the boot guard in
+ * App.tsx holds a splash until that has answered, so a null result now means
+ * "unknown", never "anonymous session found in browser storage". The real API
+ * authorises from the HttpOnly session cookie (credentials: 'include'), so a null
+ * context cannot widen access — it only affects local handler bookkeeping.
+ */
 export function resolveAuthContext(): ApiAuthContext | null {
   const { user } = useAuthStore.getState();
   if (!user) return null;

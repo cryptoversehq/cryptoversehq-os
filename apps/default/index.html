@@ -52,6 +52,36 @@
         }, { capture: true });
       })();
     </script>
+
+    <!-- ==================== Sentry (frontend error monitoring) ====================
+         WHY THE CDN AND NOT `import * as Sentry from '@sentry/react'`:
+         app/package.json and src/main.tsx are template-owned protected files that
+         cannot be edited from the VFS, so no npm dependency can be declared for the
+         bundle. The official CDN bundle is the supported no-install path: this is a
+         CLASSIC script, so it executes immediately, while the module entry point in
+         <body> is deferred — Sentry is therefore initialized before React renders,
+         which is the requirement.
+
+         The DSN is a public identifier by design (send-only), safe in HTML. To
+         rotate it, change it here.
+         =========================================================================== -->
+    <script src="https://browser.sentry-cdn.com/10.75.0/bundle.min.js" crossorigin="anonymous"></script>
+    <script>
+      (function () {
+        var S = window.Sentry;
+        if (!S || typeof S.init !== 'function') return;
+        // browserTracingIntegration() lives in the bundle build; guard it so an SDK
+        // change can never throw during boot.
+        var tracing = typeof S.browserTracingIntegration === 'function' ? [S.browserTracingIntegration()] : [];
+        S.init({
+          dsn: 'https://191d18ba9b7b563449f135803b4325da@o4512103258718208.ingest.de.sentry.io/4512103327531088',
+          environment: /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname) ? 'development' : 'production',
+          integrations: tracing,
+          // Without the tracing integration this is inert; same-origin requests only.
+          tracesSampleRate: 0.1,
+        });
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

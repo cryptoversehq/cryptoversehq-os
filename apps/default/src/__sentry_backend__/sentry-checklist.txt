@@ -1,0 +1,100 @@
+SENTRY — BACKEND CHECKLIST (Express / Node on Render)
+================================================================================
+Backend DSN (project 4512103470596176):
+  https://75cc97998fa6ce5ba4bfa1bb35acb19f@o4512103258718208.ingest.de.sentry.io/4512103470596176
+
+Do these in order, after the patch is committed and Render has redeployed.
+Delete the folder afterwards (it is a delivery vehicle, like __batch_c2_backend__).
+
+
+1. PREREQUISITES
+--------------------------------------------------------------------------------
+[ ] @sentry/node@^10.75.0 installed in backend/  (package.json → dependencies)
+[ ] sentry-apply.mjs has been run. Verify:
+      grep -n "@sentry/node" backend/src/index.js        → exactly 1 hit
+      grep -n "captureException" backend/src/index.js    → exactly 1 hit
+[ ] SENTRY_DSN set in Render → Environment (the BACKEND DSN above, not the frontend
+    one — they are different projects and mixing them sends events to the wrong place)
+[ ] Render deploy log shows the new dependency being installed
+
+
+2. BOOT CHECK
+--------------------------------------------------------------------------------
+[ ] Render log still shows the normal start line:
+      {"event":"server_started","port":...,"environment":"production"}
+[ ] No Sentry warning/error lines on boot.
+[ ] Safety property to know: with SENTRY_DSN unset, @sentry/node stays DISABLED and
+    the API keeps working normally. Monitoring can never take the API down — the
+    capture call is additionally wrapped in try/catch.
+
+
+3. TEMPORARY TEST ROUTE  (DELETE IT AFTER THE TEST)
+--------------------------------------------------------------------------------
+Paste directly ABOVE the "// ==================== ERROR HANDLING ===================="
+block near the end of backend/src/index.js:
+
+    // TEMPORARY — Sentry end-to-end verification. DELETE after testing.
+    app.get('/api/sentry-test', authenticate, (req, res) => {
+      throw new Error('Sentry test (backend) - safe to delete');
+    });
+
+Why authenticate: a public throwing route is an abuse/DoS vector even for a few
+minutes, and authenticate() is already imported and applied everywhere else.
+
+Commit → push → wait for Render → then:
+
+    curl -i -H "Cookie: <your better-auth session cookie>" \
+      https://cryptoversehq-os.onrender.com/api/sentry-test
+
+[ ] Expect HTTP 500 {"error":"SERVER_ERROR","message":"Request failed.","requestId":"..."}
+[ ] Copy that requestId — it should appear on the Sentry event as tags.requestId
+
+
+4. CONFIRM IN SENTRY
+--------------------------------------------------------------------------------
+[ ] Issues → the new issue "Sentry test (backend) - safe to delete" appears (allow
+    ~30-60s; the SDK batches).
+[ ] The event shows environment: production.
+[ ] The event carries tags.requestId matching the response.
+[ ] The stack trace points into index.js near the error handler, and reads as real
+    function/file/line info — the backend is plain Node (CommonJS, no bundler), so
+    NO source maps are needed here. This is the opposite of the frontend.
+
+
+5. REAL-TRAFFIC CHECK (no test route involved)
+--------------------------------------------------------------------------------
+[ ] Trigger one known handled failure from the app, e.g. Admin → connect an exchange
+    with a deliberately invalid API key → POST /api/exchange/connect.
+[ ] It appears in Sentry with the request context.
+[ ] NOISE CHECK: ordinary 4xx validation errors (400 VALIDATION_ERROR, 401, 403,
+    404, 429) are returned directly and are NOT thrown, so they must NOT appear. If
+    they do, add a beforeSend filter rather than lowering tracesSampleRate.
+[ ] Volume sanity: errors are always sent (never sampled — sampling errors would
+    hide bugs); only performance transactions are sampled at 10%.
+
+
+6. CLEAN UP
+--------------------------------------------------------------------------------
+[ ] Delete the /api/sentry-test route, commit, redeploy.
+[ ] The issue should stop receiving events (resolve it in Sentry with a comment
+    saying it was a deliberate test).
+[ ] Delete apps/default/src/__sentry_backend__/ from the repo.
+[ ] Optional: set an alert rule (issue alert: "a new issue is created" → email) so
+    you hear about production errors without opening Sentry.
+
+
+7. FRONTEND (different project, different mechanism — for reference)
+--------------------------------------------------------------------------------
+[ ] Frontend DSN (project 4512103327531088) is loaded from the CDN in app/index.html
+    (a classic script in <head>, so it initializes before React renders).
+[ ] Frontend needs SOURCE MAPS for readable stacks; the backend does not. The
+    Taskade Genesis build has no post-build hook to upload them, so frontend stacks
+    will be minified for now. Options if that becomes painful:
+      a) a Sentry "release" + @sentry/vite-plugin upload step in whatever build
+         pipeline can run node scripts, or
+      b) keep the app's own error monitor (it stores full stacks locally and sends
+         them to DeepSeek for triage) as the readable-stack source.
+[ ] frontend Sentry.ErrorBoundary is NOT installed: it requires the @sentry/react npm
+    package, and app/package.json is a protected template file. Uncaught errors and
+    unhandled rejections ARE captured without it. Add it later if package.json ever
+    becomes editable.

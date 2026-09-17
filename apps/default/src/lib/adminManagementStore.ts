@@ -1,8 +1,16 @@
 import { create } from 'zustand';
 import { UserProfile } from './authStore';
+// Batch C2.5 · Task 2: the admin roster is SERVER data (public.users). This store
+// no longer owns a member list — it caches what GET /api/admin/users returns and
+// writes through POST /api/admin/users/:id/role and /:id/status.
+import {
+  fetchAllAdminUsers, findAdminUserByEmail, setAdminUserRole, setAdminUserStatus,
+  type AdminUserRecord,
+} from './adminUsersApi';
 
 // ── Keys ──────────────────────────────────────────────────────────────────────
-const ADMIN_MEMBERS_KEY      = 'cryptoverse_admin_members';
+// There is deliberately no ADMIN_MEMBERS_KEY: `cryptoverse_admin_members` is no
+// longer read or written anywhere in the app.
 const ADMIN_REQUESTS_KEY     = 'cryptoverse_admin_requests';
 const ADMIN_ACTIVITY_KEY     = 'cryptoverse_admin_activity';
 const ADMIN_AUDIT_RICH_KEY   = 'cryptoverse_admin_audit_rich';
@@ -238,13 +246,49 @@ export interface AiEvaluationReport {
   evaluatedAt: string;
 }
 
-// ── Persistence helpers ───────────────────────────────────────────────────────
-function loadMembers(): AdminMember[] {
-  try { return JSON.parse(localStorage.getItem(ADMIN_MEMBERS_KEY) || '[]'); } catch { return []; }
+// ── Server roster → AdminMember ───────────────────────────────────────────────
+// The six display levels this UI has always used, mapped onto the server's role
+// vocabulary. Levels 1, 2 and 4 (Content / Community / Competition) have no
+// server role, so nothing can map into them any more — a row can only appear in
+// this list if public.users says the account is an admin.
+const ROLE_TO_LEVEL: Record<string, AdminLevel> = {
+  support_admin:      3,   // Level 3 — Support Admin
+  subscription_admin: 5,   // Level 5 — Economy Admin
+  super_admin:        6,   // Level 6 — Technical Admin
+  founder:            6,
+  developer:          6,
+};
+
+/** The inverse, for writes: only these levels have a server role to grant. */
+const LEVEL_TO_ROLE: Partial<Record<AdminLevel, string>> = {
+  3: 'support_admin',
+  5: 'subscription_admin',
+  6: 'super_admin',
+};
+
+/** A server row → the shape this UI renders. `null` when the role is not an admin role. */
+function toAdminMember(u: AdminUserRecord): AdminMember | null {
+  const level = ROLE_TO_LEVEL[u.role];
+  if (!level) return null;
+  return {
+    id:           u.id,
+    userId:       u.id,
+    email:        u.email,
+    displayName:  u.display_name || u.email.split('@')[0],
+    avatarSeed:   u.email,
+    level,
+    department:   ADMIN_LEVEL_META[level].role,
+    // The server's third status ('banned') cannot be expressed by AdminMember,
+    // whose union is 'active' | 'suspended'. Both non-active states are "not
+    // usable", so banned rows display as suspended rather than as active.
+    status:       u.status === 'active' ? 'active' : 'suspended',
+    createdAt:    u.created_at,
+    lastActiveAt: u.last_seen_at || u.created_at,
+    permissions:  [],
+    actionsLog:   [],
+  };
 }
-function saveMembers(m: AdminMember[]) {
-  localStorage.setItem(ADMIN_MEMBERS_KEY, JSON.stringify(m));
-}
+
 function loadRequests(): AdminRequest[] {
   try { return JSON.parse(localStorage.getItem(ADMIN_REQUESTS_KEY) || '[]'); } catch { return []; }
 }
@@ -499,6 +543,7 @@ export function runAiEvaluation(
 
 // ── Store ─────────────────────────────────────────────────────────────────────
 interface AdminManagementState {
+  /** Cached server roster — admin roles only. Hydrated by refreshMembers(). */
   members:        AdminMember[];
   requests:       AdminRequest[];
   activity:       AdminActivityEntry[];
@@ -507,16 +552,19 @@ interface AdminManagementState {
   adminProfiles:  Record<string, AdminProfile>;
   alerts:         SuspiciousAlert[];
 
-  // Admin member actions
-  createAdmin:    (data: Omit<AdminMember, 'id' | 'createdAt' | 'lastActiveAt' | 'actionsLog'>) => AdminMember;
-  suspendAdmin:   (memberId: string, byAdmin: UserProfile) => void;
-  activateAdmin:  (memberId: string, byAdmin: UserProfile) => void;
-  deleteAdmin:    (memberId: string, byAdmin: UserProfile) => void;
+  // Admin member actions — each one WRITES THROUGH to the server and then
+  // re-reads the roster, so the UI can never display a change the API refused.
+  refreshMembers: () => Promise<void>;
+  createAdmin:    (data: Omit<AdminMember, 'id' | 'createdAt' | 'lastActiveAt' | 'actionsLog'>) => Promise<AdminMember | null>;
+  suspendAdmin:   (memberId: string, byAdmin: UserProfile) => Promise<void>;
+  activateAdmin:  (memberId: string, byAdmin: UserProfile) => Promise<void>;
+  deleteAdmin:    (memberId: string, byAdmin: UserProfile) => Promise<void>;
+  /** Local display overlay only — the server row is the source of truth. */
   updateAdmin:    (memberId: string, changes: Partial<AdminMember>) => void;
 
   // Admin request actions
   submitRequest:  (user: UserProfile, requestedLevel: AdminLevel) => Promise<AdminRequest>;
-  approveRequest: (requestId: string, byAdmin: UserProfile) => void;
+  approveRequest: (requestId: string, byAdmin: UserProfile) => Promise<void>;
   rejectRequest:  (requestId: string, byAdmin: UserProfile, note: string) => void;
 
   // Rich audit
@@ -543,87 +591,105 @@ interface AdminManagementState {
 }
 
 export const useAdminManagementStore = create<AdminManagementState>((set, get) => ({
-  members:       loadMembers(),
+  // Empty until refreshMembers() runs: there is no localStorage copy to load.
+  members:       [],
   requests:      loadRequests(),
+
+  refreshMembers: async () => {
+    try {
+      const all = await fetchAllAdminUsers();
+      set({ members: all.map(toAdminMember).filter((m): m is AdminMember => m !== null) });
+    } catch (err) {
+      console.warn('[adminManagementStore] roster refresh failed', err);
+    }
+  },
   activity:      loadActivity(),
   richAudit:     loadRichAudit(),
   notifications: loadNotifications(),
   adminProfiles: loadAdminProfiles(),
   alerts:        loadAlerts(),
 
-  createAdmin: (data) => {
-    const newMember: AdminMember = {
-      ...data,
-      id:            makeId('adm'),
-      createdAt:     new Date().toISOString(),
-      lastActiveAt:  new Date().toISOString(),
-      actionsLog:    [],
-    };
-    const members = [...get().members, newMember];
-    saveMembers(members);
-    set({ members });
-    return newMember;
+  // Granting admin access is a SERVER write. The email is the only handle the
+  // legacy invite form collects, so it is resolved to a real account first — an
+  // invented address can no longer materialise a phantom admin, and the API's own
+  // requireAdminWrite check decides whether the change happens at all.
+  createAdmin: async ({ email, level }) => {
+    const role = LEVEL_TO_ROLE[level];
+    if (!role) {
+      console.warn(`[adminManagementStore] Level ${level} (${ADMIN_LEVEL_META[level].role}) has no server role — nothing granted.`);
+      return null;
+    }
+    const target = await findAdminUserByEmail(email);
+    if (!target) {
+      console.warn(`[adminManagementStore] no server account for ${email} — nothing granted.`);
+      return null;
+    }
+    await setAdminUserRole(target.id, role);
+    await get().refreshMembers();
+    return get().members.find(m => m.id === target.id) ?? null;
   },
 
-  suspendAdmin: (memberId, byAdmin) => {
-    const members = get().members.map(m =>
-      m.id === memberId ? { ...m, status: 'suspended' as const } : m,
-    );
-    saveMembers(members);
+  // Suspension is the SERVER column authenticate() enforces. Flipping a local
+  // mirror could show "suspended" for an account that could still sign in.
+  suspendAdmin: async (memberId, byAdmin) => {
+    const target = get().members.find(m => m.id === memberId);
+    await setAdminUserStatus(memberId, 'suspended');
+    await get().refreshMembers();
     const entry: AdminActivityEntry = {
       id:          makeId('act'),
       adminId:     byAdmin.id,
       adminName:   byAdmin.displayName,
       action:      'Suspended admin account',
-      targetLabel: members.find(m => m.id === memberId)?.displayName ?? memberId,
-      timestamp:   new Date().toISOString(),
-    };
-    const activity = [entry, ...get().activity];
-    saveActivity(activity);
-    set({ members, activity });
-  },
-
-  activateAdmin: (memberId, byAdmin) => {
-    const members = get().members.map(m =>
-      m.id === memberId ? { ...m, status: 'active' as const } : m,
-    );
-    saveMembers(members);
-    const entry: AdminActivityEntry = {
-      id:          makeId('act'),
-      adminId:     byAdmin.id,
-      adminName:   byAdmin.displayName,
-      action:      'Activated admin account',
-      targetLabel: members.find(m => m.id === memberId)?.displayName ?? memberId,
-      timestamp:   new Date().toISOString(),
-    };
-    const activity = [entry, ...get().activity];
-    saveActivity(activity);
-    set({ members, activity });
-  },
-
-  deleteAdmin: (memberId, byAdmin) => {
-    const target  = get().members.find(m => m.id === memberId);
-    const members = get().members.filter(m => m.id !== memberId);
-    saveMembers(members);
-    const entry: AdminActivityEntry = {
-      id:          makeId('act'),
-      adminId:     byAdmin.id,
-      adminName:   byAdmin.displayName,
-      action:      'Deleted admin account',
       targetLabel: target?.displayName ?? memberId,
       timestamp:   new Date().toISOString(),
     };
     const activity = [entry, ...get().activity];
     saveActivity(activity);
-    set({ members, activity });
+    set({ activity });
   },
 
+  activateAdmin: async (memberId, byAdmin) => {
+    const target = get().members.find(m => m.id === memberId);
+    await setAdminUserStatus(memberId, 'active');
+    await get().refreshMembers();
+    const entry: AdminActivityEntry = {
+      id:          makeId('act'),
+      adminId:     byAdmin.id,
+      adminName:   byAdmin.displayName,
+      action:      'Activated admin account',
+      targetLabel: target?.displayName ?? memberId,
+      timestamp:   new Date().toISOString(),
+    };
+    const activity = [entry, ...get().activity];
+    saveActivity(activity);
+    set({ activity });
+  },
+
+  // "Remove admin" is a ROLE change (→ user), not a row deletion: the account and
+  // its history stay, and the API's role check is what actually revokes access.
+  deleteAdmin: async (memberId, byAdmin) => {
+    const target = get().members.find(m => m.id === memberId);
+    await setAdminUserRole(memberId, 'user');
+    await get().refreshMembers();
+    const entry: AdminActivityEntry = {
+      id:          makeId('act'),
+      adminId:     byAdmin.id,
+      adminName:   byAdmin.displayName,
+      action:      'Removed admin access (role → user)',
+      targetLabel: target?.displayName ?? memberId,
+      timestamp:   new Date().toISOString(),
+    };
+    const activity = [entry, ...get().activity];
+    saveActivity(activity);
+    set({ activity });
+  },
+
+  // Display-only overlay: nothing is persisted, because the server row it overlays
+  // is re-read on every refreshMembers().
   updateAdmin: (memberId, changes) => {
-    const members = get().members.map(m =>
-      m.id === memberId ? { ...m, ...changes } : m,
-    );
-    saveMembers(members);
-    set({ members });
+    set({
+      members: get().members.map(m => (m.id === memberId ? { ...m, ...changes } : m)),
+    });
   },
 
   submitRequest: async (user, requestedLevel) => {
@@ -657,7 +723,7 @@ export const useAdminManagementStore = create<AdminManagementState>((set, get) =
     return updatedReq;
   },
 
-  approveRequest: (requestId, byAdmin) => {
+  approveRequest: async (requestId, byAdmin) => {
     const req = get().requests.find(r => r.id === requestId);
     if (!req) return;
 
@@ -668,24 +734,25 @@ export const useAdminManagementStore = create<AdminManagementState>((set, get) =
     );
     saveRequests(updated);
 
-    // Promote the user in the admin members list
-    const meta = ADMIN_LEVEL_META[req.requestedLevel];
-    const newMember: AdminMember = {
-      id:           makeId('adm'),
-      userId:       req.userId,
-      email:        req.userEmail,
-      displayName:  req.userDisplayName,
-      avatarSeed:   req.userAvatarSeed,
-      level:        req.requestedLevel,
-      department:   meta.role,
-      status:       'active',
-      createdAt:    new Date().toISOString(),
-      lastActiveAt: new Date().toISOString(),
-      permissions:  [],
-      actionsLog:   [],
-    };
-    const members = [...get().members, newMember];
-    saveMembers(members);
+    // Promotion is a SERVER write (Batch C2.5 · Task 2). The local "promote the
+    // user in the admin members list" step is gone: the roster is read back from
+    // public.users, so an approval that the API refuses cannot appear as a member.
+    const role = LEVEL_TO_ROLE[req.requestedLevel];
+    if (!role) {
+      console.warn(`[adminManagementStore] Level ${req.requestedLevel} has no server role — request ${requestId} recorded but no access granted.`);
+    } else {
+      try {
+        const target = await findAdminUserByEmail(req.userEmail);
+        if (!target) {
+          console.warn(`[adminManagementStore] no server account for ${req.userEmail} — no access granted.`);
+        } else {
+          await setAdminUserRole(target.id, role);
+          await get().refreshMembers();
+        }
+      } catch (err) {
+        console.warn('[adminManagementStore] server promotion failed', err);
+      }
+    }
 
     const entry: AdminActivityEntry = {
       id:          makeId('act'),
@@ -697,7 +764,7 @@ export const useAdminManagementStore = create<AdminManagementState>((set, get) =
     };
     const activity = [entry, ...get().activity];
     saveActivity(activity);
-    set({ requests: updated, members, activity });
+    set({ requests: updated, activity });
   },
 
   rejectRequest: (requestId, byAdmin, note) => {
@@ -794,8 +861,9 @@ export const useAdminManagementStore = create<AdminManagementState>((set, get) =
   },
 
   refresh: () => {
+    // The roster comes from the server now; everything else is still local state.
+    void get().refreshMembers();
     set({
-      members:       loadMembers(),
       requests:      loadRequests(),
       activity:      loadActivity(),
       richAudit:     loadRichAudit(),

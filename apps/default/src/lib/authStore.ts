@@ -6,7 +6,7 @@ import { createSession, destroySession, loadAuthSession } from './security/sessi
 import { cloudRecordStore } from './cloudData';
 import { findUserByEmail, invalidateUserRosterCache, type UserRecord } from './authApi';
 import { findAdminUserByEmail, type AdminUserRecord } from './adminUsersApi';
-import { fetchMe, isUnauthenticated, mapServerUserToProfile, signOut, toUserRole, updateProfile as updateProfileOnServer, type ServerUser } from './betterAuthClient';
+import { fetchMe, mapServerUserToProfile, signOut, toUserRole, updateProfile as updateProfileOnServer, type ServerUser } from './betterAuthClient';
 import { trackProductEventInBackground, trackProductEventOnce } from './productAnalytics';
 
 // ── Passwords are gone (Phase 0.5 · Batch C) ────────────────────────────────
@@ -126,6 +126,13 @@ function closeLatestOpenLogEntry(adminEmail: string, targetEmail: string) {
 
 interface AuthState {
   user: UserProfile | null;
+  /**
+   * The last profile the SERVER confirmed (Batch D2). IN-MEMORY ONLY — never
+   * written to localStorage, and lost on reload, where the boot check re-fetches
+   * it. It exists so an ambiguous read (network failure, 429, 5xx) can keep the
+   * last known-good profile instead of signing the user out.
+   */
+  lastServerProfile: UserProfile | null;
   isAuthenticated: boolean;
 
   // Computed helpers
@@ -457,6 +464,7 @@ if (initialUser?.email) {
 
 export const useAuthStore = create<AuthState>((set, get) => ({
   user:            initialUser,
+  lastServerProfile: null,
   isAuthenticated: !!migratedSession,
   isAdmin:         !!initialUser && roleToIsAdmin(initialUser.role),
   isSuperAdmin:    initialUser?.role === 'super_admin',
@@ -625,9 +633,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
    */
   applyServerUser: async (serverUser) => {
     const email = serverUser.email.toLowerCase().trim();
+    // Batch D2: the `cryptoverse_users` localStorage fallback is gone. The only
+    // profile we may reuse is the last one the SERVER confirmed, so no code path
+    // can resurrect a browser-held identity.
     const previous = (get().user?.email?.toLowerCase() === email ? get().user : null)
-      ?? getUsers()[email]?.profile
-      ?? null;
+      ?? (get().lastServerProfile?.email?.toLowerCase() === email ? get().lastServerProfile : null);
     const mapped = mapServerUserToProfile(serverUser);
     const role   = toUserRole(serverUser.role);
 
@@ -648,16 +658,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       virtualBalance: Number(serverUser.balance || 0),
     });
 
-    // Legacy local session mirror — removed in Batch C/D, when boot moves to the
-    // Better Auth cookie. Kept here so a refresh between batches still restores.
-    createSession(profile.email);
-    saveSession(profile);
-
     set({
-      user:            profile,
-      isAuthenticated: true,
-      isAdmin:         roleToIsAdmin(profile.role),
-      isSuperAdmin:    profile.role === 'super_admin',
+      user:              profile,
+      lastServerProfile: profile,
+      isAuthenticated:   true,
+      isAdmin:           roleToIsAdmin(profile.role),
+      isSuperAdmin:      profile.role === 'super_admin',
     });
 
     recordLogin({ userId: profile.id, method: 'email' });
@@ -665,10 +671,22 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   /**
-   * Re-verifies the session against the server. A 401 means it was revoked or
-   * expired (single-session policy, admin revoke, ban) — the local session is
-   * cleared WITHOUT navigating, so the router guard can react on its own terms.
-   * Returns true when the server still recognises the session.
+   * Re-verifies the session against the server (GET /api/me).
+   *
+   * Batch D2 — the failure branches are split, because the previous single check
+   * treated ANY "unauthenticated" error as proof of a revoked session, and
+   * isUnauthenticated() counts status 0 (an unreachable API / dropped connection /
+   * flaky bridge) as unauthenticated. A sleeping Render instance therefore signed
+   * the user out and wiped the profile.
+   *
+   * Only the server can revoke a session, so only a DEFINITIVE answer may:
+   *   401 — revoked/expired (single-session policy, admin revoke, sign-out)
+   *   403 — the account is banned or suspended (fallbackMessage(403) is
+   *         "This account is not allowed to sign in.")
+   *
+   * Everything else (status 0 network_error, 429, 5xx, timeout) is an AMBIGUOUS
+   * read: the decision cannot be made, so the last server-confirmed profile is
+   * kept. Returns true when the server still recognises the session.
    */
   refreshFromServer: async () => {
     try {
@@ -676,11 +694,31 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       await get().applyServerUser(me.user);
       return true;
     } catch (error) {
-      if (isUnauthenticated(error)) {
-        try { destroySession(); } catch { /* ignore */ }
-        saveSession(null);
-        try { sessionStorage.removeItem('cryptoverse_session'); } catch { /* ignore */ }
-        set({ user: null, isAuthenticated: false, isAdmin: false, isSuperAdmin: false });
+      const status = (error as { status?: number })?.status;
+
+      if (status === 401 || status === 403) {
+        // Definitive refusal — drop the in-memory session. No mirror keys to clear
+        // and no navigation here: the router guard reacts on its own terms.
+        set({
+          user:              null,
+          lastServerProfile: null,
+          isAuthenticated:   false,
+          isAdmin:           false,
+          isSuperAdmin:      false,
+        });
+      } else {
+        // Ambiguous — keep the last profile the SERVER confirmed. `user` is only
+        // filled when it is empty, so a "view as user" swap or a valid in-memory
+        // profile is never overwritten by an older one.
+        const last = get().lastServerProfile;
+        if (last && !get().user) {
+          set({
+            user:            last,
+            isAuthenticated: true,
+            isAdmin:         roleToIsAdmin(last.role),
+            isSuperAdmin:    last.role === 'super_admin',
+          });
+        }
       }
       return false;
     }
