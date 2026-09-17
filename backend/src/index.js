@@ -1063,20 +1063,27 @@ app.post('/api/me/sessions/revoke-all', authenticate, async (req, res) => {
 
 // ==================== ADMIN: USERS ====================
 /**
- * GET /api/admin/users — the admin roster (Batch C2: server-backed).
+ * GET /api/admin/users — the admin roster (Batch C2).
  *
- * role / status / display_name all come from public.users, so the admin panel no
- * longer needs the cryptoverse_users / banned / suspended / super-admin
- * localStorage mirrors to render the roster. Read-only.
+ * SCHEMA-SAFE BY CONSTRUCTION. The previous version named every column it wanted
+ * (`... status, language, display_name, updated_at ...`), so a column that does
+ * not exist on this database failed the WHOLE query:
  *
- * Query: limit (1-100) · offset · email (exact, case-insensitive) ·
+ *     error: column "status" does not exist     (Postgres 42703)
+ *     -> the route answered 500 -> the roster rendered empty.
+ *
+ * Nothing caught it earlier because every pre-existing code path reads those
+ * fields off the row object in JS (`select *` + `appUser.status ?? 'active'`),
+ * so their absence was invisible. This version reads `select *` and projects in
+ * JS, so a missing column degrades to a default instead of emptying the page.
+ *
+ * Query: limit (1-500) · offset · email (exact, case-insensitive) ·
  *        q (substring of email or display_name).
- * `total` / `has_more` always describe the SAME filter, so the client can page
- * instead of guessing how much it received.
+ * `total` / `has_more` describe the SAME filter, so the client can page.
  */
 app.get('/api/admin/users', authenticate, requireAdminRead, async (req, res) => {
   try {
-    const limit = Math.min(Math.max(Number(req.query.limit) || 50, 1), 100);
+    const limit = Math.min(Math.max(Number(req.query.limit) || 100, 1), 500);
     const offset = Math.max(Number(req.query.offset) || 0, 0);
     const email = typeof req.query.email === 'string' ? req.query.email.trim() : '';
     const q = typeof req.query.q === 'string' ? req.query.q.trim() : '';
@@ -1085,48 +1092,80 @@ app.get('/api/admin/users', authenticate, requireAdminRead, async (req, res) => 
     const filterParams = [];
     if (email) {
       filterParams.push(email.toLowerCase());
-      filters.push(`lower(email) = ${filterParams.length}`);
+      filters.push(`lower(email) = $${filterParams.length}`);
     }
     if (q) {
       filterParams.push(`%${q.toLowerCase()}%`);
-      filters.push(`(lower(email) like ${filterParams.length} or lower(coalesce(display_name, '')) like ${filterParams.length})`);
+      filters.push(`(lower(email) like $${filterParams.length} or lower(coalesce(display_name, '')) like $${filterParams.length})`);
     }
     const whereSql = filters.length ? ` where ${filters.join(' and ')}` : '';
 
     const result = await pgPool.query(
-      `select id, email, display_name, role, plan, balance, status, language,
-              last_seen_at, last_seen_ip, created_at, updated_at
-         from public.users${whereSql}
+      `select * from public.users${whereSql}
         order by created_at desc
-        limit ${filterParams.length + 1} offset ${filterParams.length + 2}`,
+        limit $${filterParams.length + 1} offset $${filterParams.length + 2}`,
       [...filterParams, limit, offset]
     );
-    const countParams = filterParams.length > 0 ? filterParams : [];
-    const { rows: countRows } = await pgPool.query(
-  `select count(*)::int as total from public.users${whereSql}`,
-  countParams
-);
-    const total = countRows[0].total;
+
+    // Explicit projection: the client's contract stays stable whatever the table holds.
+    const users = result.rows.map((row) => ({
+      id: row.id,
+      email: row.email,
+      display_name: row.display_name ?? null,
+      role: row.role ?? 'user',
+      plan: row.plan ?? 'free',
+      balance: Number(row.balance || 0),
+      status: row.status ?? 'active',
+      language: row.language ?? 'en',
+      last_seen_at: row.last_seen_at ?? null,
+      last_seen_ip: row.last_seen_ip ?? null,
+      created_at: row.created_at ?? null,
+      updated_at: row.updated_at ?? null,
+    }));
+
+    // The count only feeds the pager: it must never be able to break the roster.
+    let total = null;
+    try {
+      const { rows: countRows } = await pgPool.query(
+        `select count(*)::int as total from public.users${whereSql}`,
+        filterParams
+      );
+      total = countRows[0] ? countRows[0].total : null;
+    } catch (err) {
+      console.error(JSON.stringify({ event: 'admin_users_count_failed', requestId: req.requestId, error: err?.message }));
+    }
+
     return res.json({
       success: true,
-      users: result.rows,
+      users,
+      returned: users.length,
       total,
       limit,
       offset,
-      has_more: offset + result.rows.length < total,
+      has_more: total === null ? users.length >= limit : offset + users.length < total,
       requestId: req.requestId,
     });
   } catch (error) {
-    console.error(JSON.stringify({ event: 'admin_users_failed', requestId: req.requestId, error: error?.message }));
-    return res.status(500).json({ error: 'SERVER_ERROR', message: 'Failed to fetch users.', requestId: req.requestId });
+    // Surface the real database message to the caller (admin-only route) and the
+    // Postgres code to the logs, so the next failure names its own cause instead
+    // of showing "no users".
+    console.error(JSON.stringify({ event: 'admin_users_failed', requestId: req.requestId, code: error?.code, error: error?.message }));
+    return res.status(500).json({
+      error: 'SERVER_ERROR',
+      code: 'users_query_failed',
+      message: `Failed to fetch users: ${error?.message || 'unknown error'}`,
+      requestId: req.requestId,
+    });
   }
 });
 
 /**
  * GET /api/admin/users/:userId — one account, in the list shape plus the active
- * subscription and the live-session count. This is what "view as user" reads
- * (Batch C2): the panel renders the SERVER's record instead of a Taskade /
- * localStorage mirror. Read-only — it never writes to the target's data.
+ * subscription and the live-session count (Batch C2).
+ *
+ * SCHEMA-SAFE, same reason as the roster route: the row is read with `select *`
+ * and projected in JS, so a column that is missing on this database degrades to
+ * a default instead of a 500 that hides the account. Read-only.
  */
 app.get('/api/admin/users/:userId', authenticate, requireAdminRead, async (req, res) => {
   const { userId } = req.params;
@@ -1136,17 +1175,25 @@ app.get('/api/admin/users/:userId', authenticate, requireAdminRead, async (req, 
   }
 
   try {
-    const { rows } = await pgPool.query(
-      `select id, email, display_name, role, plan, balance, status, language,
-              last_seen_at, last_seen_ip, created_at, updated_at
-         from public.users
-        where id = $1
-        limit 1`,
-      [userId]
-    );
+    const { rows } = await pgPool.query('select * from public.users where id = $1 limit 1', [userId]);
     if (rows.length === 0) {
       return res.status(404).json({ error: 'NOT_FOUND', code: 'not_found', message: 'User not found.', requestId: req.requestId });
     }
+    const row = rows[0];
+    const user = {
+      id: row.id,
+      email: row.email,
+      display_name: row.display_name ?? null,
+      role: row.role ?? 'user',
+      plan: row.plan ?? 'free',
+      balance: Number(row.balance || 0),
+      status: row.status ?? 'active',
+      language: row.language ?? 'en',
+      last_seen_at: row.last_seen_at ?? null,
+      last_seen_ip: row.last_seen_ip ?? null,
+      created_at: row.created_at ?? null,
+      updated_at: row.updated_at ?? null,
+    };
 
     // Enrichment only: a missing table/column must not 500 an otherwise fine page.
     const { rows: subRows } = await pgPool.query(
@@ -1165,19 +1212,24 @@ app.get('/api/admin/users/:userId', authenticate, requireAdminRead, async (req, 
         where lower(u.email) = lower($1)
           and s.revoked_at is null
           and s."expiresAt" > now()`,
-      [rows[0].email]
+      [row.email]
     ).catch(() => ({ rows: [{ live_sessions: 0 }] }));
 
     return res.json({
       success: true,
-      user: rows[0],
+      user,
       active_subscription: subRows[0] || null,
       live_sessions: sessionRows[0] ? sessionRows[0].live_sessions : 0,
       requestId: req.requestId,
     });
   } catch (error) {
-    console.error(JSON.stringify({ event: 'admin_user_detail_failed', requestId: req.requestId, error: error?.message }));
-    return res.status(500).json({ error: 'SERVER_ERROR', code: 'internal_error', message: 'Failed to fetch the user.', requestId: req.requestId });
+    console.error(JSON.stringify({ event: 'admin_user_detail_failed', requestId: req.requestId, code: error?.code, error: error?.message }));
+    return res.status(500).json({
+      error: 'SERVER_ERROR',
+      code: 'user_query_failed',
+      message: `Failed to fetch the user: ${error?.message || 'unknown error'}`,
+      requestId: req.requestId,
+    });
   }
 });
 
