@@ -2215,11 +2215,6 @@ function verifyNowPaymentsSignature(payload, signature) {
   return timingSafeEqualText(expected, signature.trim().toLowerCase());
 }
 
-// TODO: Remove after Sentry test
-app.get('/api/sentry-test', authenticate, (req, res) => {
-  throw new Error('Sentry backend test — ignore');
-});
-
 app.post('/api/webhooks/payment', async (req, res) => {
   const signature = req.get('x-nowpayments-sig');
   if (!verifyNowPaymentsSignature(req.body, signature)) {
