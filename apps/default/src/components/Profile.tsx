@@ -20,8 +20,11 @@ import { useMonetizationStore } from '@/lib/monetizationStore';
 import { useStrategyStore } from '@/lib/strategyStore';
 import TradeReplayViewer from '@/components/features/TradeReplayViewer';
 import WeeklySentimentReport from '@/components/features/WeeklySentimentReport';
-import { AdminRequestModal } from './admin/AdminRequestModal';
-import { AdminPanel } from './admin/AdminPanel';
+// Batch D6: `AdminRequestModal` (a LOCAL-only "request admin" flow that could never grant
+// anything — owners now promote by email via POST /api/admin/users/:id/role) and `AdminPanel`
+// (the legacy Control Center drawer, which was unreachable: nothing ever called
+// setShowAdminPanel(true)) are deleted. Admin work lives in the server-guarded portal, and
+// the button in the admin section below links there.
 import { PLAN_CONFIGS, type PlanId } from './UpgradePaymentModal';
 import { NOWPaymentsButton } from '@/components/NOWPaymentsButton';
 import { useNavigate, Link } from 'react-router-dom';
@@ -459,8 +462,8 @@ export function Profile() {
   const [showAvatarPicker, setShowAvatarPicker] = useState(false);
   const [copiedRef, setCopiedRef]       = useState(false);
   // Plan upgrades handled by NOWPaymentsButton directly on SubscriptionPage
-  const [showAdminRequest, setShowAdminRequest] = useState(false);
-  const [showAdminPanel, setShowAdminPanel]     = useState(false);
+  // Batch D6: `showAdminRequest` / `showAdminPanel` are gone with the legacy drawer + the
+  // admin-request modal. /admin is the single admin surface, reached by a link below.
   const fileRef = useRef<HTMLInputElement>(null);
 
   // All payments are now handled through NOWPayments gateway
@@ -1635,13 +1638,13 @@ export function Profile() {
                 </span>
               )}
             </div>
-            <a
-              href="/admin"
+            <Link
+              to="/admin"
               className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-gradient-to-r from-amber-500/15 to-orange-500/15 border border-amber-500/25 text-amber-400 hover:from-amber-500/25 hover:to-orange-500/25 text-sm font-bold transition-all shadow-lg shadow-amber-500/5"
             >
               <Settings className="h-4 w-4" />
-              Open Admin Control Center
-            </a>
+              Open Admin Portal
+            </Link>
           </div>
         ) : (user?.role === 'senior_admin' || user?.role === 'founder' || user?.isAdmin) ? (
           <div className="space-y-3">
@@ -1656,59 +1659,34 @@ export function Profile() {
                 </div>
               </div>
             </div>
-            <a
-              href="/admin"
+            <Link
+              to="/admin"
               className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-gradient-to-r from-amber-500/15 to-orange-500/15 border border-amber-500/25 text-amber-400 hover:from-amber-500/25 hover:to-orange-500/25 text-sm font-bold transition-all shadow-lg shadow-amber-500/5"
             >
               <Settings className="h-4 w-4" />
-              Open Admin Control Center
-            </a>
+              Open Admin Portal
+            </Link>
           </div>
         ) : (
           <div className="space-y-3">
-            <p className="text-xs text-muted-foreground">
-              Apply for an admin role. Our AI will evaluate your eligibility (min 7 days activity, 30+ interactions).
-              Maximum 3 attempts.
+            {/* Batch D6: the "Request Admin Status" flow is gone. It filed a LOCAL request that
+                could never grant access (`requestAdmin` was removed in Batch C), and the copy
+                promising an "AI eligibility" review with "3 attempts" described machinery that
+                no longer exists. Admins never reach this branch — the role branches above catch
+                them — so for everyone else the honest answer is that there is nothing to file. */}
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              Admin access is granted by the CryptoVerse team. There is nothing to request here.
             </p>
-            {(() => {
-              const attempts = user?.adminRequestAttempts ?? 0;
-              const attemptsLeft = 3 - attempts;
-              const isBlocked = attemptsLeft <= 0;
-              return (
-                <>
-                  {attemptsLeft < 3 && (
-                    <p className="text-[11px] text-amber-400/80">
-                      Attempts remaining: {Math.max(0, attemptsLeft)}/3
-                    </p>
-                  )}
-                  <button
-                    onClick={() => !isBlocked && setShowAdminRequest(true)}
-                    disabled={isBlocked}
-                    className={cn(
-                      'flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-bold transition-all',
-                      isBlocked
-                        ? 'bg-secondary/30 border border-border text-white/30 cursor-not-allowed'
-                        : 'bg-gradient-to-r from-primary/15 to-purple-500/15 border border-primary/25 text-primary hover:from-primary/25 hover:to-purple-500/25 shadow-lg shadow-primary/5',
-                    )}
-                  >
-                    <Bot className="h-4 w-4" />
-                    {isBlocked ? '🚫 Request limit reached (3/3)' : '🤖 Request Admin Status'}
-                  </button>
-                </>
-              );
-            })()}
           </div>
         )}
       </div>
 
-      {/* ── Admin Request Modal ── */}
-      <AdminRequestModal open={showAdminRequest} onClose={() => setShowAdminRequest(false)} />
+      {/* Batch D6: the Admin Request Modal is deleted — access is granted by owners now. */}
 
       {/* ── Referral Section ── */}
       <ReferralSection userId={user?.id ?? ''} referralService={referralService} copyToClipboard={async (text) => { try { await navigator.clipboard.writeText(text); return true; } catch { return false; } }} />
 
-      {/* ── Admin Control Center Panel ── */}
-      <AdminPanel open={showAdminPanel} onClose={() => setShowAdminPanel(false)} />
+      {/* Batch D6: the Admin Control Center drawer is deleted — /admin is the only admin UI. */}
 
       {/* ── Logout ── */}
       <div className="bg-card border border-red-500/10 rounded-2xl p-5 shadow-lg">

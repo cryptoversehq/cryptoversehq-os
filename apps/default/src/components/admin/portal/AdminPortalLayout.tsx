@@ -6,7 +6,7 @@ import {
   Flag, HeadphonesIcon, Shield, ClipboardList, FileText,
   Bell, LogOut, Menu, X, ChevronRight, AlertTriangle,
   Zap, RefreshCw, Activity, Image, Brain, DollarSign, ShieldCheck, KeyRound, Settings,
-  ArrowLeftCircle, Terminal,
+  ArrowLeftCircle, Terminal, ShoppingBag,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -18,18 +18,15 @@ import { useAuthStore } from '@/lib/authStore';
 import { type AdminSectionId } from '@/lib/adminPortalStore';
 import { CryptoVerseLogo } from '@/components/CryptoVerseLogo';
 import { AdminLynxButton } from '@/components/admin/AdminLynxButton';
-import { destroySession, loadAuthSession, refreshActivity } from '@/lib/security/sessionManager';
+// Batch D4: `@/lib/security/sessionManager` (destroySession / loadAuthSession /
+// refreshActivity) is no longer imported. There is no browser-held app session to load,
+// destroy or refresh: the Better Auth HttpOnly cookie IS the session, and
+// refreshFromServer() (GET /api/me) is how it gets verified. The module is deleted in D3.
 import { useAdminIdentity, logoutAdminSession, clearAdminSessionCache, hasFullAdminAccess, roleLevel } from '@/lib/adminApi';
 
-/** Email from the app's own session cache (`cryptoverse_session`), if present. */
-function readCachedAppSessionEmail(): string | null {
-  try {
-    const raw = localStorage.getItem('cryptoverse_session');
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as { email?: string } | null;
-    return parsed?.email ?? null;
-  } catch { return null; }
-}
+// Batch D4: `readCachedAppSessionEmail()` — which parsed `cryptoverse_session` straight out
+// of localStorage — is deleted. Nothing writes that key any more, and nothing may read it:
+// the server's answer (GET /api/me) is the only source of identity.
 
 // ── Role-based nav config ─────────────────────────────────────────────────────
 interface NavItem {
@@ -71,6 +68,7 @@ const NAV_ITEMS: NavItem[] = [
   { path: '/admin/ai-dashboard',    label: 'AI Intelligence', icon: Brain,       minLevel: 1,  color: 'text-purple-400' },
   { path: '/admin/command-console', label: 'Command Console', icon: Terminal,    minLevel: 3,  color: 'text-amber-400' },
   // ── Admin Tools ─────────────────────────────────────────────────────────
+  { path: '/admin/strategies',       label: 'Strategies',     icon: ShoppingBag, minLevel: 6,  color: 'text-amber-400' },
   { path: '/admin/revenue',          label: 'Revenue',        icon: DollarSign,  minLevel: 4,  color: 'text-yellow-400'  },
   { path: '/admin/api-management',   label: 'API Management',  icon: KeyRound,    minLevel: 6,  color: 'text-amber-400'   },
   { path: '/admin/settings',         label: 'Pricing Settings', icon: Settings,   minLevel: 6,  color: 'text-amber-400'   },
@@ -211,9 +209,10 @@ export function AdminPortalLayout() {
     // Batch C2.5: no local admin session store to clear any more — the Better
     // Auth cookie was revoked by logoutAdminSession() above.
     try {
-      destroySession();
-      window.localStorage.removeItem('cryptoverse_session');
-      window.sessionStorage.removeItem('cryptoverse_session');
+      // Batch D4: only the in-memory app state and the per-tab view state are cleared.
+      // There is no `cryptoverse_session` mirror to remove — logoutAdminSession() above
+      // already revoked the Better Auth cookie — and reading/writing one was the whole
+      // point of the deleted sessionManager helpers.
       window.sessionStorage.removeItem('cryptoverse_user_view_state');
       useAuthStore.setState({ user: null, isAuthenticated: false, isAdmin: false, isSuperAdmin: false });
     } catch { /* ignore — sign-out must always complete */ }
@@ -225,45 +224,25 @@ export function AdminPortalLayout() {
   /**
    * "Back to App" — hand the admin over to the normal user app.
    *
-   * Two auth systems are in play here: the portal authenticates against the
-   * server (Better Auth cookie, `/admin/login`), while the app keeps its own
-   * session in this browser. So this button:
-   *   1. ends any active "View as user" impersonation — otherwise /dashboard
-   *      would render as the viewed account, not as the admin;
-   *   2. refreshes the app session's activity clock — time spent working in the
-   *      portal is real work, and letting the app's idle validator count it as
-   *      idle logged admins out the moment they returned;
-   *   3. only falls back to an app sign-in when there genuinely is no app
-   *      session in this browser, and says so, instead of silently dropping the
-   *      admin on a login page that looks like a forced logout.
+   * Batch D4: the portal and the app now share ONE credential — the Better Auth HttpOnly
+   * cookie — instead of two independent sessions. So there is nothing in this browser to
+   * read to decide whether an app session exists, and the button simply:
+   *   1. ends any active "View as user" impersonation — otherwise /dashboard would render as
+   *      the viewed account rather than as the admin. endUserView() restores the admin's
+   *      profile from the last SERVER-confirmed identity and re-verifies it against
+   *      /api/me (Batch D2b2), so a revoked session is caught here instead of being trusted;
+   *   2. navigates into the app — a hard reload only when impersonation was active, since
+   *      that is the one case where stale view state must not survive.
+   *
+   * If the cookie really is gone, the app's own guard decides: the boot check fails, the
+   * login page renders, and no local heuristic can contradict it.
    */
   const backToApp = useCallback(async () => {
     const wasViewing = useAuthStore.getState().viewState.isViewing;
     try { endUserView(); } catch { /* no active view */ }
 
-    let appSession: ReturnType<typeof loadAuthSession> = null;
-    try { appSession = loadAuthSession(); } catch { appSession = null; }
-    const cachedEmail = appSession?.email ?? readCachedAppSessionEmail();
-
-    if (cachedEmail) {
-      if (appSession) refreshActivity(appSession);
-      // A hard reload is only needed when impersonation was active: that is the
-      // one case where stale view state must not survive. A plain in-app
-      // navigation otherwise, so the app session is left completely untouched.
-      if (wasViewing) window.location.assign('/dashboard');
-      else navigate('/dashboard');
-      return;
-    }
-
-    // No app session in this browser. The admin is still authenticated against
-    // the API (Better Auth cookie), but the app keeps its OWN session — and
-    // Batch C2 removed the client-side "mint an app session from an email"
-    // path (loginFromSession) that used to paper over this, because it turned a
-    // verified admin email into an app session without the app's own sign-in.
-    // Say so plainly instead of dropping the admin on a login page that looks
-    // like a forced logout.
-    toast.error('Your app session has ended. Sign in with your app account to continue.');
-    navigate('/login');
+    if (wasViewing) window.location.assign('/dashboard');
+    else navigate('/dashboard');
   }, [endUserView, navigate]);
 
   useEffect(() => { setSidebar(false); }, [location.pathname]);

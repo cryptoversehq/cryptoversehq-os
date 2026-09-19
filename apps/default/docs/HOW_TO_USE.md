@@ -73,6 +73,11 @@ src/
 - **recharts** 2.15 - Charts
 - **date-fns** 4.1 - Date utilities
 
+### Maps
+
+- **leaflet** + **react-leaflet** - Import `@/lib/leaflet-setup` from a map
+  component to load Leaflet CSS and bundled marker icons only with that surface
+
 ### AI Chat
 
 - **@ai-sdk/react** - `useChat` hook for AI chat interfaces

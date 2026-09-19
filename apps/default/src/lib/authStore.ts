@@ -1,10 +1,7 @@
 
 import { create } from 'zustand';
 import { recordLogin } from './loginHistoryStore';
-import { refreshAdminCacheFromDb } from './userMigrationService';
-import { createSession, destroySession, loadAuthSession } from './security/sessionManager';
 import { cloudRecordStore } from './cloudData';
-import { findUserByEmail, invalidateUserRosterCache, type UserRecord } from './authApi';
 import { findAdminUserByEmail, type AdminUserRecord } from './adminUsersApi';
 import { fetchMe, mapServerUserToProfile, signOut, toUserRole, updateProfile as updateProfileOnServer, type ServerUser } from './betterAuthClient';
 import { trackProductEventInBackground, trackProductEventOnce } from './productAnalytics';
@@ -169,8 +166,8 @@ interface AuthState {
   // no longer decides who is allowed to change a role.
   setUserRole: (targetEmail: string, newRole: UserRole) => Promise<{ success: boolean; error?: string }>;
 
-  // Get all users from the local mirror (the server roster lands here in Batch C2)
-  getAllUsers: () => Array<{ email: string; profile: UserProfile }>;
+  // `getAllUsers` removed in Batch D2b2 with the cryptoverse_users mirror it read.
+  // The authoritative roster is GET /api/admin/users via adminUsersApi.
 
   // Virtual currency purchase
   addVirtualBalance: (amount: number) => void;
@@ -212,8 +209,28 @@ function makeReferralCode(name: string) {
 // never pull or push data on that second device, which is the root cause of
 // "purchases made on the computer don't show up on the phone" when the two
 // devices use different login methods.
+// ── P0 loop guards ────────────────────────────────────────────────────────────
+// applyServerUser() calls hydrateUserData() on every refresh, and a refresh can be
+// triggered from several places at once (App boot check, the 60s role interval, a
+// visibility change, a cloud stream event). hydrateUserData() in turn pulls every
+// store and then runs cloudDataLayer.sync(), so an unthrottled repeat turned ONE
+// failing cloud write into the request storm: hydrate → save → 413 → refresh → …
+//
+// One hydration per account per minute keeps the app current without the
+// amplification, and the apply-dedupe collapses bursts of the same account.
+let lastHydratedEmail: string | null = null;
+let lastHydratedAt = 0;
+let lastAppliedEmail: string | null = null;
+let lastAppliedAt = 0;
+const HYDRATE_MIN_INTERVAL_MS = 60_000;
+const APPLY_DEDUPE_WINDOW_MS = 5_000;
+
 function hydrateUserData(email: string): void {
   if (!email) return;
+  const hydrateKey = email.toLowerCase();
+  if (hydrateKey === lastHydratedEmail && Date.now() - lastHydratedAt < HYDRATE_MIN_INTERVAL_MS) return;
+  lastHydratedEmail = hydrateKey;
+  lastHydratedAt = Date.now();
   // Enterprise Cloud Sync — Taskade Cloud becomes Source of Truth (Sprint 6.6.2)
   import('./cloudData').then(({ cloudDataLayer, DEFAULT_CACHE_POLICIES }) => {
     cloudDataLayer.hydrate(email, DEFAULT_CACHE_POLICIES).then(result => {
@@ -236,81 +253,19 @@ function hydrateUserData(email: string): void {
 }
 
 // ── Storage ───────────────────────────────────────────────────────────────────
-const STORAGE_KEY = 'cryptoverse_users';
-const SESSION_KEY = 'cryptoverse_session';
+// Batch D2b3: STORAGE_KEY ('cryptoverse_users') and SESSION_KEY ('cryptoverse_session'),
+// together with getUsers/saveUsers/getSession/saveSession, are deleted. The app no longer
+// reads OR writes a session or a user roster in the browser: identity comes from the Better
+// Auth cookie via GET /api/me, and the roster comes from GET /api/admin/users. App.tsx
+// holds a splash until the boot check (refreshFromServer) answers.
 
-function getUsers(): Record<string, { password: string; profile: UserProfile }> {
-  try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'); } catch { return {}; }
-}
-function saveUsers(u: Record<string, { password: string; profile: UserProfile }>) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(u));
-}
-function getSession(): UserProfile | null {
-  try {
-    const authSession = loadAuthSession();
-    const raw = localStorage.getItem(SESSION_KEY);
-    const cached = raw ? JSON.parse(raw) as Partial<UserProfile> : null;
-    const email = authSession?.email ?? cached?.email;
-    if (!email) return null;
-    return {
-      id: authSession?.email ?? cached?.id ?? '',
-      email,
-      displayName: cached?.displayName ?? email.split('@')[0],
-      avatarSeed: cached?.avatarSeed ?? email.split('@')[0],
-      plan: cached?.plan ?? 'free',
-      planExpiry: cached?.planExpiry,
-      referralCode: cached?.referralCode ?? '',
-      referralCount: cached?.referralCount ?? 0,
-      referralBonus: cached?.referralBonus ?? 0,
-      language: cached?.language ?? 'en',
-      isFirstLogin: cached?.isFirstLogin ?? false,
-      joinedAt: cached?.joinedAt ?? new Date().toISOString(),
-      role: cached?.role ?? 'user',
-      isAdmin: cached?.isAdmin ?? roleToIsAdmin(cached?.role ?? 'user'),
-      virtualBalance: cached?.virtualBalance ?? 0,
-    };
-  } catch { return null; }
-}
-function saveSession(p: UserProfile | null) {
-  if (p) {
-    localStorage.setItem(SESSION_KEY, JSON.stringify({
-      ...p,
-      role: p.role,
-      isAdmin: roleToIsAdmin(p.role),
-    }));
-  } else {
-    localStorage.removeItem(SESSION_KEY);
-  }
-}
-
-function profileFromServer(record: UserRecord, previous?: UserProfile | null): UserProfile {
-  const base = previous ?? {
-    id: record.nodeId,
-    email: record.email,
-    displayName: record.fullName || record.email.split('@')[0],
-    avatarSeed: (record.fullName || record.email).split(' ')[0],
-    plan: 'free' as const,
-    referralCode: makeReferralCode(record.fullName || record.email),
-    referralCount: 0,
-    referralBonus: 0,
-    language: 'en',
-    isFirstLogin: false,
-    joinedAt: record.createdAt || new Date().toISOString(),
-    role: 'user' as UserRole,
-    isAdmin: false,
-    virtualBalance: 0,
-  };
-  return migrateProfile({
-    ...base,
-    id: record.nodeId,
-    email: record.email,
-    displayName: record.fullName || base.displayName,
-    role: record.role as UserRole,
-    isAdmin: roleToIsAdmin(record.role as UserRole),
-    isDeveloper: record.role === 'developer',
-    joinedAt: record.createdAt || base.joinedAt,
-  });
-}
+// Batch D2c: `profileFromServer(record: UserRecord, …)` is deleted. It mapped the TASKADE
+// roster shape (record.nodeId / record.fullName / record.createdAt) onto UserProfile, and
+// its last caller was loginFromSession — which now goes through refreshFromServer() →
+// GET /api/me → applyServerUser(). Server records are mapped by
+// betterAuthClient.mapServerUserToProfile, and admin "view as" records by
+// profileFromAdminUserRecord below. This leaves authStore with no Taskade dependency at
+// all, which is what makes deleting authApi.ts (D3) safe.
 
 /**
  * Render a SERVER roster record (GET /api/admin/users/:userId — the Batch C2
@@ -355,17 +310,24 @@ function profileFromAdminUserRecord(record: AdminUserRecord): UserProfile {
  * — so `useAuthStore.user` can be null even though the API answers GET /api/me
  * for them. That is exactly what produced "Not logged in." and blocked view-as.
  *
- * Resolution order:
+ * Resolution order (Batch D2b2 — no browser storage anywhere):
  *   1. the caller's SERVER-verified identity (useAdminIdentity → GET /api/me);
- *   2. the persisted app session in this browser;
+ *   2. the last profile the SERVER confirmed this session (`lastServerProfile`, in-memory
+ *      only, so absent on a fresh page load);
  *   3. GET /api/me directly — the portal's own authentication.
  */
 async function resolveAdminIdentity(hint?: { email?: string; role?: string }): Promise<{ email: string; role: UserRole } | null> {
   const hintedEmail = String(hint?.email || '').trim();
   if (hintedEmail) return { email: hintedEmail, role: ((hint?.role as UserRole) || 'user') };
 
-  const session = getSession();
-  if (session?.email) return { email: session.email, role: (session.role as UserRole) ?? 'user' };
+  // Batch D2b2: the browser-session fallback (cryptoverse_session) is gone. The only
+  // local source allowed now is the profile the SERVER last confirmed — in-memory, so
+  // null on a fresh page load — and when there is none we ask the API directly below
+  // instead of inventing an identity out of browser storage.
+  const confirmed = useAuthStore.getState().lastServerProfile;
+  if (confirmed?.email) {
+    return { email: confirmed.email, role: (confirmed.role as UserRole) ?? 'user' };
+  }
 
   try {
     const me = await fetchMe();
@@ -384,11 +346,10 @@ async function resolveAdminIdentity(hint?: { email?: string; role?: string }): P
 // Extension point: a one-time setup script or environment-variable-driven
 // initial Super Admin seed can be added here if needed for new deployments.
 
-// Warm the admin cache only when an authenticated session exists. Public auth
-// pages must not fetch the full users roster before registration or login.
-if (loadAuthSession()?.email) {
-  refreshAdminCacheFromDb().catch(() => {});
-}
+// Batch D2b1: the module-load admin-cache warm is gone. It ran `refreshAdminCacheFromDb()`
+// (a Taskade-roster read) whenever a browser session existed — exactly the kind of
+// pre-server fetch the boot check replaces. Admin identity now comes from GET /api/me via
+// adminApi, and the whole userMigrationService module is deleted in D3.
 
 // ── Role helpers ──────────────────────────────────────────────────────────────
 function roleToIsAdmin(role: UserRole): boolean {
@@ -414,13 +375,14 @@ function migrateProfile(profile: UserProfile): UserProfile {
 }
 
 // ── Store ─────────────────────────────────────────────────────────────────────
-const session = getSession();
-const migratedSession = session ? migrateProfile(session) : null;
-
-// If a "View as User" session is still active in this tab (sessionStorage),
-// render the target user's profile instead of the admin's on initial load.
+// Batch D2b1: there is NO session read from the browser any more. The server is the
+// only authority — App.tsx holds a splash while the boot check (refreshFromServer →
+// GET /api/me) answers, and that answer is what populates this store. `getSession()`,
+// `migratedSession` and `initialUser` are gone with the cryptoverse_session mirror.
+//
+// If a "View as User" session is still active in this tab (sessionStorage), render the
+// target user's profile instead of the admin's on initial load.
 const initialViewState = loadViewState();
-let initialUser = migratedSession;
 
 // Boot restore for an in-flight "View as User" session (this tab only).
 //
@@ -444,31 +406,21 @@ if (initialViewState.isViewing && initialViewState.targetUser) {
     .catch(() => { /* keep the admin session; the view banner still offers Exit */ });
 }
 
-// Task 49: on a fresh page load with an already-active session, pull this
-// user's Academy XP/lesson progress from the DB too (login()/loginFromSession()
-// only cover the moment of signing in — a plain refresh needs this as well).
-if (initialUser?.email) {
-  import('./academyStore').then(({ useAcademyStore }) => {
-    useAcademyStore.getState().hydrate(initialUser!.email).catch(() => {});
-  });
-  // Priority 5: same treatment for trading/bots/copy-trading/marketplace/CP-coins.
-  import('./tradingMigrationService').then(({ onTradingLogin }) => {
-    onTradingLogin(initialUser!.email).catch(() => {});
-  });
-  // Pull this user's saved language preference from the DB too, so a plain
-  // refresh (not just a fresh login) picks up a language chosen elsewhere.
-  import('./i18nStore').then(({ hydrateLang }) => {
-    hydrateLang(initialUser!.email).catch(() => {});
-  });
-}
+// Batch D2b1: the "Task 49" hydration block that used to run here is gone. It keyed
+// off a browser-held session (`initialUser?.email`) and duplicated — only partially —
+// what applyServerUser() already does for every SERVER-confirmed session:
+// hydrateUserData() pulls cloud data, Academy XP, trading/bots/copy-trading, language
+// and universal memory.
 
 export const useAuthStore = create<AuthState>((set, get) => ({
-  user:            initialUser,
+  // Empty until the server answers (Batch D2b1). App.tsx gates the app shell on the
+  // boot check, so nothing renders a "signed in" UI out of browser storage.
+  user:              null,
   lastServerProfile: null,
-  isAuthenticated: !!migratedSession,
-  isAdmin:         !!initialUser && roleToIsAdmin(initialUser.role),
-  isSuperAdmin:    initialUser?.role === 'super_admin',
-  viewState:       initialViewState,
+  isAuthenticated:   false,
+  isAdmin:           false,
+  isSuperAdmin:      false,
+  viewState:         initialViewState,
 
   // ── "View as User" (§New Feature 2) ───────────────────────────────────────
   // The target now comes from the SERVER (findAdminUserByEmail → GET
@@ -542,13 +494,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const cleared: ViewState = { isViewing: false, targetUser: null, originalUser: null, originalRole: null, startedAt: null };
     saveViewState(cleared);
 
-    // Restore the ADMIN's own profile. The viewed account was only ever a render
-    // swap, so the persisted session and the Better Auth cookie still belong to
-    // the admin: read the local session first for an instant, flicker-free
-    // restore, then let the SERVER confirm it. `/api/me` is answered with the
-    // admin's identity (their cookie), never the viewed user's — and a 401 clears
-    // a revoked session properly instead of leaving a stale profile on screen.
-    const restored = getSession();
+    // Restore the ADMIN's own profile. The viewed account was only ever a render swap,
+    // so the cookie still belongs to the admin.
+    //
+    // Batch D2b2: `restored` comes from the last profile the SERVER confirmed, not from
+    // the cryptoverse_session mirror. On a fresh page there is no in-memory profile yet,
+    // so `user` goes back to null for that instant and the refreshFromServer() below
+    // fills it in from GET /api/me — never from browser storage.
+    const restored = get().lastServerProfile;
     set({
       user:         restored ? migrateProfile(restored) : null,
       viewState:    cleared,
@@ -556,7 +509,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       isSuperAdmin: restored?.role === 'super_admin',
     });
 
-    Promise.resolve(get().refreshFromServer()).catch(() => { /* keep the local restore */ });
+    Promise.resolve(get().refreshFromServer()).catch(() => { /* the server answer lands via applyServerUser */ });
   },
 
   // `login(email, password)` was removed in Batch C. Password authentication no
@@ -583,10 +536,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         new Promise<void>(resolve => setTimeout(resolve, 3000)),
       ]);
     } catch { /* local sign-out still proceeds */ }
-    destroySession();
-    saveSession(null);
-    // Also clear sessionStorage for any legacy entries
-    try { sessionStorage.removeItem('cryptoverse_session'); } catch { /* ignore */ }
+    // Batch D2b1: nothing to destroy locally — signOut() above already revoked the
+    // cookie server-side, and this store no longer writes a session to localStorage.
+    // Only the per-tab "View as User" state needs clearing.
     try { sessionStorage.removeItem(VIEW_STATE_KEY); } catch { /* ignore */ }
     // Clear all session-scoped state fully
     set({ user: null, isAuthenticated: false, isAdmin: false, isSuperAdmin: false,
@@ -613,7 +565,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         console.warn('[authStore] Profile update was not accepted by the server:', error);
       });
     }
-    saveSession(updated);
     set({
       user:         updated,
       isAdmin:      roleToIsAdmin(updated.role),
@@ -633,6 +584,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
    */
   applyServerUser: async (serverUser) => {
     const email = serverUser.email.toLowerCase().trim();
+
+    // P0 guard — see the comment block above hydrateUserData(). This action is
+    // idempotent for a given account but it triggers a full hydration + cloud sync,
+    // so repeats inside a short window are collapsed rather than re-run.
+    if (email === lastAppliedEmail && Date.now() - lastAppliedAt < APPLY_DEDUPE_WINDOW_MS) return;
+    lastAppliedEmail = email;
+    lastAppliedAt = Date.now();
     // Batch D2: the `cryptoverse_users` localStorage fallback is gone. The only
     // profile we may reuse is the last one the SERVER confirmed, so no code path
     // can resurrect a browser-held identity.
@@ -724,18 +682,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
 
-  applyReferral: (code) => {
-    const user = get().user;
-    if (!user) return;
-    const users = getUsers();
-    for (const [, entry] of Object.entries(users)) {
-      if (entry.profile.referralCode === code && entry.profile.id !== user.id) {
-        entry.profile.referralCount += 1;
-        entry.profile.referralBonus += 10000;
-        saveUsers(users);
-        break;
-      }
-    }
+  // Batch D2b2: this used to walk the cryptoverse_users localStorage mirror to credit a
+  // referrer. That mirror is no longer written anywhere (C2.2), so the scan already
+  // matched nothing — the action is now an explicit no-op rather than dead code that
+  // looks like it works. Crediting a referral needs a SERVER endpoint (the local roster
+  // cannot be trusted with balance changes); see the referral endpoint task.
+  applyReferral: (_code) => {
+    console.warn('[authStore] applyReferral is local-only and inert: referral credit needs a server endpoint.');
   },
 
   // `requestAdmin` was removed in Batch C. It granted the `admin` role from local
@@ -753,9 +706,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
    * authority over roles at all — the old `super_admin`-only guard here was a UI
    * check that the server now enforces properly via requireAdminWrite.
    *
-   * The signature stays (email, newRole) because AdminAdmins.tsx and
-   * AdminRoleManagement.tsx already call it that way, and the former calls it
-   * fire-and-forget — so this must never reject.
+   * The signature stays (email, newRole) because AdminAdmins.tsx calls it that way
+   * (AdminRoleManagement.tsx no longer exists) and calls it fire-and-forget — so this
+   * must never reject.
    */
   setUserRole: async (targetEmail, newRole) => {
     const key = targetEmail.toLowerCase().trim();
@@ -782,12 +735,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       await apiPost(`/api/admin/users/${encodeURIComponent(targetId)}/role`, { role: newRole });
 
-      // Mirror the server's answer locally so the local roster doesn't drift.
-      const users = getUsers();
-      if (users[key]) {
-        users[key].profile = migrateProfile({ ...users[key].profile, role: newRole, isAdmin: roleToIsAdmin(newRole) });
-        saveUsers(users);
-      }
+      // Batch D2b2: the local roster mirror is gone, so there is nothing to keep in
+      // sync — the server's own answer is authoritative and is re-read on the next
+      // refreshFromServer(). Nothing is written to cryptoverse_users any more.
       if (key === get().user?.email?.toLowerCase()) await get().refreshFromServer();
       return { success: true };
     } catch (error) {
@@ -798,10 +748,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
 
-  getAllUsers: () => {
-    const users = getUsers();
-    return Object.entries(users).map(([email, { profile }]) => ({ email, profile }));
-  },
+  // Batch D2b2: `getAllUsers` (a reader over the cryptoverse_users localStorage mirror)
+  // is deleted — the mirror is no longer written, so it only ever returned an empty list,
+  // and the real roster is GET /api/admin/users (adminUsersApi.fetchAllAdminUsers).
 
   addVirtualBalance: (amount) => {
     const user = get().user;
@@ -824,19 +773,20 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     });
   },
 
-  loginFromSession: async ({ email }) => {
-    try {
-      const record = await findUserByEmail(email.toLowerCase().trim());
-      if (!record || record.status !== 'active') return;
-      const profile = profileFromServer(record, get().user?.email === record.email ? get().user : null);
-      createSession(record.email);
-      saveSession(profile);
-      set({ user: profile, isAuthenticated: true, isAdmin: roleToIsAdmin(profile.role), isSuperAdmin: profile.role === 'super_admin' });
-      recordLogin({ userId: profile.id, method: 'email' });
-      hydrateUserData(profile.email);
-    } catch {
-      console.warn('[authStore] Server session hydration failed.');
-    }
+  /**
+   * Confirm/restore the app session after an external auth step (VerifyOtpPage) or an
+   * admin "view as user" exit.
+   *
+   * Batch D2c: this delegates to the SERVER — refreshFromServer() → GET /api/me →
+   * applyServerUser() — instead of reading the Taskade roster. The supplied email is now
+   * only advisory: the HttpOnly cookie set by the OTP exchange is what proves identity, so
+   * this also works for an admin who has no app session at all. Deleting authApi.ts (D3)
+   * depends on this re-point.
+   *
+   * `recordLogin` and `hydrateUserData` still run — inside applyServerUser.
+   */
+  loginFromSession: async () => {
+    await get().refreshFromServer();
   },
 
   refreshRole: async () => {
@@ -852,33 +802,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 }));
 
 
-async function hydrateCurrentUserFromServer(): Promise<void> {
-  const cachedUser = useAuthStore.getState().user;
-  if (!cachedUser?.email) return;
-  try {
-    let record = await findUserByEmail(cachedUser.email);
-    if (!record) {
-      // "Not found" is about to sign this user out, so confirm it against a
-      // fresh read first: a stale or partial roster cache must never be able to
-      // end a valid session (this runs on every full page load, so an ambiguous
-      // miss here would log everyone out on refresh).
-      invalidateUserRosterCache();
-      record = await findUserByEmail(cachedUser.email);
-    }
-    if (!record || record.status !== 'active') {
-      destroySession();
-      saveSession(null);
-      useAuthStore.setState({ user: null, isAuthenticated: false, isAdmin: false, isSuperAdmin: false });
-      return;
-    }
-    const profile = profileFromServer(record, cachedUser);
-    saveSession(profile);
-    useAuthStore.setState({ user: profile, isAuthenticated: true, isAdmin: roleToIsAdmin(profile.role), isSuperAdmin: profile.role === 'super_admin' });
-    hydrateUserData(profile.email);
-  } catch {
-    console.warn('[authStore] Server hydration unavailable; retaining the cached session until retry.');
-  }
-}
-
-void hydrateCurrentUserFromServer();
+// Batch D2b1: `hydrateCurrentUserFromServer()` is deleted, along with its module-load
+// call. It re-checked the session against the TASKADE roster on every full page load and,
+// on a miss, called destroySession() + cleared the store — so one ambiguous or slow roster
+// read could sign out a user whose Better Auth cookie was perfectly valid. That is the
+// session-destroyer this batch removes.
+//
+// The server check is now `refreshFromServer()` (GET /api/me), driven by the App.tsx boot
+// guard, and it is the only thing allowed to clear the session.
 

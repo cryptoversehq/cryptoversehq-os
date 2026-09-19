@@ -1,6 +1,6 @@
 {
   "name": "@taskade/parade-base-template-v2",
-  "version": "2.5.10",
+  "version": "2.5.11",
   "private": true,
   "files": [
     "dist",
@@ -18,7 +18,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@ai-sdk/react": "^3.0.283",
+    "@ai-sdk/react": "^3.0.289",
     "@formkit/auto-animate": "^0.8.2",
     "@hello-pangea/dnd": "^18.0.1",
     "@hookform/resolvers": "^5.2.2",
@@ -55,7 +55,7 @@
     "@streamdown/math": "^1.0.2",
     "@streamdown/mermaid": "^1.0.2",
     "@taskade/genesis-client": "*",
-    "ai": "^6.0.280",
+    "ai": "^6.0.286",
     "autoprefixer": "^10.4.20",
     "axios": "^1.20.0",
     "class-variance-authority": "^0.7.1",

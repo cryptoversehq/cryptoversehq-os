@@ -64,6 +64,10 @@
 
          The DSN is a public identifier by design (send-only), safe in HTML. To
          rotate it, change it here.
+
+         NOTE: redundant since SentryBoot.tsx (which injects the same bundle at
+         runtime) — kept for future use: it is double-init safe and would cover the
+         case where the runtime serves this HTML shell instead of its own.
          =========================================================================== -->
     <script src="https://browser.sentry-cdn.com/10.75.0/bundle.min.js" crossorigin="anonymous"></script>
     <script>

@@ -45,9 +45,18 @@ export function AdminTransactions() {
     navigator.clipboard.writeText(hash).then(() => { setCopied(hash); setTimeout(() => setCopied(null), 1500); });
   };
 
-  const handleApprove = (id: string) => {
-    const res = adminApprove(id, identity?.email ?? 'unknown');
-    if (!res.ok) alert(res.error ?? 'Could not approve payment.');
+  // Batch D5: adminApprove is ASYNC — it waits for the API (subscriptions/grant or
+  // users/:id/balance) before the row is marked verified. `busyId` disables the decide
+  // buttons while a decision is in flight, and server errors surface verbatim.
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const handleApprove = async (id: string) => {
+    setBusyId(id);
+    try {
+      const res = await adminApprove(id, identity?.email ?? 'unknown');
+      if (!res.ok) alert(res.error ?? 'Could not approve payment.');
+    } finally {
+      setBusyId(null);
+    }
   };
   const confirmReject = () => {
     if (!rejectId) return;
@@ -154,12 +163,15 @@ export function AdminTransactions() {
                 </span>
                 {tx.status === 'pending' && (
                   <>
-                    <button onClick={() => handleApprove(tx.id)}
-                      className="p-1.5 rounded-lg bg-green-500/10 border border-green-500/20 text-green-400 hover:bg-green-500/20 transition-all">
-                      <Check className="h-3.5 w-3.5" />
+                    {/* Batch D5: the approve button waits for the server, so it is disabled
+                        while ANY decision is in flight and shows a spinner for its own row. */}
+                    <button onClick={() => void handleApprove(tx.id)} disabled={busyId !== null}
+                      title={busyId === tx.id ? 'Waiting for the server…' : 'Approve'}
+                      className="p-1.5 rounded-lg bg-green-500/10 border border-green-500/20 text-green-400 hover:bg-green-500/20 transition-all disabled:opacity-40">
+                      {busyId === tx.id ? <Clock className="h-3.5 w-3.5 animate-pulse" /> : <Check className="h-3.5 w-3.5" />}
                     </button>
-                    <button onClick={() => { setRejectId(tx.id); setRejectReason(''); }}
-                      className="p-1.5 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500/20 transition-all">
+                    <button onClick={() => { setRejectId(tx.id); setRejectReason(''); }} disabled={busyId !== null}
+                      className="p-1.5 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500/20 transition-all disabled:opacity-40">
                       <X className="h-3.5 w-3.5" />
                     </button>
                   </>

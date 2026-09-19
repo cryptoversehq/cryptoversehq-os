@@ -22,6 +22,9 @@ import { AdminSentiment } from '../components/admin/portal/pages/AdminSentiment'
 import { AdminExchangeManagement } from '../components/admin/portal/pages/AdminExchangeManagement';
 import { AdminSubscriptions } from '../components/admin/portal/pages/AdminSubscriptions';
 import { AdminRevenueDashboard } from '../components/admin/portal/pages/AdminRevenueDashboard';
+// Batch D6: the Strategy Marketplace moderation page. Its only previous home was the legacy
+// Profile admin drawer (AdminPanel → AdminStrategyManagement), both deleted in D6.
+import { AdminStrategies } from '../components/admin/portal/pages/AdminStrategies';
 import { AdminApiManagement } from '../pages/admin/AdminApiManagement';
 import { AdminSettings } from '../pages/admin/AdminSettings';
 import { CloudDashboardPage } from '../pages/admin/CloudDashboardPage';
@@ -177,6 +180,10 @@ export function AdminRoutes() {
         <Route path="exchange" element={<AdminExchangeManagement />} />
         <Route path="subscriptions" element={<SubscriptionAdminGuard><AdminSubscriptions /></SubscriptionAdminGuard>} />
         <Route path="revenue" element={<AdminRevenueDashboard />} />
+        {/* Batch D6 — the portal home for strategy moderation (was only in the deleted
+            Profile admin drawer). No SectionGuard id exists for strategies; access is the
+            portal's ServerAdminGuard, and the nav item is owner-tier only. */}
+        <Route path="strategies" element={<AdminStrategies />} />
         {/* Role Management was merged into the Users section — keep old links working. */}
         <Route path="role-management" element={<Navigate to="/admin/users" replace />} />
         <Route path="api-management" element={<AdminApiManagement />} />

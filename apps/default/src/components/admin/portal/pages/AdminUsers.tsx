@@ -30,7 +30,8 @@ import { useAdminManagementStore } from '@/lib/adminManagementStore';
 // Batch C2.5: the cryptoverse_admin_session store is gone — the admin identity and
 // level come from GET /api/me (useAdminIdentity + roleLevel).
 import { useAuthStore } from '@/lib/authStore';
-import { deleteUser } from '@/lib/authApi';
+// Batch D3 prep: `deleteUser` came from `@/lib/authApi` (Taskade login records) and is
+// removed with that module — see the delete handler below for what replaced it.
 import { getLoginHistory, type LoginEvent } from '@/lib/loginHistoryStore';
 import { ApiForbiddenError, apiDelete, apiGet, apiPost, hasFullAdminAccess, useAdminIdentity, roleLevel } from '@/lib/adminApi';
 import { fetchAllAdminUsers, findAdminUserByEmail, recordAdminViewAs, setAdminUserStatus, type AdminUserRecord } from '@/lib/adminUsersApi';
@@ -455,12 +456,14 @@ export function AdminUsers() {
       const m = (err as Error).message;
       notes.push(/404|405/.test(m) ? 'database delete failed (endpoint missing)' : `database delete failed (${m})`);
     }
-    if (selected.hasTaskade) {
-      const r = await deleteUser(email);
-      notes.push(r.ok ? 'login account deleted' : `login account not deleted (${r.error ?? 'unknown'})`);
-    } else {
-      notes.push('no login account to delete');
-    }
+    // Batch D3 prep: deleting the Taskade login record (authApi.deleteUser) is gone with
+    // that module. Be explicit about what that leaves behind rather than reporting a
+    // deletion that did not happen: only the public.users row was removed. The user's Better
+    // Auth account survives, and because authenticate() auto-provisions an app user for an
+    // orphan session, that account can sign in again and re-create its row. Closing that
+    // needs a SERVER-side auth-account deletion (delete the Better Auth user, not just
+    // public.users) — tracked as a backend task.
+    notes.push('server auth account not removed (needs a backend delete route)');
     writeAudit('delete_admin', email, 'User deleted');
     setDeleting(false);
     setConfirmDelete(false);

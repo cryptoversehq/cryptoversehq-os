@@ -56,12 +56,20 @@ import { LoginPage } from './components/auth/LoginPage';
 import WelcomeProMessage from './components/features/WelcomeProMessage';
 import QuickTour from './components/features/QuickTour';
 import { AdminRoutes } from './routes/AdminRoutes';
+import { SentryBoot } from './components/SentryBoot';
 import { AuthRoutes } from './routes/AuthRoutes';
 import { MainRoutes } from './routes/MainRoutes';
 import { PublicRoutes, PUBLIC_PATHS } from './routes/PublicRoutes';
 import { trackProductEventInBackground } from './lib/productAnalytics';
 import { useBinanceLiveFeed } from './hooks/useBinanceLiveFeed';
 import { pushBinancePrice, clearBinancePrice, subscribePrices } from './lib/globalPriceEngine';
+import { ensureSentryInit } from './lib/sentry';
+
+// Kick the Sentry loader at MODULE evaluation rather than relying only on a component
+// effect: this runs as soon as App.tsx is imported (before the first render), so error
+// reporting comes up even if the component tree takes a different path than expected.
+// ensureSentryInit() is idempotent, so SentryBoot mounting later is a no-op.
+void ensureSentryInit();
 
 const DEFAULT_BINANCE_FEEDS = [
   { coinId: 'bitcoin', symbol: 'btcusdt' },
@@ -849,7 +857,7 @@ function LynxAIIntegration() {
 // ─── AUTH-AWARE INNER APP ─────────────────────────────────────────────────────
 // Must be inside <Router> to use useLocation
 function AppInner() {
-  const { isAuthenticated, user, refreshRole, refreshFromServer } = useAuthStore();
+  const { isAuthenticated, user, refreshRole, refreshFromServer, lastServerProfile } = useAuthStore();
   const location            = useLocation();
   const { trackPageView }   = useLynxEvents();
 
@@ -863,17 +871,45 @@ function AppInner() {
   const [sessionChecked, setSessionChecked] = useState(false);
   useEffect(() => {
     let canceled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
     const done = () => { if (!canceled) setSessionChecked(true); };
-    // Failsafe: never hold the splash forever. A sleeping Render instance must
-    // not turn into a permanent white screen — the login page is the safe default.
-    const failsafe = setTimeout(done, 8000);
-    // refreshFromServer() rather than refreshRole(): refreshRole() bails out early
-    // when there is no local user, and after Batch D2 there is deliberately no
-    // local user until this very call populates one.
-    void refreshFromServer()
-      .catch(() => { /* 401/403 = no session; the login page takes over */ })
-      .finally(() => { clearTimeout(failsafe); done(); });
-    return () => { canceled = true; clearTimeout(failsafe); };
+
+    // Failsafe covers the retries too (8s + 2s + 6s), so a sleeping API still lands on
+    // the login page instead of a permanent splash.
+    const failsafe = setTimeout(done, 16_000);
+
+    // refreshFromServer() rather than refreshRole(): refreshRole() bails out early when
+    // there is no local user, and after Batch D2 there is deliberately no local user
+    // until this very call populates one.
+    //
+    // RETRY: a transient 5xx / network failure must not be read as "signed out". After
+    // D2b1 there is no localStorage session either, so a wrong conclusion at boot shows
+    // the login page to a user whose cookie is perfectly valid. refreshFromServer()
+    // returns false for BOTH "definitive 401/403" and "ambiguous failure", so the retry
+    // is bounded by "we still have nothing" rather than trying to classify it: worst
+    // case a genuinely signed-out visitor costs two extra 401s, which is negligible
+    // next to a false login screen.
+    const attempt = (delays: number[]) => {
+      void refreshFromServer()
+        .then(ok => {
+          if (canceled) return;
+          if (ok || useAuthStore.getState().isAuthenticated || delays.length === 0) {
+            clearTimeout(failsafe);
+            done();
+            return;
+          }
+          const [wait, ...rest] = delays;
+          timer = setTimeout(() => attempt(rest), wait);
+        })
+        .catch(() => { clearTimeout(failsafe); done(); });
+    };
+    // Skip the retries on the auth routes: a signed-out visitor sitting on /login does
+    // not need two extra 401s, and the boot check's single call is enough to decide.
+    const onAuthRoute = ['/login', '/signup', '/verify-otp', '/auth', '/admin/login']
+      .some(path => location.pathname.startsWith(path));
+    attempt(onAuthRoute ? [] : [2_000, 6_000]);
+
+    return () => { canceled = true; clearTimeout(failsafe); if (timer) clearTimeout(timer); };
   }, [refreshFromServer]);
 
   /** Full-screen splash shown while the server is asked about the session. */
@@ -1034,7 +1070,18 @@ function AppInner() {
   useEffect(() => {
     console.group('🔍 [Auth] Startup Diagnostic');
     console.log('1. isAuthenticated:', isAuthenticated);
-    console.log('2. User:', user ? { email: user.email, role: user.role, plan: user.plan } : 'null');
+    // Deliberately explicit: a bare `undefined` here was reported as "the profile
+    // failed to load" when the truth was "no user in memory yet". `source` says where
+    // the value came from, so a console report can be acted on instead of guessed at.
+    console.log('2. User:', user
+      ? { source: 'authStore.user', id: user.id, email: user.email, role: user.role, plan: user.plan }
+      : { source: 'none', user: null, note: 'no profile in memory yet — the boot check populates it' });
+    console.log('2b. Boot check:', {
+      sessionChecked,
+      isAuthenticated,
+      hasUser: !!user,
+      lastServerProfile: !!lastServerProfile,
+    });
     // Check for OIDC token in sessionStorage / localStorage
     const oidcKeys = Object.keys(sessionStorage).filter(k => k.includes('oidc') || k.includes('token'));
     console.log('3. OIDC sessionStorage keys:', oidcKeys.length > 0 ? oidcKeys : 'NONE');
@@ -1045,13 +1092,15 @@ function AppInner() {
     console.log('6. window.location.origin:', window.location.origin);
     console.log('7. Deployed Space ID (hardcoded): rdem1z86swzzv7q');
     console.groupEnd();
-  }, [isAuthenticated, user]);
+  }, [isAuthenticated, user, sessionChecked, lastServerProfile]);
 
   // ── Public routes whitelist (replaces manual exclusion chain) ──
   const isPublicPath = PUBLIC_PATHS.includes(location.pathname);
 
   return (
     <>
+      {/* Frontend Sentry: injects the CDN bundle and initializes it once. Renders null. */}
+      <SentryBoot />
       <ViewOnlyGuard />
 
       <Routes>

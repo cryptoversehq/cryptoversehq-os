@@ -27,6 +27,7 @@ src/
     ├── genesis-auth.tsx     # <GenesisAuth> OIDC wrapper (end-user login)
     ├── gateway-auth.tsx     # forwards the signed-in user's id_token to the gateway
     ├── createPersistentStore.ts  # zustand + localStorage persistence
+    ├── leaflet-setup.ts     # import from map surfaces for CSS + marker icons
     └── theme-bridge.ts      # live theme overrides from the Taskade editor
 docs/                    # Focused chapters - see docs/README.md
 AGENTS.md                # Agent quick contract (read first)
@@ -48,6 +49,8 @@ AGENTS.md                # Agent quick contract (read first)
   class. ThemeProvider is pre-mounted. `docs/02_theming.md`.
 - **Routing**: `react-router-dom` v6, `BrowserRouter`. `docs/03_routing_pages.md`.
 - **State**: zustand (or `createPersistentStore` for localStorage persistence).
+- **Maps**: import `@/lib/leaflet-setup` from each map surface that uses
+  `react-leaflet`; normal apps leave Leaflet out of their startup bundle.
 - **Third-party APIs with keys**: `GenesisClient.proxy()` from
   `@taskade/genesis-client` - never embed a raw key. `docs/01_data_layer.md`.
 - **Full guide**: `docs/HOW_TO_USE.md`; per-topic chapters in `docs/README.md`.

@@ -12,6 +12,21 @@ export interface OfflineQueueEntry<T = unknown> {
 const QUEUE_KEY = 'cv_cloud_offline_queue_v2';
 const DEAD_KEY = 'cv_cloud_dead_letters_v2';
 
+/**
+ * True when retrying the same entry cannot possibly succeed.
+ *
+ * `PermanentCloudWriteError` is thrown by TaskadeCloudProvider for an oversized body;
+ * the status pattern covers raw transport failures, whose message carries the HTTP
+ * status (platformTransport reports "…failed: 413 <path>"). Only 400/404/413/422 are
+ * treated as permanent — 401/403 stay retryable because a session refresh genuinely
+ * fixes those.
+ */
+function isPermanentWriteFailure(error: unknown): boolean {
+  if ((error as { name?: string })?.name === 'PermanentCloudWriteError') return true;
+  const message = error instanceof Error ? error.message : String(error ?? '');
+  return /\b(400|404|413|422)\b/.test(message);
+}
+
 export class OfflineQueue<T = unknown> {
   private entries: OfflineQueueEntry<T>[] = this.load(QUEUE_KEY);
   private deadLetters: OfflineQueueEntry<T>[] = this.load(DEAD_KEY);
@@ -40,12 +55,18 @@ export class OfflineQueue<T = unknown> {
         await handler(entry);
         this.entries = this.entries.filter(item => item.id !== entry.id);
         completed += 1;
-      } catch {
+      } catch (error) {
         entry.attempts += 1;
         failed += 1;
-        if (entry.attempts >= entry.maxAttempts) {
+        // P0 — permanent failures are not retried. A payload the server refuses on
+        // size (413), or a malformed/missing write (400/404/422), can never succeed
+        // by trying again; retrying it forever is what produced the request storm.
+        if (isPermanentWriteFailure(error) || entry.attempts >= entry.maxAttempts) {
           this.entries = this.entries.filter(item => item.id !== entry.id);
           this.deadLetters.push(entry);
+          // Bounded: dead letters are persisted to localStorage as well, and an
+          // unbounded list would eventually exhaust the storage quota.
+          if (this.deadLetters.length > 50) this.deadLetters = this.deadLetters.slice(-50);
         } else {
           entry.nextAttemptAt = Date.now() + Math.min(300_000, 1000 * 2 ** entry.attempts);
         }

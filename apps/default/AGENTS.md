@@ -21,7 +21,9 @@ a chapter only when you need it.
 2. Verify before import. If a path or package is not in this tree or
    `package.json`, it does not exist - do not import it. No new dependencies.
    Icons: import from `@/lib/icons` - every real lucide-react icon name
-   resolves there, but an invented icon name fails the whole build.
+   resolves there, but an invented icon name fails the whole build. A component
+   that renders a Leaflet map must import `@/lib/leaflet-setup` itself so the
+   map alone loads Leaflet's CSS and bundled marker icons.
 3. NEVER edit files under `src/components/ui/` or `src/components/blocks/`.
    Theme via `src/index.css` tokens; wrap primitives in your own components.
 4. ThemeProvider (next-themes, `attribute="class"`, default dark) is

@@ -78,3 +78,113 @@ export function addSentryBreadcrumb(message: string, data?: Record<string, unkno
   if (!s?.addBreadcrumb) return;
   try { s.addBreadcrumb({ category: 'app', message, level: 'info', data }); } catch { /* ignore */ }
 }
+
+// ── Loader ────────────────────────────────────────────────────────────────────
+
+const CDN_SRC = 'https://browser.sentry-cdn.com/10.75.0/bundle.min.js';
+
+/** Public (send-only) DSN for the FRONTEND Sentry project. */
+export const SENTRY_FRONTEND_DSN =
+  'https://191d18ba9b7b563449f135803b4325da@o4512103258718208.ingest.de.sentry.io/4512103327531088';
+
+let loadPromise: Promise<boolean> | null = null;
+
+/**
+ * Make sure the browser SDK is loaded AND initialized. Idempotent, safe to call from
+ * anywhere (SentryBoot calls it once on mount).
+ *
+ * WHY THIS EXISTS IN ADDITION TO THE <script> TAGS IN app/index.html: the published
+ * build did not carry those tags — `window.Sentry` was undefined in the deployed page —
+ * so the HTML path cannot be relied on (the Genesis build emits its own shell). Loading
+ * from the component layer works regardless of which HTML the runtime serves. If the
+ * HTML script DID run, `client()` is already set and this returns immediately: no
+ * double init.
+ */
+export function ensureSentryInit(): Promise<boolean> {
+  if (typeof window === 'undefined') return Promise.resolve(false);
+  if (client()) {
+    console.info('[Sentry] Frontend SDK already initialised');
+    return Promise.resolve(true);
+  }
+  if (loadPromise) return loadPromise;
+
+  loadPromise = new Promise<boolean>(resolve => {
+    let settled = false;
+    const settle = (ok: boolean, why?: string) => {
+      if (settled) return;
+      settled = true;
+      if (!ok && why) console.warn(`[Sentry] ${why}`);
+      resolve(ok);
+    };
+
+    const initialize = (): boolean => {
+      const s = (globalThis as { Sentry?: SentryLike & { init?: (options: Record<string, unknown>) => void } }).Sentry;
+      if (!s || typeof s.init !== 'function') return false;
+      try {
+        const maybeTracing = s as unknown as { browserTracingIntegration?: () => unknown };
+        const tracing = typeof maybeTracing.browserTracingIntegration === 'function'
+          ? [maybeTracing.browserTracingIntegration()]
+          : [];
+        s.init({
+          dsn: SENTRY_FRONTEND_DSN,
+          environment: /^(localhost|127\.|\[::1\])/.test(location.hostname) ? 'development' : 'production',
+          integrations: tracing,
+          tracesSampleRate: 0.1,
+        });
+        return true;
+      } catch (error) {
+        console.warn('[Sentry] init() threw:', error);
+        return false;
+      }
+    };
+
+    // The SDK is already on the page (e.g. the index.html CDN tag ran) — just initialise.
+    if ((globalThis as { Sentry?: unknown }).Sentry) {
+      const ok = initialize();
+      if (ok) console.info('[Sentry] Frontend SDK initialized (pre-existing script)');
+      settle(ok, 'SDK present but Sentry.init is unavailable');
+      return;
+    }
+
+    // A script tag for the bundle may already exist (index.html, or an earlier call).
+    const selector = 'script[data-cv-sentry], script[src*="sentry-cdn"]';
+    const existing = document.querySelector<HTMLScriptElement>(selector);
+    const script = existing ?? document.createElement('script');
+
+    if (existing) {
+      console.info('[Sentry] Found an existing CDN script tag — waiting for it to load');
+      const done = () => {
+        const ok = initialize();
+        if (ok) console.info('[Sentry] Frontend SDK initialized');
+        settle(ok, 'CDN script loaded but Sentry.init is unavailable');
+      };
+      script.addEventListener('load', done, { once: true });
+      script.addEventListener('error', () => settle(false, 'Failed to load CDN bundle (existing tag)'), { once: true });
+      setTimeout(() => settle(!!client() || initialize(), 'CDN load timed out after 10s (existing tag)'), 10_000);
+      return;
+    }
+
+    script.src = CDN_SRC;
+    script.crossOrigin = 'anonymous';
+    script.dataset.cvSentry = '1';
+    script.async = true;
+
+    script.onload = () => {
+      const ok = initialize();
+      if (ok) console.info('[Sentry] Frontend SDK initialized');
+      settle(ok, 'CDN loaded but Sentry.init is unavailable — check the bundle version/URL');
+    };
+    script.onerror = () => {
+      // Fires for a network failure, a blocked host, or a CSP violation. If the console
+      // also shows "Refused to load the script … Content Security Policy", it is CSP.
+      settle(false, 'Failed to load CDN bundle — blocked (CSP/offline) or unreachable');
+    };
+
+    document.head.appendChild(script);
+    console.info('[Sentry] Injecting CDN bundle:', CDN_SRC);
+
+    setTimeout(() => settle(!!client() || initialize(), 'CDN load timed out after 10s'), 10_000);
+  });
+
+  return loadPromise;
+}
